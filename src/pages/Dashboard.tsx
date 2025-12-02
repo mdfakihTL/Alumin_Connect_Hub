@@ -2,11 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNavigate } from 'react-router-dom';
+import { useEvents } from '@/contexts/EventsContext';
+import { useConnections } from '@/contexts/ConnectionsContext';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
 import PostModal from '@/components/PostModal';
 import NotificationBell from '@/components/NotificationBell';
 import CommentSection from '@/components/CommentSection';
+import GlobalSearchDropdown from '@/components/GlobalSearchDropdown';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -283,6 +286,8 @@ const Dashboard = () => {
   const { theme, toggleTheme } = useTheme();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { events } = useEvents();
+  const { connections } = useConnections();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<{ id: number; content: string; media?: { type: 'image' | 'video'; url: string } } | null>(null);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
@@ -291,9 +296,11 @@ const Dashboard = () => {
   const [hasMore, setHasMore] = useState(true);
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [expandedComments, setExpandedComments] = useState<Set<number>>(new Set());
   const [copiedPostId, setCopiedPostId] = useState<number | null>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
   const POSTS_PER_PAGE = 6;
   const nextPostId = useRef(1000); // Start user posts at 1000 to avoid conflicts
 
@@ -305,27 +312,59 @@ const Dashboard = () => {
     });
   };
 
-  // Filter posts by search query
-  const getFilteredPosts = () => {
-    const allPosts = getAllPosts();
-    if (!searchQuery.trim()) return allPosts;
-    
-    const query = searchQuery.toLowerCase();
-    return allPosts.filter(post => 
-      post.content.toLowerCase().includes(query) ||
-      post.author.toLowerCase().includes(query) ||
-      post.university.toLowerCase().includes(query) ||
-      (post.jobTitle && post.jobTitle.toLowerCase().includes(query)) ||
-      (post.company && post.company.toLowerCase().includes(query))
-    );
+  // Handle search result selection
+  const handleSearchResultSelect = (result: any) => {
+    setSearchQuery('');
+    setShowSearchDropdown(false);
+
+    switch (result.type) {
+      case 'post':
+        navigate(`/post/${result.id}`, { state: { post: result.data } });
+        break;
+      case 'user':
+        navigate('/profile', { 
+          state: { 
+            userData: {
+              name: result.data.author,
+              avatar: result.data.avatar,
+              university: result.data.university,
+              year: result.data.year,
+            }
+          } 
+        });
+        break;
+      case 'event':
+        navigate('/events');
+        break;
+      case 'connection':
+        navigate('/connections');
+        break;
+    }
   };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSearchDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Show dropdown when typing
+  useEffect(() => {
+    setShowSearchDropdown(searchQuery.trim().length > 0);
+  }, [searchQuery]);
 
   // Load more posts
   const loadMorePosts = () => {
-    const filteredPosts = getFilteredPosts();
+    const allPosts = getAllPosts();
     const startIdx = page * POSTS_PER_PAGE;
     const endIdx = startIdx + POSTS_PER_PAGE;
-    const newPosts = filteredPosts.slice(startIdx, endIdx);
+    const newPosts = allPosts.slice(startIdx, endIdx);
 
     if (newPosts.length === 0) {
       setHasMore(false);
@@ -346,20 +385,6 @@ const Dashboard = () => {
     setDisplayedPosts(prev => [...prev, ...postsWithAds]);
     setPage(prev => prev + 1);
   };
-
-  // Reset and reload posts when search changes
-  useEffect(() => {
-    setDisplayedPosts([]);
-    setPage(0);
-    setHasMore(true);
-    // Trigger initial load with new search
-    setTimeout(() => {
-      const filteredPosts = getFilteredPosts();
-      if (filteredPosts.length > 0) {
-        loadMorePosts();
-      }
-    }, 0);
-  }, [searchQuery]);
 
   // Create or edit post
   const handlePostSubmit = (content: string, media: { type: 'image' | 'video'; url: string } | null) => {
@@ -491,6 +516,26 @@ const Dashboard = () => {
         } 
       });
     }
+  };
+
+  // Detect and linkify URLs and emails in posts
+  const linkifyText = (text: string) => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/g;
+    
+    let result = text;
+    
+    // Replace URLs
+    result = result.replace(urlRegex, (url) => {
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:text-primary/80 font-medium" onclick="event.stopPropagation()">${url}</a>`;
+    });
+    
+    // Replace emails
+    result = result.replace(emailRegex, (email) => {
+      return `<a href="mailto:${email}" class="text-primary underline hover:text-primary/80 font-medium" onclick="event.stopPropagation()">${email}</a>`;
+    });
+    
+    return result;
   };
 
   // Initial load
@@ -692,7 +737,10 @@ const Dashboard = () => {
           )}
 
           {/* Post Content */}
-          <p className="text-base leading-relaxed mb-4 whitespace-pre-line">{post.content}</p>
+          <div 
+            className="text-base leading-relaxed mb-4 whitespace-pre-line"
+            dangerouslySetInnerHTML={{ __html: linkifyText(post.content) }}
+          />
         </div>
 
         {/* Media */}
@@ -838,16 +886,26 @@ const Dashboard = () => {
         <div className="sticky top-0 z-20 bg-card/95 backdrop-blur-sm border-b border-border shadow-sm">
           <div className="w-full px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
             <div className="max-w-[900px] mx-auto flex items-center gap-2 sm:gap-3">
-              {/* Search Bar */}
-              <div className="relative flex-1">
+              {/* Search Bar with Dropdown */}
+              <div className="relative flex-1" ref={searchRef}>
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground pointer-events-none" />
                 <Input
                   type="search"
-                  placeholder="Search posts, people, jobs..."
+                  placeholder="Search posts, people, events, connections..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9 sm:pl-10 pr-4 h-10 sm:h-11 text-sm sm:text-base w-full"
                 />
+                {showSearchDropdown && (
+                  <GlobalSearchDropdown
+                    query={searchQuery}
+                    posts={getAllPosts()}
+                    events={events}
+                    connections={connections}
+                    onSelect={handleSearchResultSelect}
+                    onClose={() => setShowSearchDropdown(false)}
+                  />
+                )}
               </div>
 
               {/* Notification Bell */}
@@ -883,16 +941,6 @@ const Dashboard = () => {
         {/* Feed Content */}
         <div className="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
           <div className="max-w-[900px] mx-auto space-y-4">
-            {/* Empty State or Results */}
-            {searchQuery && displayedPosts.length === 0 && !hasMore && (
-              <Card className="p-8 sm:p-12 text-center">
-                <Search className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg sm:text-xl font-semibold mb-2">No results found</h3>
-                <p className="text-sm sm:text-base text-muted-foreground">
-                  Try adjusting your search terms
-                </p>
-              </Card>
-            )}
 
             {/* Posts Feed with Ads */}
             {displayedPosts.map((item) => {

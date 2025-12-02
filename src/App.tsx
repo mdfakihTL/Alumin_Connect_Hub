@@ -20,6 +20,7 @@ import AIRoadmap from "./pages/AIRoadmap";
 import Documents from "./pages/Documents";
 import Notifications from "./pages/Notifications";
 import Connections from "./pages/Connections";
+import SinglePost from "./pages/SinglePost";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -53,6 +54,7 @@ const App = () => (
             <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
             <Route path="/connections" element={<ProtectedRoute><Connections /></ProtectedRoute>} />
+            <Route path="/post/:id" element={<ProtectedRoute><SinglePost /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
