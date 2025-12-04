@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useSidebar } from '@/contexts/SidebarContext';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
 import { Card } from '@/components/ui/card';
@@ -7,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Send, Users } from 'lucide-react';
+import { Search, Send, Users, Menu } from 'lucide-react';
 import { useGroups } from '@/contexts/GroupsContext';
 import { useConnections } from '@/contexts/ConnectionsContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -32,6 +33,7 @@ interface Message {
 
 const Chat = () => {
   const { user } = useAuth();
+  const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
   const location = useLocation();
   const { joinedGroups } = useGroups();
   const { connections } = useConnections();
@@ -185,12 +187,23 @@ const Chat = () => {
       <DesktopNav />
       <MobileNav />
       
-      <main className="h-screen pb-20 md:pb-0 md:ml-64 flex">
+      <main className={`h-screen pb-20 md:pb-0 transition-all duration-300 flex ${isSidebarOpen ? 'md:ml-64' : 'md:ml-0'}`}>
         <div className="flex-1 flex">
           {/* Chat List */}
           <div className="w-full md:w-80 lg:w-96 border-r border-border flex flex-col">
             <div className="p-4 border-b border-border space-y-4">
-              <h1 className="text-xl sm:text-2xl font-bold">Messages</h1>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleSidebar}
+                  className="h-9 w-9 flex-shrink-0"
+                  title={isSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+                >
+                  <Menu className="w-5 h-5" />
+                </Button>
+                <h1 className="text-xl sm:text-2xl font-bold flex-1">Messages</h1>
+              </div>
               
               {/* Search */}
               <div className="relative">

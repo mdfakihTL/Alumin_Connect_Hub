@@ -3,24 +3,35 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { ImageIcon, Video, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface PostModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (content: string, media: { type: 'image' | 'video'; url: string } | null) => void;
+  onSubmit: (content: string, media: { type: 'image' | 'video'; url: string } | null, tag?: string) => void;
   editPost?: {
     id: number;
     content: string;
     media?: { type: 'image' | 'video'; url: string };
+    tag?: string;
   } | null;
 }
+
+const postTags = [
+  { value: 'success-story', label: 'Success Story', icon: '🏆', color: 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30' },
+  { value: 'career-milestone', label: 'Career Milestone', icon: '📈', color: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30' },
+  { value: 'achievement', label: 'Achievement', icon: '⭐', color: 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/30' },
+  { value: 'learning', label: 'Learning Journey', icon: '📚', color: 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/30' },
+  { value: 'volunteering', label: 'Volunteering', icon: '❤️', color: 'bg-pink-500/10 text-pink-700 dark:text-pink-400 border-pink-500/30' },
+];
 
 const PostModal = ({ open, onClose, onSubmit, editPost }: PostModalProps) => {
   const { user } = useAuth();
   const [content, setContent] = useState('');
   const [selectedMedia, setSelectedMedia] = useState<{ type: 'image' | 'video'; url: string } | null>(null);
+  const [selectedTag, setSelectedTag] = useState<string>('');
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
@@ -28,9 +39,11 @@ const PostModal = ({ open, onClose, onSubmit, editPost }: PostModalProps) => {
     if (editPost) {
       setContent(editPost.content);
       setSelectedMedia(editPost.media || null);
+      setSelectedTag(editPost.tag || '');
     } else {
       setContent('');
       setSelectedMedia(null);
+      setSelectedTag('');
     }
   }, [editPost, open]);
 
@@ -52,15 +65,17 @@ const PostModal = ({ open, onClose, onSubmit, editPost }: PostModalProps) => {
 
   const handleSubmit = () => {
     if (!content.trim() && !selectedMedia) return;
-    onSubmit(content, selectedMedia);
+    onSubmit(content, selectedMedia, selectedTag || undefined);
     setContent('');
     setSelectedMedia(null);
+    setSelectedTag('');
     onClose();
   };
 
   const handleClose = () => {
     setContent('');
     setSelectedMedia(null);
+    setSelectedTag('');
     onClose();
   };
 
@@ -97,6 +112,38 @@ const PostModal = ({ open, onClose, onSubmit, editPost }: PostModalProps) => {
               onChange={(e) => setContent(e.target.value)}
               className="min-h-[150px] resize-none text-base leading-relaxed"
             />
+          </div>
+
+          {/* Tag Selection */}
+          <div className="space-y-2">
+            <Label className="text-base font-medium">Tag your post (optional)</Label>
+            <p className="text-xs text-muted-foreground">Highlight special moments and achievements</p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {postTags.map((tag) => (
+                <Badge
+                  key={tag.value}
+                  className={`cursor-pointer transition-all ${
+                    selectedTag === tag.value
+                      ? tag.color + ' ring-2 ring-offset-2 ' + tag.color.split(' ')[1].replace('text-', 'ring-')
+                      : 'bg-muted text-muted-foreground border-muted hover:bg-accent'
+                  } border font-medium px-3 py-1.5`}
+                  onClick={() => setSelectedTag(selectedTag === tag.value ? '' : tag.value)}
+                >
+                  <span className="mr-1.5">{tag.icon}</span>
+                  {tag.label}
+                </Badge>
+              ))}
+            </div>
+            {selectedTag && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedTag('')}
+                className="text-xs h-7 mt-1"
+              >
+                Clear tag
+              </Button>
+            )}
           </div>
 
           {/* Media Preview */}

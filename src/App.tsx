@@ -5,14 +5,37 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { UniversityProvider } from "./contexts/UniversityContext";
 import { GroupsProvider } from "./contexts/GroupsContext";
 import { EventsProvider } from "./contexts/EventsContext";
 import { ConnectionsProvider } from "./contexts/ConnectionsContext";
+import { SidebarProvider } from "./contexts/SidebarContext";
+import PWAInstallPrompt from "./components/PWAInstallPrompt";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
-import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword";
+import ProfileCompletion from "./pages/ProfileCompletion";
 import Dashboard from "./pages/Dashboard";
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminBrandingPage from "./pages/AdminBrandingPage";
+import AdminFeedPage from "./pages/admin/AdminFeedPage";
+import AdminUsersPage from "./pages/admin/AdminUsersPage";
+import AdminMentorsPage from "./pages/admin/AdminMentorsPage";
+import AdminPasswordsPage from "./pages/admin/AdminPasswordsPage";
+import AdminDocumentsPage from "./pages/admin/AdminDocumentsPage";
+import AdminEventsPage from "./pages/admin/AdminEventsPage";
+import AdminGroupsPage from "./pages/admin/AdminGroupsPage";
+import AdminFundraiserPage from "./pages/admin/AdminFundraiserPage";
+import AdminKnowledgePage from "./pages/admin/AdminKnowledgePage";
+import SuperAdminDashboard from "./pages/SuperAdminDashboard";
+import SuperAdminUniversitiesPage from "./pages/superadmin/SuperAdminUniversitiesPage";
+import SuperAdminUsersPage from "./pages/superadmin/SuperAdminUsersPage";
+import SuperAdminAdminsPage from "./pages/superadmin/SuperAdminAdminsPage";
+import SuperAdminAdsPage from "./pages/superadmin/SuperAdminAdsPage";
+import SuperAdminPasswordsPage from "./pages/superadmin/SuperAdminPasswordsPage";
+import SuperAdminAnalyticsPage from "./pages/superadmin/SuperAdminAnalyticsPage";
 import Profile from "./pages/Profile";
+import AdminProfile from "./pages/AdminProfile";
 import Events from "./pages/Events";
 import Groups from "./pages/Groups";
 import Chat from "./pages/Chat";
@@ -21,6 +44,7 @@ import Documents from "./pages/Documents";
 import Notifications from "./pages/Notifications";
 import Connections from "./pages/Connections";
 import SinglePost from "./pages/SinglePost";
+import MentorshipMatch from "./pages/MentorshipMatch";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,38 +54,92 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return user ? <>{children}</> : <Navigate to="/login" />;
 };
 
+const ProfileRoute = () => {
+  const { user, isAdmin, isSuperAdmin } = useAuth();
+  if (!user) return <Navigate to="/login" />;
+  // Admin and Super Admin get simplified profile
+  if (isAdmin || isSuperAdmin) return <AdminProfile />;
+  // Alumni get full profile
+  return <Profile />;
+};
+
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, isAdmin } = useAuth();
+  if (!user) return <Navigate to="/login" />;
+  if (!isAdmin) return <Navigate to="/dashboard" />;
+  return <>{children}</>;
+};
+
+const SuperAdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, isSuperAdmin } = useAuth();
+  if (!user) return <Navigate to="/login" />;
+  if (!isSuperAdmin) return <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} />;
+  return <>{children}</>;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <AuthProvider>
-        <ConnectionsProvider>
-          <GroupsProvider>
-            <EventsProvider>
-              <TooltipProvider>
-                <Toaster />
-                <Sonner />
-                <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<Signup />} />
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-            <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
-            <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
-            <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
-            <Route path="/roadmap" element={<ProtectedRoute><AIRoadmap /></ProtectedRoute>} />
-            <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
-            <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-            <Route path="/connections" element={<ProtectedRoute><Connections /></ProtectedRoute>} />
-            <Route path="/post/:id" element={<ProtectedRoute><SinglePost /></ProtectedRoute>} />
-            <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-              </TooltipProvider>
-            </EventsProvider>
-          </GroupsProvider>
-        </ConnectionsProvider>
+        <UniversityProvider>
+          <SidebarProvider>
+            <ConnectionsProvider>
+              <GroupsProvider>
+                <EventsProvider>
+                  <TooltipProvider>
+                    <Toaster />
+                    <Sonner />
+                    <PWAInstallPrompt />
+                    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                        <Routes>
+                          <Route path="/" element={<Index />} />
+                          <Route path="/login" element={<Login />} />
+                          <Route path="/forgot-password" element={<ForgotPassword />} />
+                          
+                          {/* Super Admin Routes */}
+                          <Route path="/superadmin" element={<SuperAdminRoute><SuperAdminDashboard /></SuperAdminRoute>} />
+                          <Route path="/superadmin/universities" element={<SuperAdminRoute><SuperAdminUniversitiesPage /></SuperAdminRoute>} />
+                          <Route path="/superadmin/users" element={<SuperAdminRoute><SuperAdminUsersPage /></SuperAdminRoute>} />
+                          <Route path="/superadmin/admins" element={<SuperAdminRoute><SuperAdminAdminsPage /></SuperAdminRoute>} />
+                          <Route path="/superadmin/ads" element={<SuperAdminRoute><SuperAdminAdsPage /></SuperAdminRoute>} />
+                          <Route path="/superadmin/passwords" element={<SuperAdminRoute><SuperAdminPasswordsPage /></SuperAdminRoute>} />
+                          <Route path="/superadmin/analytics" element={<SuperAdminRoute><SuperAdminAnalyticsPage /></SuperAdminRoute>} />
+                          
+                          {/* Admin Routes */}
+                          <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+                          <Route path="/admin/branding" element={<AdminRoute><AdminBrandingPage /></AdminRoute>} />
+                          <Route path="/admin/feed" element={<AdminRoute><AdminFeedPage /></AdminRoute>} />
+                          <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
+                          <Route path="/admin/mentors" element={<AdminRoute><AdminMentorsPage /></AdminRoute>} />
+                          <Route path="/admin/passwords" element={<AdminRoute><AdminPasswordsPage /></AdminRoute>} />
+                          <Route path="/admin/documents" element={<AdminRoute><AdminDocumentsPage /></AdminRoute>} />
+                          <Route path="/admin/events" element={<AdminRoute><AdminEventsPage /></AdminRoute>} />
+                          <Route path="/admin/groups" element={<AdminRoute><AdminGroupsPage /></AdminRoute>} />
+                          <Route path="/admin/fundraiser" element={<AdminRoute><AdminFundraiserPage /></AdminRoute>} />
+                          <Route path="/admin/knowledge" element={<AdminRoute><AdminKnowledgePage /></AdminRoute>} />
+                          
+                          {/* Alumni Routes */}
+                          <Route path="/profile-completion" element={<ProtectedRoute><ProfileCompletion /></ProtectedRoute>} />
+                          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                          <Route path="/profile" element={<ProfileRoute />} />
+                          <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
+                          <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
+                          <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+                          <Route path="/roadmap" element={<ProtectedRoute><AIRoadmap /></ProtectedRoute>} />
+                          <Route path="/mentorship" element={<ProtectedRoute><MentorshipMatch /></ProtectedRoute>} />
+                          <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
+                          <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+                          <Route path="/connections" element={<ProtectedRoute><Connections /></ProtectedRoute>} />
+                          <Route path="/post/:id" element={<ProtectedRoute><SinglePost /></ProtectedRoute>} />
+                          <Route path="*" element={<NotFound />} />
+                        </Routes>
+                    </BrowserRouter>
+                  </TooltipProvider>
+                </EventsProvider>
+              </GroupsProvider>
+            </ConnectionsProvider>
+          </SidebarProvider>
+        </UniversityProvider>
       </AuthProvider>
     </ThemeProvider>
   </QueryClientProvider>

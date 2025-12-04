@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { useSidebar } from '@/contexts/SidebarContext';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, TrendingUp, Users, ArrowRight } from 'lucide-react';
+import { Sparkles, TrendingUp, Users, ArrowRight, Menu } from 'lucide-react';
 
 const mockRoadmaps = [
   {
@@ -35,6 +36,7 @@ const mockRoadmaps = [
 ];
 
 const AIRoadmap = () => {
+  const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
   const [goal, setGoal] = useState('');
 
   return (
@@ -42,8 +44,19 @@ const AIRoadmap = () => {
       <DesktopNav />
       <MobileNav />
       
-      <main className="min-h-screen pb-20 md:pb-0 md:ml-64">
-        <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
+      <main className={`min-h-screen pb-20 md:pb-0 transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'md:ml-0'}`}>
+        <div className="max-w-5xl mx-auto p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
+          {/* Mobile Menu Button */}
+          <div className="md:hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleSidebar}
+              className="h-9 w-9"
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
+          </div>
           {/* Header */}
           <div className="text-center py-8">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-secondary mb-4">

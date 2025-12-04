@@ -2,83 +2,61 @@ import { GraduationCap, Linkedin, Twitter, Facebook, Instagram } from "lucide-re
 
 const Footer = () => {
   return (
-    <footer className="bg-card border-t border-border py-12 md:py-16">
-      <div className="container mx-auto px-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-          {/* Brand */}
-          <div className="col-span-1 md:col-span-2">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
-                <GraduationCap className="w-6 h-6 text-white" />
+    <footer className="bg-card border-t border-border py-6 sm:py-8">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-8">
+          {/* Brand - Compact */}
+          <div className="flex-1 max-w-md">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center">
+                <GraduationCap className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-foreground">AlumniHub</span>
+              <span className="text-lg font-bold text-foreground">AlumniHub</span>
             </div>
-            <p className="text-muted-foreground max-w-md mb-4">
-              Connecting university communities worldwide. Build your network, grow your career, 
-              and give back to your alma mater.
+            <p className="text-sm text-muted-foreground leading-relaxed mb-3">
+              Connecting university communities worldwide.
             </p>
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               <a 
                 href="#" 
-                className="w-10 h-10 rounded-lg bg-muted hover:bg-primary transition-smooth flex items-center justify-center group"
+                className="w-8 h-8 rounded-lg bg-muted hover:bg-primary transition-smooth flex items-center justify-center group"
               >
-                <Linkedin className="w-5 h-5 text-muted-foreground group-hover:text-white transition-smooth" />
+                <Linkedin className="w-4 h-4 text-muted-foreground group-hover:text-white transition-smooth" />
               </a>
               <a 
                 href="#" 
-                className="w-10 h-10 rounded-lg bg-muted hover:bg-primary transition-smooth flex items-center justify-center group"
+                className="w-8 h-8 rounded-lg bg-muted hover:bg-primary transition-smooth flex items-center justify-center group"
               >
-                <Twitter className="w-5 h-5 text-muted-foreground group-hover:text-white transition-smooth" />
+                <Twitter className="w-4 h-4 text-muted-foreground group-hover:text-white transition-smooth" />
               </a>
               <a 
                 href="#" 
-                className="w-10 h-10 rounded-lg bg-muted hover:bg-primary transition-smooth flex items-center justify-center group"
+                className="w-8 h-8 rounded-lg bg-muted hover:bg-primary transition-smooth flex items-center justify-center group"
               >
-                <Facebook className="w-5 h-5 text-muted-foreground group-hover:text-white transition-smooth" />
+                <Facebook className="w-4 h-4 text-muted-foreground group-hover:text-white transition-smooth" />
               </a>
               <a 
                 href="#" 
-                className="w-10 h-10 rounded-lg bg-muted hover:bg-primary transition-smooth flex items-center justify-center group"
+                className="w-8 h-8 rounded-lg bg-muted hover:bg-primary transition-smooth flex items-center justify-center group"
               >
-                <Instagram className="w-5 h-5 text-muted-foreground group-hover:text-white transition-smooth" />
+                <Instagram className="w-4 h-4 text-muted-foreground group-hover:text-white transition-smooth" />
               </a>
             </div>
           </div>
 
-          {/* Links */}
-          <div>
-            <h3 className="font-bold text-foreground mb-4">Platform</h3>
-            <ul className="space-y-2">
-              <li><a href="#" className="text-muted-foreground hover:text-primary transition-smooth">Features</a></li>
-              <li><a href="#" className="text-muted-foreground hover:text-primary transition-smooth">Universities</a></li>
-              <li><a href="#" className="text-muted-foreground hover:text-primary transition-smooth">Events</a></li>
-              <li><a href="#" className="text-muted-foreground hover:text-primary transition-smooth">Groups</a></li>
-            </ul>
+          {/* Company - Horizontal on desktop */}
+          <div className="flex flex-wrap gap-x-6 gap-y-2 items-center">
+            <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-smooth">About Us</a>
+            <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-smooth">Careers</a>
+            <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-smooth">Contact</a>
+            <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-smooth">Privacy</a>
+            <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-smooth">Terms</a>
+            <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-smooth">Support</a>
           </div>
 
-          {/* Company */}
-          <div>
-            <h3 className="font-bold text-foreground mb-4">Company</h3>
-            <ul className="space-y-2">
-              <li><a href="#" className="text-muted-foreground hover:text-primary transition-smooth">About</a></li>
-              <li><a href="#" className="text-muted-foreground hover:text-primary transition-smooth">Careers</a></li>
-              <li><a href="#" className="text-muted-foreground hover:text-primary transition-smooth">Contact</a></li>
-              <li><a href="#" className="text-muted-foreground hover:text-primary transition-smooth">Privacy</a></li>
-            </ul>
-          </div>
-        </div>
-
-        {/* Bottom bar */}
-        <div className="pt-8 border-t border-border">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-muted-foreground">
-              © 2025 AlumniHub. All rights reserved.
-            </p>
-            <div className="flex gap-6 text-sm">
-              <a href="#" className="text-muted-foreground hover:text-primary transition-smooth">Terms</a>
-              <a href="#" className="text-muted-foreground hover:text-primary transition-smooth">Privacy</a>
-              <a href="#" className="text-muted-foreground hover:text-primary transition-smooth">Cookies</a>
-            </div>
+          {/* Copyright - Inline */}
+          <div className="text-xs text-muted-foreground whitespace-nowrap">
+            © 2025 AlumniHub
           </div>
         </div>
       </div>

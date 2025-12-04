@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { useSidebar } from '@/contexts/SidebarContext';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bell, Heart, MessageCircle, Users, Calendar, Briefcase, Megaphone, Trash2, Check, X } from 'lucide-react';
+import { Bell, Heart, MessageCircle, Users, Calendar, Briefcase, Megaphone, Trash2, Check, X, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useConnections } from '@/contexts/ConnectionsContext';
 import { useToast } from '@/hooks/use-toast';
@@ -158,20 +159,33 @@ const Notifications = () => {
     }
   };
 
+  const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
+
   return (
     <div className="min-h-screen bg-background">
       <DesktopNav />
       <MobileNav />
       
-      <main className="min-h-screen pb-20 md:pb-0 md:ml-64">
-        <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 md:py-8">
-          <div className="max-w-4xl mx-auto">
+      <main className={`min-h-screen pb-20 md:pb-0 transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'md:ml-0'}`}>
+        <div className="w-full px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
+          <div className="max-w-5xl mx-auto">
             {/* Header */}
-            <div className="mb-6">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-2">Notifications</h1>
-              <p className="text-sm sm:text-base text-muted-foreground">
-                Stay updated with your network activity
-              </p>
+            <div className="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleSidebar}
+                className="h-9 w-9 flex-shrink-0"
+                title={isSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+              >
+                <Menu className="w-5 h-5" />
+              </Button>
+              <div className="flex-1">
+                <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-foreground mb-1">Notifications</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  Stay updated with your network activity
+                </p>
+              </div>
             </div>
 
             {/* Actions Bar */}

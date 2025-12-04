@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useSidebar } from '@/contexts/SidebarContext';
 import { useNavigate } from 'react-router-dom';
 import { useEvents } from '@/contexts/EventsContext';
 import { useConnections } from '@/contexts/ConnectionsContext';
@@ -10,13 +11,15 @@ import PostModal from '@/components/PostModal';
 import NotificationBell from '@/components/NotificationBell';
 import CommentSection from '@/components/CommentSection';
 import GlobalSearchDropdown from '@/components/GlobalSearchDropdown';
+import UniversityChatbot from '@/components/UniversityChatbot';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
   Heart, MessageCircle, Share2, MoreHorizontal, Briefcase, Megaphone, Play, 
-  PlusCircle, Search, Moon, Sun, Edit, Trash2, Facebook, Twitter, Copy, Check
+  PlusCircle, Search, Moon, Sun, Edit, Trash2, Facebook, Twitter, Copy, Check,
+  Calendar, MapPin, Trophy, TrendingUp, Menu, UserPlus2, Users2, X
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -44,6 +47,7 @@ interface Post {
   jobTitle?: string;
   company?: string;
   location?: string;
+  tag?: 'success-story' | 'career-milestone' | 'achievement' | 'learning' | 'volunteering';
 }
 
 interface Ad {
@@ -58,18 +62,16 @@ interface Ad {
 const allMockPosts: Post[] = [
   {
     id: 1,
-    type: 'job',
+    type: 'text',
     author: 'Sarah Johnson',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah',
     university: 'MIT',
     year: '2020',
-    content: 'Exciting opportunity at Google! We\'re hiring Senior Software Engineers. Great benefits, innovative projects, and amazing team culture. Apply now!',
-    likes: 234,
-    comments: 45,
-    time: '2h ago',
-    jobTitle: 'Senior Software Engineer',
-    company: 'Google',
-    location: 'Mountain View, CA',
+    content: 'After 5 years of hard work, I\'m thrilled to announce that I\'ve been promoted to VP of Engineering at TechCorp! This journey taught me that persistence and continuous learning are key. Thank you to everyone who supported me along the way! 🚀',
+    likes: 456,
+    comments: 78,
+    time: '1h ago',
+    tag: 'career-milestone',
   },
   {
     id: 2,
@@ -78,65 +80,55 @@ const allMockPosts: Post[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Michael',
     university: 'Stanford',
     year: '2019',
-    content: 'Amazing alumni meetup in San Francisco! Great to reconnect with everyone. #AlumniNetwork #TechCommunity',
-    media: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=800&h=600&fit=crop',
-    likes: 189,
-    comments: 32,
-    time: '4h ago',
+    content: 'Incredibly proud to share that our startup just raised $10M in Series A funding! From a dorm room idea to a team of 50 - it\'s been an amazing journey. Thank you to our investors, team, and especially our early users who believed in our vision! 🎉',
+    media: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=800&h=600&fit=crop',
+    likes: 892,
+    comments: 124,
+    time: '3h ago',
+    tag: 'success-story',
   },
   {
     id: 3,
-    type: 'video',
+    type: 'text',
     author: 'Emily Rodriguez',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Emily',
     university: 'Harvard',
     year: '2021',
-    content: 'Check out my startup pitch at TechCrunch Disrupt! We\'re revolutionizing education tech.',
-    thumbnail: 'https://images.unsplash.com/photo-1540317580384-e5d43616e5a9?w=800&h=450&fit=crop',
-    videoUrl: 'video1.mp4',
-    likes: 456,
-    comments: 78,
-    time: '6h ago',
+    content: 'Completed my Machine Learning specialization from Stanford Online! 6 months of late nights and weekend study sessions paid off. Key takeaway: never stop learning, and AI is transforming every industry. Already applying these skills in my current role! 📚💻',
+    likes: 234,
+    comments: 45,
+    time: '5h ago',
+    tag: 'learning',
   },
   {
     id: 4,
-    type: 'announcement',
-    author: 'Alumni Association',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alumni',
-    university: 'University',
-    year: 'Official',
-    content: '🎉 Annual Alumni Gala 2024 is coming! Join us for an evening of networking, celebration, and reconnection. Early bird tickets available now!',
-    likes: 567,
-    comments: 89,
-    time: '8h ago',
-  },
-  {
-    id: 5,
-    type: 'text',
+    type: 'image',
     author: 'David Kim',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=David',
     university: 'Berkeley',
     year: '2018',
-    content: 'Just published my first book on AI and Machine Learning! Thank you to all my mentors and the alumni community for the support. Available on Amazon now! 📚',
-    likes: 342,
-    comments: 56,
-    time: '10h ago',
+    content: 'Spent an amazing weekend volunteering at the local food bank with other alumni! Together we packed 2,000 meals for families in need. Small actions create big impact. Who wants to join us next month? ❤️🤝',
+    media: 'https://images.unsplash.com/photo-1593113598332-cd288d649433?w=800&h=600&fit=crop',
+    likes: 567,
+    comments: 89,
+    time: '8h ago',
+    tag: 'volunteering',
   },
   {
-    id: 6,
-    type: 'image',
+    id: 5,
+    type: 'text',
     author: 'Jessica Martinez',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Jessica',
     university: 'Yale',
     year: '2022',
-    content: 'Graduated today! Couldn\'t have done it without the support of our amazing alumni network. On to the next chapter! 🎓',
-    media: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800&h=600&fit=crop',
+    content: 'Thrilled to announce that I won the National Innovation Award for my research on sustainable energy! This recognition means the world to me. Grateful to my professors, lab mates, and family for their unwavering support. Science for a better tomorrow! ⭐🔬',
     likes: 678,
     comments: 92,
-    time: '12h ago',
+    time: '10h ago',
+    tag: 'achievement',
   },
   {
-    id: 7,
+    id: 6,
     type: 'job',
     author: 'Robert Taylor',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Robert',
@@ -145,13 +137,13 @@ const allMockPosts: Post[] = [
     content: 'We\'re expanding! Looking for talented Product Managers to join our fintech startup. Remote-friendly, competitive salary, and equity options.',
     likes: 198,
     comments: 41,
-    time: '14h ago',
+    time: '12h ago',
     jobTitle: 'Product Manager',
     company: 'FinTech Innovations',
     location: 'Remote / NYC',
   },
   {
-    id: 8,
+    id: 7,
     type: 'video',
     author: 'Amanda Lee',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Amanda',
@@ -162,7 +154,21 @@ const allMockPosts: Post[] = [
     videoUrl: 'video2.mp4',
     likes: 523,
     comments: 67,
+    time: '14h ago',
+  },
+  {
+    id: 8,
+    type: 'image',
+    author: 'Lisa Chang',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=LisaChang',
+    university: 'Columbia',
+    year: '2020',
+    content: 'Officially certified as a Google Cloud Architect! The exam was tough, but totally worth it. Next up: AWS Solutions Architect. The cloud journey continues! ☁️💪',
+    media: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=800&h=600&fit=crop',
+    likes: 423,
+    comments: 67,
     time: '16h ago',
+    tag: 'achievement',
   },
   {
     id: 9,
@@ -178,19 +184,33 @@ const allMockPosts: Post[] = [
   },
   {
     id: 10,
-    type: 'image',
+    type: 'text',
     author: 'Maria Garcia',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Maria',
     university: 'Duke',
     year: '2021',
-    content: 'Leading my first workshop on entrepreneurship! Thank you to everyone who attended. Here\'s to empowering the next generation! 🚀',
-    media: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=600&fit=crop',
+    content: 'Just joined Habitat for Humanity\'s board of directors! Excited to contribute to building homes and hope in our community. If you\'re passionate about affordable housing, let\'s connect! 🏠',
     likes: 387,
     comments: 48,
-    time: '20h ago',
+    time: '18h ago',
+    tag: 'volunteering',
   },
   {
     id: 11,
+    type: 'image',
+    author: 'Alex Thompson',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=AlexThompson',
+    university: 'Northwestern',
+    year: '2019',
+    content: 'From Junior Developer to Engineering Manager in 3 years! The secret? Investing in people skills as much as technical skills. Leadership is a journey, not a destination. Grateful for amazing mentors! 🌟',
+    media: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=600&fit=crop',
+    likes: 512,
+    comments: 76,
+    time: '20h ago',
+    tag: 'career-milestone',
+  },
+  {
+    id: 12,
     type: 'announcement',
     author: 'Career Services',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Career',
@@ -199,18 +219,6 @@ const allMockPosts: Post[] = [
     content: '📢 Virtual Career Fair next month! Connect with 100+ top employers. All alumni welcome. Registration opens Monday!',
     likes: 712,
     comments: 103,
-    time: '1d ago',
-  },
-  {
-    id: 12,
-    type: 'text',
-    author: 'James Wilson',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=James',
-    university: 'Northwestern',
-    year: '2016',
-    content: 'Starting a mentorship program for recent grads interested in consulting. DM me if you\'re interested!',
-    likes: 256,
-    comments: 38,
     time: '1d ago',
   },
   {
@@ -281,15 +289,103 @@ const mockAds: Ad[] = [
   },
 ];
 
+// Success Stories Data
+const successStories = [
+  {
+    id: 1,
+    name: 'Sarah Chen',
+    title: 'CEO at TechVision',
+    year: '2015',
+    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=SarahChen',
+    story: 'Launched a successful AI startup that was acquired by Google',
+    achievement: 'Raised $50M Series B',
+  },
+  {
+    id: 2,
+    name: 'Marcus Johnson',
+    title: 'Award-winning Author',
+    year: '2012',
+    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Marcus',
+    story: 'Published bestselling book on leadership and innovation',
+    achievement: 'NY Times Bestseller',
+  },
+  {
+    id: 3,
+    name: 'Dr. Priya Patel',
+    title: 'Medical Research Lead',
+    year: '2018',
+    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Priya',
+    story: 'Leading groundbreaking cancer research at Johns Hopkins',
+    achievement: 'Nobel Prize Nominee',
+  },
+];
+
+// Suggested Connections Data
+const suggestedConnections = [
+  {
+    id: 1,
+    name: 'Alex Rivera',
+    title: 'Product Manager at Microsoft',
+    university: 'MIT',
+    year: '2019',
+    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=AlexRivera',
+    mutualConnections: 12,
+  },
+  {
+    id: 2,
+    name: 'Samantha Lee',
+    title: 'UX Designer at Adobe',
+    university: 'Stanford',
+    year: '2020',
+    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=SamanthaLee',
+    mutualConnections: 8,
+  },
+  {
+    id: 3,
+    name: 'James Wilson',
+    title: 'Data Scientist at Meta',
+    university: 'Berkeley',
+    year: '2018',
+    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=JamesWilson',
+    mutualConnections: 15,
+  },
+  {
+    id: 4,
+    name: 'Nina Patel',
+    title: 'Marketing Lead at Spotify',
+    university: 'Harvard',
+    year: '2021',
+    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=NinaPatel',
+    mutualConnections: 6,
+  },
+];
+
+// Compact Ads Data
+const compactAds = [
+  {
+    id: 'compact1',
+    title: 'Alumni Career Workshop',
+    description: 'Boost your career with expert guidance',
+    image: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400&h=200&fit=crop',
+  },
+  {
+    id: 'compact2',
+    title: 'Networking Mixer',
+    description: 'Connect with industry leaders',
+    image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=400&h=200&fit=crop',
+  },
+];
+
 const Dashboard = () => {
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { events } = useEvents();
   const { connections } = useConnections();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingPost, setEditingPost] = useState<{ id: number; content: string; media?: { type: 'image' | 'video'; url: string } } | null>(null);
+  const [editingPost, setEditingPost] = useState<{ id: number; content: string; media?: { type: 'image' | 'video'; url: string }; tag?: string } | null>(null);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [displayedPosts, setDisplayedPosts] = useState<(Post | Ad)[]>([]);
   const [page, setPage] = useState(0);
@@ -299,6 +395,7 @@ const Dashboard = () => {
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [expandedComments, setExpandedComments] = useState<Set<number>>(new Set());
   const [copiedPostId, setCopiedPostId] = useState<number | null>(null);
+  const [dismissedEventReminder, setDismissedEventReminder] = useState(false);
   const observerTarget = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const POSTS_PER_PAGE = 6;
@@ -371,13 +468,13 @@ const Dashboard = () => {
       return;
     }
 
-    // Insert ads every 5-6 posts
+    // Insert ads every 8 posts (less intrusive)
     const postsWithAds: (Post | Ad)[] = [];
     newPosts.forEach((post, idx) => {
       postsWithAds.push(post);
-      // Add ad after every 5-6 posts
-      if ((startIdx + idx + 1) % 6 === 0) {
-        const adIndex = Math.floor((startIdx + idx) / 6) % mockAds.length;
+      // Add ad after every 8 posts (less intrusive)
+      if ((startIdx + idx + 1) % 8 === 0) {
+        const adIndex = Math.floor((startIdx + idx) / 8) % mockAds.length;
         postsWithAds.push(mockAds[adIndex]);
       }
     });
@@ -387,7 +484,7 @@ const Dashboard = () => {
   };
 
   // Create or edit post
-  const handlePostSubmit = (content: string, media: { type: 'image' | 'video'; url: string } | null) => {
+  const handlePostSubmit = (content: string, media: { type: 'image' | 'video'; url: string } | null, tag?: string) => {
     if (editingPost) {
       // Edit existing post
       setUserPosts(prev => prev.map(post => 
@@ -399,6 +496,7 @@ const Dashboard = () => {
               media: media?.type === 'image' ? media.url : undefined,
               thumbnail: media?.type === 'video' ? media.url : undefined,
               videoUrl: media?.type === 'video' ? media.url : undefined,
+              tag: tag as Post['tag'],
             }
           : post
       ));
@@ -413,6 +511,7 @@ const Dashboard = () => {
             media: media?.type === 'image' ? media.url : undefined,
             thumbnail: media?.type === 'video' ? media.url : undefined,
             videoUrl: media?.type === 'video' ? media.url : undefined,
+            tag: tag as Post['tag'],
           } as Post;
         }
         return item;
@@ -439,6 +538,7 @@ const Dashboard = () => {
         likes: 0,
         comments: 0,
         time: 'Just now',
+        tag: tag as Post['tag'],
       };
       setUserPosts(prev => [newPost, ...prev]);
       toast({
@@ -479,6 +579,7 @@ const Dashboard = () => {
       content: post.content,
       media: post.media ? { type: 'image', url: post.media } : 
              post.videoUrl ? { type: 'video', url: post.videoUrl } : undefined,
+      tag: post.tag,
     });
     setIsModalOpen(true);
   };
@@ -648,17 +749,49 @@ const Dashboard = () => {
     }
   };
 
+  // Get tag display info
+  const getTagInfo = (tag?: Post['tag']) => {
+    if (!tag) return null;
+    
+    const tagMap = {
+      'success-story': { label: 'Success Story', color: 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20', icon: '🏆' },
+      'career-milestone': { label: 'Career Milestone', color: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20', icon: '📈' },
+      'achievement': { label: 'Achievement', color: 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20', icon: '⭐' },
+      'learning': { label: 'Learning Journey', color: 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20', icon: '📚' },
+      'volunteering': { label: 'Volunteering', color: 'bg-pink-500/10 text-pink-700 dark:text-pink-400 border-pink-500/20', icon: '❤️' },
+    };
+    
+    return tagMap[tag];
+  };
+
   const renderPost = (post: Post) => {
     const isLiked = likedPosts.has(post.id);
     const displayLikes = isLiked ? post.likes + 1 : post.likes;
     const isUserPost = userPosts.some(p => p.id === post.id);
     const showComments = expandedComments.has(post.id);
     const isCopied = copiedPostId === post.id;
+    const tagInfo = getTagInfo(post.tag);
+    const hasTag = !!tagInfo;
 
     return (
-      <Card key={post.id} className="overflow-hidden hover:shadow-lg transition-all duration-200">
+      <Card 
+        key={post.id} 
+        className={`overflow-hidden hover:shadow-lg transition-all duration-200 ${
+          hasTag ? 'ring-1 ' + tagInfo.color.split(' ')[0].replace('bg-', 'ring-').replace('/10', '/30') : ''
+        }`}
+      >
         {/* Post Header */}
-        <div className="p-4 sm:p-5">
+        <div className={`p-4 sm:p-5 ${hasTag ? tagInfo.color.split(' ')[0] : ''}`}>
+          {/* Tag Badge */}
+          {hasTag && (
+            <div className="mb-3">
+              <Badge className={`${tagInfo.color} border font-medium`}>
+                <span className="mr-1">{tagInfo.icon}</span>
+                {tagInfo.label}
+              </Badge>
+            </div>
+          )}
+          
           <div className="flex items-start justify-between mb-4">
             <div className="flex gap-3 flex-1 min-w-0">
               <img
@@ -855,21 +988,21 @@ const Dashboard = () => {
 
   const renderAd = (ad: Ad) => {
     return (
-      <Card key={ad.id} className="overflow-hidden border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5 hover:shadow-xl transition-all duration-200">
+      <Card key={ad.id} className="overflow-hidden border border-primary/10 bg-card hover:shadow-lg transition-all duration-200">
         <div className="relative bg-muted">
-          <Badge className="absolute top-4 left-4 z-10 bg-primary text-xs font-semibold shadow-md">Sponsored</Badge>
+          <Badge className="absolute top-3 right-3 z-10 bg-muted/80 text-muted-foreground text-xs font-normal backdrop-blur-sm">Sponsored</Badge>
           <img
             src={ad.image}
             alt={ad.title}
             onError={handleImageError}
-            className="w-full h-56 sm:h-72 object-cover"
+            className="w-full h-48 sm:h-56 object-cover opacity-90"
             loading="lazy"
           />
         </div>
-        <div className="p-5 sm:p-6">
-          <h3 className="font-bold text-lg sm:text-xl mb-2">{ad.title}</h3>
-          <p className="text-sm text-muted-foreground mb-5 leading-relaxed">{ad.description}</p>
-          <Button className="w-full h-11" variant="default" size="lg">
+        <div className="p-4 sm:p-5">
+          <h3 className="font-semibold text-base sm:text-lg mb-1.5">{ad.title}</h3>
+          <p className="text-xs sm:text-sm text-muted-foreground mb-4 leading-relaxed">{ad.description}</p>
+          <Button className="w-full h-9 text-sm" variant="outline" size="sm">
             Learn More
           </Button>
         </div>
@@ -877,24 +1010,66 @@ const Dashboard = () => {
     );
   };
 
+  // Get upcoming events (next 3)
+  const upcomingEvents = events
+    .filter(event => new Date(event.date) > new Date())
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .slice(0, 3);
+
+  // Get today's events
+  const todaysEvents = events.filter(event => {
+    const eventDate = new Date(event.date);
+    const today = new Date();
+    return eventDate.toDateString() === today.toDateString();
+  });
+
   return (
     <div className="min-h-screen bg-background">
       <DesktopNav />
       
-      <main className="min-h-screen pb-20 md:pb-0 md:ml-64">
+      <main className={`min-h-screen pb-20 md:pb-0 transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'md:ml-0'}`}>
         {/* Header with Search, Notifications and Theme Toggle */}
         <div className="sticky top-0 z-20 bg-card/95 backdrop-blur-sm border-b border-border shadow-sm">
           <div className="w-full px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
-            <div className="max-w-[900px] mx-auto flex items-center gap-2 sm:gap-3">
+            <div className="max-w-7xl mx-auto flex items-center gap-3">
+              {/* Sidebar Toggle Button - All screens */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleSidebar}
+                className="h-10 w-10 flex-shrink-0 hover:bg-accent rounded-lg"
+                title={isSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+              >
+                {isSidebarOpen ? (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="w-5 h-5"
+                  >
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    <line x1="9" y1="3" x2="9" y2="21" />
+                    <line x1="14" y1="8" x2="19" y2="8" />
+                    <line x1="14" y1="12" x2="19" y2="12" />
+                    <line x1="14" y1="16" x2="19" y2="16" />
+                  </svg>
+                ) : (
+                  <Menu className="w-5 h-5" />
+                )}
+              </Button>
               {/* Search Bar with Dropdown */}
-              <div className="relative flex-1" ref={searchRef}>
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground pointer-events-none" />
+              <div className="relative flex-1 min-w-0" ref={searchRef}>
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground pointer-events-none z-10" />
                 <Input
                   type="search"
                   placeholder="Search posts, people, events, connections..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 sm:pl-10 pr-4 h-10 sm:h-11 text-sm sm:text-base w-full"
+                  className="pl-9 sm:pl-10 pr-4 h-10 text-sm sm:text-base w-full"
                 />
                 {showSearchDropdown && (
                   <GlobalSearchDropdown
@@ -908,61 +1083,423 @@ const Dashboard = () => {
                 )}
               </div>
 
-              {/* Notification Bell */}
-              <NotificationBell />
+              {/* Right side actions */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {/* Notification Bell */}
+                <NotificationBell />
 
-              {/* Theme Toggle */}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleTheme}
-                className="h-10 w-10 sm:h-11 sm:w-11 flex-shrink-0 rounded-full"
-                title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-              >
-                {theme === 'light' ? (
-                  <Moon className="w-5 h-5" />
-                ) : (
-                  <Sun className="w-5 h-5" />
-                )}
-              </Button>
+                {/* Theme Toggle */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleTheme}
+                  className="h-10 w-10 flex-shrink-0 rounded-lg"
+                  title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+                >
+                  {theme === 'light' ? (
+                    <Moon className="w-5 h-5" />
+                  ) : (
+                    <Sun className="w-5 h-5" />
+                  )}
+                </Button>
 
-              {/* Create Post Button */}
-              <Button
-                onClick={() => setIsModalOpen(true)}
-                className="gap-2 h-10 sm:h-11 text-sm font-medium px-3 sm:px-4 flex-shrink-0"
-              >
-                <PlusCircle className="w-5 h-5" />
-                <span className="hidden sm:inline">Create</span>
-              </Button>
+                {/* Create Post Button */}
+                <Button
+                  onClick={() => setIsModalOpen(true)}
+                  className="gap-2 h-10 text-sm font-medium px-3 sm:px-4"
+                >
+                  <PlusCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="hidden sm:inline">Create</span>
+                </Button>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Feed Content */}
-        <div className="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-          <div className="max-w-[900px] mx-auto space-y-4">
+        {/* Main Content Area with Sidebar Layout */}
+        <div className="w-full px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
+          <div className="max-w-[1600px] mx-auto">
+            <div className="flex flex-col xl:flex-row gap-4 lg:gap-6 items-start">
+              
+              {/* Left Sidebar - Ads & People (hidden on mobile/tablet) */}
+              <aside 
+                className="hidden xl:block xl:w-72 shrink-0 sticky top-24 space-y-4 max-h-[calc(100vh-7rem)] overflow-y-auto pr-2 hide-scrollbar"
+                onWheel={(e) => {
+                  // ALWAYS stop propagation to prevent feed scroll
+                  e.stopPropagation();
+                }}
+              >
+                {/* Compact Ad - TOP POSITION */}
+                {compactAds[0] && (
+                  <Card className="overflow-hidden border border-border/50 bg-card hover:shadow-md transition-all">
+                    <div className="relative">
+                      <Badge className="absolute top-2 right-2 z-10 bg-muted/80 text-muted-foreground text-[10px] font-normal backdrop-blur-sm">
+                        Sponsored
+                      </Badge>
+                      <img
+                        src={compactAds[0].image}
+                        alt={compactAds[0].title}
+                        className="w-full h-32 object-cover opacity-90"
+                      />
+                    </div>
+                    <div className="p-3">
+                      <h3 className="font-semibold text-sm mb-1">{compactAds[0].title}</h3>
+                      <p className="text-xs text-muted-foreground mb-2">{compactAds[0].description}</p>
+                      <Button className="w-full h-7 text-xs" variant="outline" size="sm">
+                        Learn More
+                      </Button>
+                    </div>
+                  </Card>
+                )}
 
-            {/* Posts Feed with Ads */}
-            {displayedPosts.map((item) => {
-              if ('image' in item && 'title' in item) {
-                return renderAd(item as Ad);
-              }
-              return renderPost(item as Post);
-            })}
+                {/* Suggested Connections */}
+                <Card className="overflow-hidden">
+                  <div className="p-4 border-b border-border bg-gradient-to-r from-blue-500/10 to-purple-500/10">
+                    <div className="flex items-center gap-2">
+                      <Users2 className="w-5 h-5 text-primary" />
+                      <h2 className="font-bold text-base">Connect</h2>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Suggested for you</p>
+                  </div>
+                  <div 
+                    className="divide-y divide-border max-h-[280px] overflow-y-auto subtle-scrollbar"
+                    onWheel={(e) => {
+                      e.stopPropagation();
+                    }}
+                  >
+                    {suggestedConnections.slice(0, 3).map((person) => (
+                      <div key={person.id} className="p-2 hover:bg-accent/50 transition-colors">
+                        <div className="flex gap-2">
+                          <img
+                            src={person.image}
+                            alt={person.name}
+                            className="w-10 h-10 rounded-full flex-shrink-0 ring-2 ring-primary/20"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-xs truncate">{person.name}</h3>
+                            <p className="text-[10px] text-muted-foreground truncate">{person.title}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {person.mutualConnections} mutual
+                            </p>
+                            <Button 
+                              size="sm" 
+                              className="mt-1 h-6 text-[10px] w-full px-2"
+                              onClick={() => {
+                                toast({
+                                  title: 'Connection request sent!',
+                                  description: `Your request to connect with ${person.name} has been sent`,
+                                });
+                              }}
+                            >
+                              <UserPlus2 className="w-3 h-3 mr-1" />
+                              Connect
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-2 border-t border-border">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="w-full text-[10px] h-7"
+                      onClick={() => navigate('/connections')}
+                    >
+                      View More
+                    </Button>
+                  </div>
+                </Card>
+              </aside>
+              
+              {/* Main Feed - Center Column */}
+              <div className="flex-1 min-w-0 space-y-4">
+                {/* Mobile AI Assistant - Shows at top on mobile/tablet */}
+                <div className="lg:hidden">
+                  <UniversityChatbot />
+                </div>
+                
+                {/* Today's Event Reminder */}
+                {!dismissedEventReminder && todaysEvents.length > 0 && (
+                  <Card className="overflow-hidden border-2 border-blue-500/50 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-blue-500/10 shadow-lg">
+                    <div className="p-4 sm:p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex gap-3 flex-1 min-w-0">
+                          <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0 animate-pulse">
+                            <Calendar className="w-6 h-6 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge className="bg-blue-500 text-white">Today's Event</Badge>
+                              <span className="text-xs text-muted-foreground">Happening now!</span>
+                            </div>
+                            <h3 className="font-bold text-lg mb-1">{todaysEvents[0].title}</h3>
+                            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mb-2">
+                              <div className="flex items-center gap-1">
+                                <MapPin className="w-4 h-4" />
+                                <span>{todaysEvents[0].location}</span>
+                              </div>
+                              <Badge variant="secondary">{todaysEvents[0].category}</Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground line-clamp-2">{todaysEvents[0].description}</p>
+                            <Button 
+                              size="sm" 
+                              className="mt-3"
+                              onClick={() => navigate('/events')}
+                            >
+                              View Event Details
+                            </Button>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setDismissedEventReminder(true)}
+                          className="h-8 w-8 flex-shrink-0 hover:bg-blue-500/20"
+                          title="Dismiss reminder"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                )}
 
-            {/* Loading Indicator */}
-            {hasMore && displayedPosts.length > 0 && (
-              <div ref={observerTarget} className="py-6 sm:py-8 text-center">
-                <div className="inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                {/* Mobile-only: Show connections at top on small screens */}
+                <div className="xl:hidden">
+                  <Card className="overflow-hidden">
+                    <div className="p-4 border-b border-border bg-gradient-to-r from-blue-500/10 to-purple-500/10">
+                      <div className="flex items-center gap-2">
+                        <Users2 className="w-5 h-5 text-primary" />
+                        <h2 className="font-bold text-base">People to Connect</h2>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Expand your network</p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4">
+                      {suggestedConnections.slice(0, 4).map((person) => (
+                        <div key={person.id} className="flex gap-3 p-3 border border-border rounded-lg hover:bg-accent/50 transition-colors">
+                          <img
+                            src={person.image}
+                            alt={person.name}
+                            className="w-12 h-12 rounded-full flex-shrink-0 ring-2 ring-primary/20"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-sm truncate">{person.name}</h3>
+                            <p className="text-xs text-muted-foreground truncate">{person.title}</p>
+                            <Button 
+                              size="sm" 
+                              className="mt-2 h-7 text-xs w-full"
+                              onClick={() => {
+                                toast({
+                                  title: 'Connection request sent!',
+                                  description: `Your request to connect with ${person.name} has been sent`,
+                                });
+                              }}
+                            >
+                              <UserPlus2 className="w-3 h-3 mr-1" />
+                              Connect
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="p-3 border-t border-border">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="w-full text-xs"
+                        onClick={() => navigate('/connections')}
+                      >
+                        View More Suggestions
+                      </Button>
+                    </div>
+                  </Card>
+                </div>
+                
+                {/* Posts Feed */}
+                {/* Posts Feed with Ads */}
+                {displayedPosts.map((item) => {
+                  if ('image' in item && 'title' in item) {
+                    return renderAd(item as Ad);
+                  }
+                  return renderPost(item as Post);
+                })}
+
+                {/* Loading Indicator */}
+                {hasMore && displayedPosts.length > 0 && (
+                  <div ref={observerTarget} className="py-6 sm:py-8 text-center">
+                    <div className="inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+
+                {/* End of Feed */}
+                {!hasMore && displayedPosts.length > 0 && (
+                  <Card className="p-4 sm:p-6 text-center">
+                    <p className="text-sm sm:text-base text-muted-foreground">You're all caught up! 🎉</p>
+                  </Card>
+                )}
               </div>
-            )}
 
-            {/* End of Feed */}
-            {!hasMore && displayedPosts.length > 0 && (
-              <Card className="p-4 sm:p-6 text-center">
-                <p className="text-sm sm:text-base text-muted-foreground">You're all caught up! 🎉</p>
-              </Card>
-            )}
+              {/* Right Sidebar - Ads, AI Assistant & Content */}
+              <aside 
+                className="hidden lg:block lg:w-80 xl:w-96 shrink-0 sticky top-24 space-y-4 max-h-[calc(100vh-7rem)] overflow-y-auto pl-2 hide-scrollbar"
+                onWheel={(e) => {
+                  // ALWAYS stop propagation to prevent feed scroll
+                  e.stopPropagation();
+                }}
+              >
+                
+                {/* Compact Ad 2 - TOP POSITION */}
+                {compactAds[1] && (
+                  <Card className="overflow-hidden border border-border/50 bg-card hover:shadow-md transition-all">
+                    <div className="relative">
+                      <Badge className="absolute top-2 right-2 z-10 bg-muted/80 text-muted-foreground text-[10px] font-normal backdrop-blur-sm">
+                        Sponsored
+                      </Badge>
+                      <img
+                        src={compactAds[1].image}
+                        alt={compactAds[1].title}
+                        className="w-full h-32 object-cover opacity-90"
+                      />
+                    </div>
+                    <div className="p-3">
+                      <h3 className="font-semibold text-sm mb-1">{compactAds[1].title}</h3>
+                      <p className="text-xs text-muted-foreground mb-2">{compactAds[1].description}</p>
+                      <Button className="w-full h-7 text-xs" variant="outline" size="sm">
+                        Learn More
+                      </Button>
+                    </div>
+                  </Card>
+                )}
+
+                {/* University AI Assistant */}
+                <UniversityChatbot />
+                
+                {/* Success Stories */}
+                <Card className="overflow-hidden">
+                  <div className="p-4 border-b border-border bg-gradient-to-r from-primary/10 to-secondary/10">
+                    <div className="flex items-center gap-2">
+                      <Trophy className="w-5 h-5 text-primary" />
+                      <h2 className="font-bold text-lg">Success Stories</h2>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Inspiring alumni achievements</p>
+                  </div>
+                  <div 
+                    className="divide-y divide-border max-h-[300px] overflow-y-auto subtle-scrollbar"
+                    onWheel={(e) => {
+                      e.stopPropagation();
+                    }}
+                  >
+                    {successStories.map((story) => (
+                      <div key={story.id} className="p-4 hover:bg-accent/50 transition-colors cursor-pointer">
+                        <div className="flex gap-3">
+                          <img
+                            src={story.image}
+                            alt={story.name}
+                            className="w-12 h-12 rounded-full flex-shrink-0 ring-2 ring-primary/20"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-sm truncate">{story.name}</h3>
+                            <p className="text-xs text-muted-foreground truncate">{story.title}</p>
+                            <Badge variant="outline" className="mt-2 text-xs">
+                              <TrendingUp className="w-3 h-3 mr-1" />
+                              {story.achievement}
+                            </Badge>
+                            <p className="text-xs mt-2 text-muted-foreground line-clamp-2">{story.story}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-3 border-t border-border">
+                    <Button variant="ghost" size="sm" className="w-full text-xs">
+                      View All Stories
+                    </Button>
+                  </div>
+                </Card>
+
+                {/* Upcoming Events */}
+                {upcomingEvents.length > 0 && (
+                  <Card className="overflow-hidden">
+                    <div className="p-4 border-b border-border bg-gradient-to-r from-blue-500/10 to-purple-500/10">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-5 h-5 text-blue-600" />
+                        <h2 className="font-bold text-lg">Upcoming Events</h2>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Don't miss these events</p>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {upcomingEvents.map((event) => (
+                        <div 
+                          key={event.id}
+                          onClick={() => navigate('/events')}
+                          className="p-4 hover:bg-accent/50 transition-colors cursor-pointer"
+                        >
+                          <div className="flex gap-3">
+                            {event.image && (
+                              <img
+                                src={event.image}
+                                alt={event.title}
+                                className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-sm line-clamp-1">{event.title}</h3>
+                              <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                                <Calendar className="w-3 h-3" />
+                                <span>{new Date(event.date).toLocaleDateString()}</span>
+                              </div>
+                              <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                                <MapPin className="w-3 h-3" />
+                                <span className="truncate">{event.location}</span>
+                              </div>
+                              <Badge variant="secondary" className="mt-2 text-xs">
+                                {event.category}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="p-3 border-t border-border">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="w-full text-xs"
+                        onClick={() => navigate('/events')}
+                      >
+                        View All Events
+                      </Button>
+                    </div>
+                  </Card>
+                )}
+
+                {/* Compact Ad 2 */}
+                {compactAds[1] && (
+                  <Card className="overflow-hidden border border-border/50 bg-card hover:shadow-md transition-all">
+                    <div className="relative">
+                      <Badge className="absolute top-2 right-2 z-10 bg-muted/80 text-muted-foreground text-[10px] font-normal backdrop-blur-sm">
+                        Sponsored
+                      </Badge>
+                      <img
+                        src={compactAds[1].image}
+                        alt={compactAds[1].title}
+                        className="w-full h-32 object-cover opacity-90"
+                      />
+                    </div>
+                    <div className="p-3">
+                      <h3 className="font-semibold text-sm mb-1">{compactAds[1].title}</h3>
+                      <p className="text-xs text-muted-foreground mb-2">{compactAds[1].description}</p>
+                      <Button className="w-full h-7 text-xs" variant="outline" size="sm">
+                        Learn More
+                      </Button>
+                    </div>
+                  </Card>
+                )}
+              </aside>
+
+
+            </div>
           </div>
         </div>
       </main>

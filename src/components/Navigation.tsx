@@ -54,8 +54,7 @@ const Navigation = () => {
                 <Sun className="w-5 h-5" />
               )}
             </Button>
-            <Button variant="ghost" onClick={() => navigate('/login')}>Sign In</Button>
-            <Button onClick={() => navigate('/signup')}>Get Started</Button>
+            <Button onClick={() => navigate('/login')}>Sign In</Button>
           </div>
 
           {/* Mobile Menu Button & Theme Toggle */}
@@ -99,12 +98,9 @@ const Navigation = () => {
             <a href="#about" className="block py-2 text-sm font-medium" onClick={() => setMobileMenuOpen(false)}>
               About
             </a>
-            <div className="pt-4 space-y-2">
-              <Button variant="ghost" className="w-full" onClick={() => { navigate('/login'); setMobileMenuOpen(false); }}>
+            <div className="pt-4">
+              <Button className="w-full" onClick={() => { navigate('/login'); setMobileMenuOpen(false); }}>
                 Sign In
-              </Button>
-              <Button className="w-full" onClick={() => { navigate('/signup'); setMobileMenuOpen(false); }}>
-                Get Started
               </Button>
             </div>
           </div>

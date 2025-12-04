@@ -1,18 +1,23 @@
 import { useState } from 'react';
+import { useSidebar } from '@/contexts/SidebarContext';
+import { useAuth } from '@/contexts/AuthContext';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
+import WorldMapHeatmap from '@/components/WorldMapHeatmap';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Search, MessageCircle, UserMinus, Check, X } from 'lucide-react';
+import { Users, Search, MessageCircle, UserMinus, Check, X, Menu } from 'lucide-react';
 import { useConnections } from '@/contexts/ConnectionsContext';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 
 const Connections = () => {
+  const { user } = useAuth();
   const { connections, receivedRequests, sentRequests, acceptRequest, rejectRequest, removeConnection } = useConnections();
+  const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
@@ -68,15 +73,26 @@ const Connections = () => {
       <DesktopNav />
       <MobileNav />
       
-      <main className="min-h-screen pb-20 md:pb-0 md:ml-64">
-        <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 md:py-8">
-          <div className="max-w-5xl mx-auto">
+      <main className={`min-h-screen pb-20 md:pb-0 transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'md:ml-0'}`}>
+        <div className="w-full px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
+          <div className="max-w-6xl mx-auto">
             {/* Header */}
-            <div className="mb-6">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-2">Connections</h1>
-              <p className="text-sm sm:text-base text-muted-foreground">
-                Manage your professional network
-              </p>
+            <div className="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleSidebar}
+                className="h-9 w-9 flex-shrink-0"
+                title={isSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+              >
+                <Menu className="w-5 h-5" />
+              </Button>
+              <div className="flex-1">
+                <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-foreground mb-1">Connections</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  Manage your professional network
+                </p>
+              </div>
             </div>
 
             <Tabs defaultValue="all" className="w-full">

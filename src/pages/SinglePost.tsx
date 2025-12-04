@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import { useSidebar } from '@/contexts/SidebarContext';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
 import CommentSection from '@/components/CommentSection';
@@ -8,7 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   Heart, MessageCircle, Share2, MoreHorizontal, Briefcase, Megaphone, Play, 
-  ArrowLeft, Edit, Trash2, Facebook, Twitter, Copy, Check
+  ArrowLeft, Edit, Trash2, Facebook, Twitter, Copy, Check, Menu
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -24,6 +25,7 @@ const SinglePost = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
   const { toast } = useToast();
   
   const post = location.state?.post;
@@ -117,18 +119,30 @@ const SinglePost = () => {
       <DesktopNav />
       <MobileNav />
       
-      <main className="min-h-screen pb-20 md:pb-0 md:ml-64">
-        <div className="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-          <div className="max-w-3xl mx-auto">
-            {/* Back Button */}
-            <Button
-              variant="ghost"
-              onClick={() => navigate('/dashboard')}
-              className="gap-2 mb-4 -ml-2"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Return to Feed
-            </Button>
+      <main className={`min-h-screen pb-20 md:pb-0 transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'md:ml-0'}`}>
+        <div className="w-full px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
+          <div className="max-w-4xl mx-auto">
+            {/* Header with Back and Toggle */}
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleSidebar}
+                className="h-9 w-9 flex-shrink-0"
+                title={isSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+              >
+                <Menu className="w-5 h-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => navigate('/dashboard')}
+                className="gap-2 h-9 text-sm flex-1"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">Return to Feed</span>
+                <span className="sm:hidden">Back</span>
+              </Button>
+            </div>
 
             {/* Single Post */}
             <Card className="overflow-hidden shadow-lg">

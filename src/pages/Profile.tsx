@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSidebar } from '@/contexts/SidebarContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useConnections } from '@/contexts/ConnectionsContext';
 import DesktopNav from '@/components/DesktopNav';
@@ -8,8 +9,9 @@ import ProfileEditModal from '@/components/ProfileEditModal';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Briefcase, Calendar, Mail, Linkedin, Edit, MessageCircle, ArrowLeft, Plus, Phone, Globe, Camera, UserCheck, UserPlus, Clock } from 'lucide-react';
+import { MapPin, Briefcase, Calendar, Mail, Linkedin, Edit, MessageCircle, ArrowLeft, Plus, Phone, Globe, Camera, UserCheck, UserPlus, Clock, Menu, Award, TrendingUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Progress } from '@/components/ui/progress';
 
 interface UserData {
   name: string;
@@ -38,6 +40,7 @@ interface ProfileData {
 
 const Profile = () => {
   const { user } = useAuth();
+  const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -48,6 +51,38 @@ const Profile = () => {
   const isOwnProfile = !viewingUserData;
   
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [profileCompletion, setProfileCompletion] = useState(0);
+  const [additionalProfileData, setAdditionalProfileData] = useState<any>(null);
+
+  // Calculate profile completion percentage
+  useEffect(() => {
+    if (isOwnProfile && user) {
+      const stored = localStorage.getItem(`profile_data_${user.id}`);
+      if (stored) {
+        setAdditionalProfileData(JSON.parse(stored));
+      }
+
+      // Calculate completion
+      let completed = 0;
+      const total = 10;
+
+      if (user.name) completed++;
+      if (user.email) completed++;
+      if (user.university) completed++;
+      if (user.graduationYear) completed++;
+      if (user.major) completed++;
+      if (profileData.bio) completed++;
+      if (profileData.jobTitle) completed++;
+      if (profileData.company) completed++;
+      if (profileData.location) completed++;
+      if (stored) {
+        const data = JSON.parse(stored);
+        if (data.skills && data.skills.length > 0) completed++;
+      }
+
+      setProfileCompletion(Math.round((completed / total) * 100));
+    }
+  }, [user, isOwnProfile, profileData]);
   
   // Check connection status
   const connected = !isOwnProfile && isConnected(viewingUserData?.name || '');
@@ -116,25 +151,63 @@ const Profile = () => {
       <DesktopNav />
       <MobileNav />
       
-      <main className="min-h-screen pb-20 md:pb-0 md:ml-64">
-        <div className="max-w-4xl mx-auto">
+      <main className={`min-h-screen pb-20 md:pb-0 transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'md:ml-0'}`}>
+        <div className="max-w-5xl mx-auto">
           {/* Back Button for Other Profiles */}
           {!isOwnProfile && (
-            <div className="p-4 sm:p-6">
+            <div className="p-3 sm:p-4 lg:p-6">
               <Button
                 variant="ghost"
                 onClick={() => navigate(-1)}
-                className="gap-2 -ml-2"
+                className="gap-2 -ml-2 h-9 text-sm"
               >
                 <ArrowLeft className="w-4 h-4" />
-                Back to Feed
+                <span className="hidden sm:inline">Back to Feed</span>
+                <span className="sm:hidden">Back</span>
               </Button>
+            </div>
+          )}
+          
+          {/* Mobile Menu Button */}
+          {isOwnProfile && (
+            <div className="p-3 sm:p-4 md:hidden">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleSidebar}
+                className="h-9 w-9"
+              >
+                <Menu className="w-5 h-5" />
+              </Button>
+            </div>
+          )}
+
+          {/* Profile Completion Meter - Only for own profile */}
+          {isOwnProfile && profileCompletion < 100 && (
+            <div className="px-3 sm:px-4 lg:px-6 mb-4">
+              <Card className="p-4 bg-gradient-to-r from-primary/10 to-secondary/10 border-primary/20">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
+                    <TrendingUp className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="font-semibold text-sm sm:text-base">Profile Completion</h3>
+                      <Badge variant="secondary" className="text-xs">{profileCompletion}%</Badge>
+                    </div>
+                    <Progress value={profileCompletion} className="h-2" />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Complete your profile to unlock all features and improve your visibility
+                </p>
+              </Card>
             </div>
           )}
 
           {/* Cover & Avatar */}
           <div className="relative">
-            <div className="h-40 sm:h-48 bg-gradient-to-r from-primary to-secondary overflow-hidden">
+            <div className="h-32 sm:h-40 md:h-48 lg:h-56 bg-gradient-to-r from-primary to-secondary overflow-hidden">
               {displayUser.banner && (
                 <img
                   src={displayUser.banner}
@@ -143,26 +216,26 @@ const Profile = () => {
                 />
               )}
             </div>
-            <div className="absolute -bottom-12 sm:-bottom-16 left-4 sm:left-8">
+            <div className="absolute -bottom-10 sm:-bottom-12 md:-bottom-16 left-3 sm:left-4 md:left-8">
               <img
                 src={displayUser.avatar}
                 alt={displayUser.name}
-                className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-background object-cover"
+                className="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 rounded-full border-4 border-background object-cover shadow-lg"
               />
             </div>
           </div>
 
-          <div className="px-4 sm:px-8 pt-16 sm:pt-20 pb-8">
-            <div className="flex flex-col sm:flex-row items-start justify-between gap-4 mb-6">
-              <div className="flex-1 min-w-0">
-                <h1 className="text-2xl sm:text-3xl font-bold mb-2 truncate">{displayUser.name}</h1>
-                <p className="text-sm sm:text-base text-muted-foreground mb-1">
+          <div className="px-3 sm:px-4 md:px-8 pt-12 sm:pt-16 md:pt-20 pb-6 sm:pb-8">
+            <div className="flex flex-col sm:flex-row items-start justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
+              <div className="flex-1 min-w-0 w-full">
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-1 sm:mb-2 truncate">{displayUser.name}</h1>
+                <p className="text-xs sm:text-sm md:text-base text-muted-foreground mb-1">
                   {displayUser.major} • {user?.university}
                 </p>
-                <p className="text-xs sm:text-sm text-muted-foreground mb-4">
+                <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
                   {displayUser.jobTitle} at {displayUser.company}
                 </p>
-                <div className="flex flex-wrap gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
+                <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4 text-xs sm:text-sm text-muted-foreground">
                   <div className="flex items-center gap-2">
                     <MapPin className="w-4 h-4 flex-shrink-0" />
                     <span>{displayUser.location}</span>

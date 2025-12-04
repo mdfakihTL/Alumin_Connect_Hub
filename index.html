@@ -7,6 +7,15 @@
     <meta name="description" content="Your university's alumni network at your fingertips. Build meaningful connections, discover career paths, and grow with AI-powered guidance." />
     <meta name="author" content="AlumniHub" />
 
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#3B82F6" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="AlumniHub" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+
     <meta property="og:title" content="AlumniHub - Connect, Grow, Succeed Together" />
     <meta property="og:description" content="Your university's alumni network at your fingertips. Build meaningful connections, discover career paths, and grow with AI-powered guidance." />
     <meta property="og:type" content="website" />
@@ -20,5 +29,20 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- PWA Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+              console.log('SW registered:', registration);
+            })
+            .catch((error) => {
+              console.log('SW registration failed:', error);
+            });
+        });
+      }
+    </script>
   </body>
 </html>

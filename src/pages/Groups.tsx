@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSidebar } from '@/contexts/SidebarContext';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
 import GroupModal from '@/components/GroupModal';
@@ -7,7 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Plus, Search, Lock, Settings, LogOut, Edit, Trash2, Check } from 'lucide-react';
+import { Users, Plus, Search, Lock, Settings, LogOut, Edit, Trash2, Check, Menu } from 'lucide-react';
 import { useGroups, Group } from '@/contexts/GroupsContext';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -19,6 +20,7 @@ import {
 
 const Groups = () => {
   const { groups, joinedGroups, createGroup, updateGroup, deleteGroup, joinGroup, leaveGroup } = useGroups();
+  const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -97,28 +99,39 @@ const Groups = () => {
       <DesktopNav />
       <MobileNav />
       
-      <main className="min-h-screen pb-20 md:pb-0 md:ml-64">
-        <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
+      <main className={`min-h-screen pb-20 md:pb-0 transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'md:ml-0'}`}>
+        <div className="max-w-7xl mx-auto p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
           {/* Header */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2">Groups</h1>
-              <p className="text-sm sm:text-base text-muted-foreground">Connect with alumni communities</p>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleSidebar}
+                className="h-9 w-9 flex-shrink-0"
+                title={isSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+              >
+                <Menu className="w-5 h-5" />
+              </Button>
+              <div className="flex-1">
+                <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-1">Groups</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground">Connect with alumni communities</p>
+              </div>
             </div>
-            <Button className="gap-2 h-10 sm:h-11" onClick={() => setIsModalOpen(true)}>
-              <Plus className="w-5 h-5" />
+            <Button className="gap-2 h-9 sm:h-10 text-sm w-full sm:w-auto" onClick={() => setIsModalOpen(true)}>
+              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
               <span>Create Group</span>
             </Button>
           </div>
 
           {/* Search & Filter */}
-          <div className="space-y-4">
-            <Card className="p-4">
+          <div className="space-y-3 sm:space-y-4">
+            <Card className="p-3 sm:p-4">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground pointer-events-none" />
                 <Input 
-                  placeholder="Search groups by name, description, or category..." 
-                  className="pl-10 h-11"
+                  placeholder="Search groups..." 
+                  className="pl-9 sm:pl-10 h-9 sm:h-11 text-sm sm:text-base"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -126,11 +139,11 @@ const Groups = () => {
             </Card>
 
             <Tabs value={filter} onValueChange={(v) => setFilter(v as 'all' | 'joined')}>
-              <TabsList className="w-full sm:w-auto">
-                <TabsTrigger value="all" className="flex-1 sm:flex-none">
+              <TabsList className="w-full sm:w-auto grid grid-cols-2 sm:inline-flex">
+                <TabsTrigger value="all" className="text-xs sm:text-sm">
                   All Groups ({groups.length})
                 </TabsTrigger>
-                <TabsTrigger value="joined" className="flex-1 sm:flex-none">
+                <TabsTrigger value="joined" className="text-xs sm:text-sm">
                   My Groups ({joinedGroups.length})
                 </TabsTrigger>
               </TabsList>
