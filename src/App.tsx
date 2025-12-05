@@ -49,6 +49,8 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+// Test
+
 // Protected Routes Components - Must be inside Router and AuthProvider
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
