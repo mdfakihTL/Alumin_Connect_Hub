@@ -12,14 +12,37 @@ import NotificationBell from '@/components/NotificationBell';
 import CommentSection from '@/components/CommentSection';
 import GlobalSearchDropdown from '@/components/GlobalSearchDropdown';
 import UniversityChatbot from '@/components/UniversityChatbot';
+import PostFilter, { FilterOptions } from '@/components/PostFilter';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Heart, MessageCircle, Share2, MoreHorizontal, Briefcase, Megaphone, Play, 
-  PlusCircle, Search, Moon, Sun, Edit, Trash2, Facebook, Twitter, Copy, Check,
-  Calendar, MapPin, Trophy, TrendingUp, Menu, UserPlus2, Users2, X
+import {
+  Heart,
+  MessageCircle,
+  Share2,
+  MoreHorizontal,
+  Briefcase,
+  Megaphone,
+  Play,
+  PlusCircle,
+  Search,
+  Moon,
+  Sun,
+  Edit,
+  Trash2,
+  Facebook,
+  Twitter,
+  Copy,
+  Check,
+  Calendar,
+  MapPin,
+  Trophy,
+  TrendingUp,
+  Menu,
+  UserPlus2,
+  Users2,
+  X,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -28,7 +51,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 
 interface Post {
   id: number;
@@ -47,7 +70,12 @@ interface Post {
   jobTitle?: string;
   company?: string;
   location?: string;
-  tag?: 'success-story' | 'career-milestone' | 'achievement' | 'learning' | 'volunteering';
+  tag?:
+    | 'success-story'
+    | 'career-milestone'
+    | 'achievement'
+    | 'learning'
+    | 'volunteering';
 }
 
 interface Ad {
@@ -67,7 +95,8 @@ const allMockPosts: Post[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah',
     university: 'MIT',
     year: '2020',
-    content: 'After 5 years of hard work, I\'m thrilled to announce that I\'ve been promoted to VP of Engineering at TechCorp! This journey taught me that persistence and continuous learning are key. Thank you to everyone who supported me along the way! 🚀',
+    content:
+      "After 5 years of hard work, I'm thrilled to announce that I've been promoted to VP of Engineering at TechCorp! This journey taught me that persistence and continuous learning are key. Thank you to everyone who supported me along the way! 🚀",
     likes: 456,
     comments: 78,
     time: '1h ago',
@@ -80,8 +109,10 @@ const allMockPosts: Post[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Michael',
     university: 'Stanford',
     year: '2019',
-    content: 'Incredibly proud to share that our startup just raised $10M in Series A funding! From a dorm room idea to a team of 50 - it\'s been an amazing journey. Thank you to our investors, team, and especially our early users who believed in our vision! 🎉',
-    media: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=800&h=600&fit=crop',
+    content:
+      "Incredibly proud to share that our startup just raised $10M in Series A funding! From a dorm room idea to a team of 50 - it's been an amazing journey. Thank you to our investors, team, and especially our early users who believed in our vision! 🎉",
+    media:
+      'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=800&h=600&fit=crop',
     likes: 892,
     comments: 124,
     time: '3h ago',
@@ -94,7 +125,8 @@ const allMockPosts: Post[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Emily',
     university: 'Harvard',
     year: '2021',
-    content: 'Completed my Machine Learning specialization from Stanford Online! 6 months of late nights and weekend study sessions paid off. Key takeaway: never stop learning, and AI is transforming every industry. Already applying these skills in my current role! 📚💻',
+    content:
+      'Completed my Machine Learning specialization from Stanford Online! 6 months of late nights and weekend study sessions paid off. Key takeaway: never stop learning, and AI is transforming every industry. Already applying these skills in my current role! 📚💻',
     likes: 234,
     comments: 45,
     time: '5h ago',
@@ -107,8 +139,10 @@ const allMockPosts: Post[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=David',
     university: 'Berkeley',
     year: '2018',
-    content: 'Spent an amazing weekend volunteering at the local food bank with other alumni! Together we packed 2,000 meals for families in need. Small actions create big impact. Who wants to join us next month? ❤️🤝',
-    media: 'https://images.unsplash.com/photo-1593113598332-cd288d649433?w=800&h=600&fit=crop',
+    content:
+      'Spent an amazing weekend volunteering at the local food bank with other alumni! Together we packed 2,000 meals for families in need. Small actions create big impact. Who wants to join us next month? ❤️🤝',
+    media:
+      'https://images.unsplash.com/photo-1593113598332-cd288d649433?w=800&h=600&fit=crop',
     likes: 567,
     comments: 89,
     time: '8h ago',
@@ -121,7 +155,8 @@ const allMockPosts: Post[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Jessica',
     university: 'Yale',
     year: '2022',
-    content: 'Thrilled to announce that I won the National Innovation Award for my research on sustainable energy! This recognition means the world to me. Grateful to my professors, lab mates, and family for their unwavering support. Science for a better tomorrow! ⭐🔬',
+    content:
+      'Thrilled to announce that I won the National Innovation Award for my research on sustainable energy! This recognition means the world to me. Grateful to my professors, lab mates, and family for their unwavering support. Science for a better tomorrow! ⭐🔬',
     likes: 678,
     comments: 92,
     time: '10h ago',
@@ -134,7 +169,8 @@ const allMockPosts: Post[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Robert',
     university: 'Princeton',
     year: '2017',
-    content: 'We\'re expanding! Looking for talented Product Managers to join our fintech startup. Remote-friendly, competitive salary, and equity options.',
+    content:
+      "We're expanding! Looking for talented Product Managers to join our fintech startup. Remote-friendly, competitive salary, and equity options.",
     likes: 198,
     comments: 41,
     time: '12h ago',
@@ -149,8 +185,10 @@ const allMockPosts: Post[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Amanda',
     university: 'Cornell',
     year: '2020',
-    content: 'My TEDx talk on sustainable business practices is now live! Would love to hear your thoughts.',
-    thumbnail: 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=800&h=450&fit=crop',
+    content:
+      'My TEDx talk on sustainable business practices is now live! Would love to hear your thoughts.',
+    thumbnail:
+      'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=800&h=450&fit=crop',
     videoUrl: 'video2.mp4',
     likes: 523,
     comments: 67,
@@ -163,8 +201,10 @@ const allMockPosts: Post[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=LisaChang',
     university: 'Columbia',
     year: '2020',
-    content: 'Officially certified as a Google Cloud Architect! The exam was tough, but totally worth it. Next up: AWS Solutions Architect. The cloud journey continues! ☁️💪',
-    media: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=800&h=600&fit=crop',
+    content:
+      'Officially certified as a Google Cloud Architect! The exam was tough, but totally worth it. Next up: AWS Solutions Architect. The cloud journey continues! ☁️💪',
+    media:
+      'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=800&h=600&fit=crop',
     likes: 423,
     comments: 67,
     time: '16h ago',
@@ -177,7 +217,8 @@ const allMockPosts: Post[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Chris',
     university: 'Columbia',
     year: '2019',
-    content: 'Reflecting on 5 years since graduation. The connections I\'ve made through our alumni network have been invaluable. Grateful for this community! 💙',
+    content:
+      "Reflecting on 5 years since graduation. The connections I've made through our alumni network have been invaluable. Grateful for this community! 💙",
     likes: 421,
     comments: 54,
     time: '18h ago',
@@ -189,7 +230,8 @@ const allMockPosts: Post[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Maria',
     university: 'Duke',
     year: '2021',
-    content: 'Just joined Habitat for Humanity\'s board of directors! Excited to contribute to building homes and hope in our community. If you\'re passionate about affordable housing, let\'s connect! 🏠',
+    content:
+      "Just joined Habitat for Humanity's board of directors! Excited to contribute to building homes and hope in our community. If you're passionate about affordable housing, let's connect! 🏠",
     likes: 387,
     comments: 48,
     time: '18h ago',
@@ -202,8 +244,10 @@ const allMockPosts: Post[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=AlexThompson',
     university: 'Northwestern',
     year: '2019',
-    content: 'From Junior Developer to Engineering Manager in 3 years! The secret? Investing in people skills as much as technical skills. Leadership is a journey, not a destination. Grateful for amazing mentors! 🌟',
-    media: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=600&fit=crop',
+    content:
+      'From Junior Developer to Engineering Manager in 3 years! The secret? Investing in people skills as much as technical skills. Leadership is a journey, not a destination. Grateful for amazing mentors! 🌟',
+    media:
+      'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=600&fit=crop',
     likes: 512,
     comments: 76,
     time: '20h ago',
@@ -216,7 +260,8 @@ const allMockPosts: Post[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Career',
     university: 'University',
     year: 'Official',
-    content: '📢 Virtual Career Fair next month! Connect with 100+ top employers. All alumni welcome. Registration opens Monday!',
+    content:
+      '📢 Virtual Career Fair next month! Connect with 100+ top employers. All alumni welcome. Registration opens Monday!',
     likes: 712,
     comments: 103,
     time: '1d ago',
@@ -228,8 +273,10 @@ const allMockPosts: Post[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sophie',
     university: 'Penn',
     year: '2023',
-    content: 'Just opened my dream coffee shop! Thank you to all the alumni who supported me on this journey. Come visit! ☕️',
-    media: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800&h=600&fit=crop',
+    content:
+      'Just opened my dream coffee shop! Thank you to all the alumni who supported me on this journey. Come visit! ☕️',
+    media:
+      'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800&h=600&fit=crop',
     likes: 445,
     comments: 71,
     time: '1d ago',
@@ -241,7 +288,8 @@ const allMockPosts: Post[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Lisa',
     university: 'Brown',
     year: '2018',
-    content: 'Our healthcare startup is hiring! Looking for passionate engineers who want to make a difference. Great mission, amazing team.',
+    content:
+      'Our healthcare startup is hiring! Looking for passionate engineers who want to make a difference. Great mission, amazing team.',
     likes: 312,
     comments: 52,
     time: '1d ago',
@@ -256,33 +304,38 @@ const allMockPosts: Post[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Ryan',
     university: 'UCLA',
     year: '2020',
-    content: 'Behind the scenes of our latest film project! So grateful for the creative community here.',
-    thumbnail: 'https://images.unsplash.com/photo-1492619375914-88005aa9e8fb?w=800&h=450&fit=crop',
+    content:
+      'Behind the scenes of our latest film project! So grateful for the creative community here.',
+    thumbnail:
+      'https://images.unsplash.com/photo-1492619375914-88005aa9e8fb?w=800&h=450&fit=crop',
     videoUrl: 'video3.mp4',
     likes: 589,
     comments: 84,
     time: '2d ago',
   },
-]
+];
 
 const mockAds: Ad[] = [
   {
     id: 'ad1',
-    image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=400&fit=crop',
+    image:
+      'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=400&fit=crop',
     title: 'Master Your Career',
     description: 'Professional development courses from top universities',
     link: '#',
   },
   {
     id: 'ad2',
-    image: 'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=800&h=400&fit=crop',
+    image:
+      'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=800&h=400&fit=crop',
     title: 'Alumni Travel Program',
     description: 'Exclusive destinations with fellow alumni',
     link: '#',
   },
   {
     id: 'ad3',
-    image: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&h=400&fit=crop',
+    image:
+      'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&h=400&fit=crop',
     title: 'Invest in Your Future',
     description: 'Financial planning services for alumni',
     link: '#',
@@ -366,13 +419,15 @@ const compactAds = [
     id: 'compact1',
     title: 'Alumni Career Workshop',
     description: 'Boost your career with expert guidance',
-    image: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400&h=200&fit=crop',
+    image:
+      'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400&h=200&fit=crop',
   },
   {
     id: 'compact2',
     title: 'Networking Mixer',
     description: 'Connect with industry leaders',
-    image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=400&h=200&fit=crop',
+    image:
+      'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=400&h=200&fit=crop',
   },
 ];
 
@@ -385,7 +440,12 @@ const Dashboard = () => {
   const { events } = useEvents();
   const { connections } = useConnections();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingPost, setEditingPost] = useState<{ id: number; content: string; media?: { type: 'image' | 'video'; url: string }; tag?: string } | null>(null);
+  const [editingPost, setEditingPost] = useState<{
+    id: number;
+    content: string;
+    media?: { type: 'image' | 'video'; url: string };
+    tag?: string;
+  } | null>(null);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [displayedPosts, setDisplayedPosts] = useState<(Post | Ad)[]>([]);
   const [page, setPage] = useState(0);
@@ -393,20 +453,62 @@ const Dashboard = () => {
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
-  const [expandedComments, setExpandedComments] = useState<Set<number>>(new Set());
+  const [expandedComments, setExpandedComments] = useState<Set<number>>(
+    new Set(),
+  );
   const [copiedPostId, setCopiedPostId] = useState<number | null>(null);
   const [dismissedEventReminder, setDismissedEventReminder] = useState(false);
+  const [filters, setFilters] = useState<FilterOptions>({
+    postTypes: [],
+    tags: [],
+    companies: [],
+    universities: [],
+    searchText: '',
+  });
   const observerTarget = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const POSTS_PER_PAGE = 6;
   const nextPostId = useRef(1000); // Start user posts at 1000 to avoid conflicts
 
-  // Combine user posts with mock posts
+  // Combine user posts with mock posts and apply filters
   const getAllPosts = () => {
-    return [...userPosts, ...allMockPosts].sort((a, b) => {
-      // Sort by ID descending (newest first)
-      return b.id - a.id;
-    });
+    let posts = [...userPosts, ...allMockPosts];
+
+    // Apply filters
+    if (filters.postTypes.length > 0) {
+      posts = posts.filter((post) => filters.postTypes.includes(post.type));
+    }
+
+    if (filters.tags.length > 0) {
+      posts = posts.filter(
+        (post) => post.tag && filters.tags.includes(post.tag),
+      );
+    }
+
+    if (filters.companies.length > 0) {
+      posts = posts.filter(
+        (post) => post.company && filters.companies.includes(post.company),
+      );
+    }
+
+    if (filters.universities.length > 0) {
+      posts = posts.filter((post) =>
+        filters.universities.includes(post.university),
+      );
+    }
+
+    if (filters.searchText) {
+      const searchLower = filters.searchText.toLowerCase();
+      posts = posts.filter(
+        (post) =>
+          post.content.toLowerCase().includes(searchLower) ||
+          post.author.toLowerCase().includes(searchLower) ||
+          (post.company && post.company.toLowerCase().includes(searchLower)) ||
+          (post.jobTitle && post.jobTitle.toLowerCase().includes(searchLower)),
+      );
+    }
+
+    return posts.sort((a, b) => b.id - a.id);
   };
 
   // Handle search result selection
@@ -419,15 +521,15 @@ const Dashboard = () => {
         navigate(`/post/${result.id}`, { state: { post: result.data } });
         break;
       case 'user':
-        navigate('/profile', { 
-          state: { 
+        navigate('/profile', {
+          state: {
             userData: {
               name: result.data.author,
               avatar: result.data.avatar,
               university: result.data.university,
               year: result.data.year,
-            }
-          } 
+            },
+          },
         });
         break;
       case 'event':
@@ -442,7 +544,10 @@ const Dashboard = () => {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+      if (
+        searchRef.current &&
+        !searchRef.current.contains(event.target as Node)
+      ) {
         setShowSearchDropdown(false);
       }
     };
@@ -479,44 +584,52 @@ const Dashboard = () => {
       }
     });
 
-    setDisplayedPosts(prev => [...prev, ...postsWithAds]);
-    setPage(prev => prev + 1);
+    setDisplayedPosts((prev) => [...prev, ...postsWithAds]);
+    setPage((prev) => prev + 1);
   };
 
   // Create or edit post
-  const handlePostSubmit = (content: string, media: { type: 'image' | 'video'; url: string } | null, tag?: string) => {
+  const handlePostSubmit = (
+    content: string,
+    media: { type: 'image' | 'video'; url: string } | null,
+    tag?: string,
+  ) => {
     if (editingPost) {
       // Edit existing post
-      setUserPosts(prev => prev.map(post => 
-        post.id === editingPost.id 
-          ? { 
-              ...post, 
-              content, 
+      setUserPosts((prev) =>
+        prev.map((post) =>
+          post.id === editingPost.id
+            ? {
+                ...post,
+                content,
+                type: media?.type || 'text',
+                media: media?.type === 'image' ? media.url : undefined,
+                thumbnail: media?.type === 'video' ? media.url : undefined,
+                videoUrl: media?.type === 'video' ? media.url : undefined,
+                tag: tag as Post['tag'],
+              }
+            : post,
+        ),
+      );
+
+      // Also update in displayed posts
+      setDisplayedPosts((prev) =>
+        prev.map((item) => {
+          if ('id' in item && item.id === editingPost.id) {
+            return {
+              ...item,
+              content,
               type: media?.type || 'text',
               media: media?.type === 'image' ? media.url : undefined,
               thumbnail: media?.type === 'video' ? media.url : undefined,
               videoUrl: media?.type === 'video' ? media.url : undefined,
               tag: tag as Post['tag'],
-            }
-          : post
-      ));
-      
-      // Also update in displayed posts
-      setDisplayedPosts(prev => prev.map(item => {
-        if ('id' in item && item.id === editingPost.id) {
-          return {
-            ...item,
-            content,
-            type: media?.type || 'text',
-            media: media?.type === 'image' ? media.url : undefined,
-            thumbnail: media?.type === 'video' ? media.url : undefined,
-            videoUrl: media?.type === 'video' ? media.url : undefined,
-            tag: tag as Post['tag'],
-          } as Post;
-        }
-        return item;
-      }));
-      
+            } as Post;
+          }
+          return item;
+        }),
+      );
+
       toast({
         title: 'Post updated!',
         description: 'Your post has been updated successfully',
@@ -540,12 +653,12 @@ const Dashboard = () => {
         time: 'Just now',
         tag: tag as Post['tag'],
       };
-      setUserPosts(prev => [newPost, ...prev]);
+      setUserPosts((prev) => [newPost, ...prev]);
       toast({
         title: 'Post created!',
         description: 'Your post has been shared with the network',
       });
-      
+
       // Reset displayed posts to show new post
       setDisplayedPosts([]);
       setPage(0);
@@ -558,13 +671,17 @@ const Dashboard = () => {
     if (e) {
       e.stopPropagation();
     }
-    
+
     // Show confirmation
-    const confirmed = window.confirm('Are you sure you want to delete this post? This action cannot be undone.');
-    
+    const confirmed = window.confirm(
+      'Are you sure you want to delete this post? This action cannot be undone.',
+    );
+
     if (confirmed) {
-      setUserPosts(prev => prev.filter(post => post.id !== postId));
-      setDisplayedPosts(prev => prev.filter(item => !('id' in item && item.id === postId)));
+      setUserPosts((prev) => prev.filter((post) => post.id !== postId));
+      setDisplayedPosts((prev) =>
+        prev.filter((item) => !('id' in item && item.id === postId)),
+      );
       toast({
         title: 'Post deleted',
         description: 'Your post has been removed',
@@ -577,8 +694,11 @@ const Dashboard = () => {
     setEditingPost({
       id: post.id,
       content: post.content,
-      media: post.media ? { type: 'image', url: post.media } : 
-             post.videoUrl ? { type: 'video', url: post.videoUrl } : undefined,
+      media: post.media
+        ? { type: 'image', url: post.media }
+        : post.videoUrl
+        ? { type: 'video', url: post.videoUrl }
+        : undefined,
       tag: post.tag,
     });
     setIsModalOpen(true);
@@ -586,12 +706,16 @@ const Dashboard = () => {
 
   // Handle image load error
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    e.currentTarget.src = 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=600&fit=crop';
+    e.currentTarget.src =
+      'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=600&fit=crop';
     e.currentTarget.alt = 'Image unavailable';
   };
 
   // Handle avatar error
-  const handleAvatarError = (e: React.SyntheticEvent<HTMLImageElement>, seed: string) => {
+  const handleAvatarError = (
+    e: React.SyntheticEvent<HTMLImageElement>,
+    seed: string,
+  ) => {
     e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`;
   };
 
@@ -599,22 +723,22 @@ const Dashboard = () => {
   const handleProfileClick = (post: Post, e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    
+
     // If it's the current user's post, go to own profile
     if (post.author === user?.name || post.author === 'You') {
       navigate('/profile');
     } else {
       // For other users, navigate to profile with user data in state
-      navigate('/profile', { 
-        state: { 
+      navigate('/profile', {
+        state: {
           userData: {
             name: post.author,
             avatar: post.avatar,
             university: post.university,
             year: post.year,
             major: 'Computer Science', // Default, would come from API
-          }
-        } 
+          },
+        },
       });
     }
   };
@@ -623,20 +747,28 @@ const Dashboard = () => {
   const linkifyText = (text: string) => {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/g;
-    
+
     let result = text;
-    
+
     // Replace URLs
     result = result.replace(urlRegex, (url) => {
       return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:text-primary/80 font-medium" onclick="event.stopPropagation()">${url}</a>`;
     });
-    
+
     // Replace emails
     result = result.replace(emailRegex, (email) => {
       return `<a href="mailto:${email}" class="text-primary underline hover:text-primary/80 font-medium" onclick="event.stopPropagation()">${email}</a>`;
     });
-    
+
     return result;
+  };
+
+  // Handle filter changes - reset feed
+  const handleFilterChange = (newFilters: FilterOptions) => {
+    setFilters(newFilters);
+    setDisplayedPosts([]);
+    setPage(0);
+    setHasMore(true);
   };
 
   // Initial load
@@ -644,7 +776,7 @@ const Dashboard = () => {
     if (displayedPosts.length === 0 && page === 0) {
       loadMorePosts();
     }
-  }, [userPosts]);
+  }, [userPosts, filters]);
 
   // Infinite scroll observer
   useEffect(() => {
@@ -654,7 +786,7 @@ const Dashboard = () => {
           loadMorePosts();
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
 
     if (observerTarget.current) {
@@ -665,7 +797,7 @@ const Dashboard = () => {
   }, [hasMore, page, userPosts, searchQuery]);
 
   const toggleLike = (postId: number) => {
-    setLikedPosts(prev => {
+    setLikedPosts((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(postId)) {
         newSet.delete(postId);
@@ -677,7 +809,7 @@ const Dashboard = () => {
   };
 
   const toggleComments = (postId: number) => {
-    setExpandedComments(prev => {
+    setExpandedComments((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(postId)) {
         newSet.delete(postId);
@@ -690,22 +822,31 @@ const Dashboard = () => {
 
   const handleCommentAdded = (postId: number) => {
     // Update comment count in displayed posts
-    setDisplayedPosts(prev => prev.map(item => {
-      if ('id' in item && item.id === postId) {
-        return { ...item, comments: item.comments + 1 } as Post;
-      }
-      return item;
-    }));
-    
+    setDisplayedPosts((prev) =>
+      prev.map((item) => {
+        if ('id' in item && item.id === postId && 'comments' in item) {
+          return { ...item, comments: item.comments + 1 } as Post;
+        }
+        return item;
+      }),
+    );
+
     // Update in user posts if applicable
-    setUserPosts(prev => prev.map(post => 
-      post.id === postId ? { ...post, comments: post.comments + 1 } : post
-    ));
+    setUserPosts((prev) =>
+      prev.map((post) =>
+        post.id === postId ? { ...post, comments: post.comments + 1 } : post,
+      ),
+    );
   };
 
-  const handleShare = async (post: Post, method: 'copy' | 'facebook' | 'twitter' | 'native') => {
+  const handleShare = async (
+    post: Post,
+    method: 'copy' | 'facebook' | 'twitter' | 'native',
+  ) => {
     const postUrl = `${window.location.origin}/post/${post.id}`;
-    const shareText = `Check out this post by ${post.author}: ${post.content.slice(0, 100)}...`;
+    const shareText = `Check out this post by ${
+      post.author
+    }: ${post.content.slice(0, 100)}...`;
 
     try {
       switch (method) {
@@ -720,11 +861,21 @@ const Dashboard = () => {
           break;
 
         case 'facebook':
-          window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(postUrl)}`, '_blank');
+          window.open(
+            `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+              postUrl,
+            )}`,
+            '_blank',
+          );
           break;
 
         case 'twitter':
-          window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(postUrl)}`, '_blank');
+          window.open(
+            `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+              shareText,
+            )}&url=${encodeURIComponent(postUrl)}`,
+            '_blank',
+          );
           break;
 
         case 'native':
@@ -752,36 +903,74 @@ const Dashboard = () => {
   // Get tag display info
   const getTagInfo = (tag?: Post['tag']) => {
     if (!tag) return null;
-    
+
     const tagMap = {
-      'success-story': { label: 'Success Story', color: 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20', icon: '🏆' },
-      'career-milestone': { label: 'Career Milestone', color: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20', icon: '📈' },
-      'achievement': { label: 'Achievement', color: 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20', icon: '⭐' },
-      'learning': { label: 'Learning Journey', color: 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20', icon: '📚' },
-      'volunteering': { label: 'Volunteering', color: 'bg-pink-500/10 text-pink-700 dark:text-pink-400 border-pink-500/20', icon: '❤️' },
+      'success-story': {
+        label: 'Success Story',
+        color:
+          'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20',
+        icon: '🏆',
+      },
+      'career-milestone': {
+        label: 'Career Milestone',
+        color:
+          'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20',
+        icon: '📈',
+      },
+      achievement: {
+        label: 'Achievement',
+        color:
+          'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20',
+        icon: '⭐',
+      },
+      learning: {
+        label: 'Learning Journey',
+        color:
+          'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20',
+        icon: '📚',
+      },
+      volunteering: {
+        label: 'Volunteering',
+        color:
+          'bg-pink-500/10 text-pink-700 dark:text-pink-400 border-pink-500/20',
+        icon: '❤️',
+      },
     };
-    
+
     return tagMap[tag];
+  };
+
+  const handlePostClick = (post: Post) => {
+    navigate(`/post/${post.id}`, { state: { post } });
   };
 
   const renderPost = (post: Post) => {
     const isLiked = likedPosts.has(post.id);
     const displayLikes = isLiked ? post.likes + 1 : post.likes;
-    const isUserPost = userPosts.some(p => p.id === post.id);
+    const isUserPost = userPosts.some((p) => p.id === post.id);
     const showComments = expandedComments.has(post.id);
     const isCopied = copiedPostId === post.id;
     const tagInfo = getTagInfo(post.tag);
     const hasTag = !!tagInfo;
 
     return (
-      <Card 
-        key={post.id} 
-        className={`overflow-hidden hover:shadow-lg transition-all duration-200 ${
-          hasTag ? 'ring-1 ' + tagInfo.color.split(' ')[0].replace('bg-', 'ring-').replace('/10', '/30') : ''
+      <Card
+        key={post.id}
+        className={`overflow-hidden hover:shadow-lg transition-all duration-200 cursor-pointer ${
+          hasTag
+            ? 'ring-1 ' +
+              tagInfo.color
+                .split(' ')[0]
+                .replace('bg-', 'ring-')
+                .replace('/10', '/30')
+            : ''
         }`}
+        onClick={() => handlePostClick(post)}
       >
         {/* Post Header */}
-        <div className={`p-4 sm:p-5 ${hasTag ? tagInfo.color.split(' ')[0] : ''}`}>
+        <div
+          className={`p-4 sm:p-5 ${hasTag ? tagInfo.color.split(' ')[0] : ''}`}
+        >
           {/* Tag Badge */}
           {hasTag && (
             <div className="mb-3">
@@ -791,7 +980,7 @@ const Dashboard = () => {
               </Badge>
             </div>
           )}
-          
+
           <div className="flex items-start justify-between mb-4">
             <div className="flex gap-3 flex-1 min-w-0">
               <img
@@ -803,7 +992,7 @@ const Dashboard = () => {
                 title={`View ${post.author}'s profile`}
               />
               <div className="min-w-0 flex-1">
-                <h3 
+                <h3
                   className="font-semibold text-base truncate cursor-pointer hover:underline hover:text-primary transition-colors"
                   onClick={(e) => handleProfileClick(post, e)}
                   title={`View ${post.author}'s profile`}
@@ -818,26 +1007,33 @@ const Dashboard = () => {
             {isUserPost ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 hover:bg-accent">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 flex-shrink-0 hover:bg-accent"
+                  >
                     <MoreHorizontal className="w-5 h-5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem 
+                <DropdownMenuContent
+                  align="end"
+                  className="w-48"
+                >
+                  <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
                       handleEditPost(post);
-                    }} 
+                    }}
                     className="gap-2 cursor-pointer"
                   >
                     <Edit className="w-4 h-4" />
                     <span>Edit Post</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDeletePost(post.id, e);
-                    }} 
+                    }}
                     className="gap-2 text-destructive focus:text-destructive cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -846,7 +1042,11 @@ const Dashboard = () => {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 flex-shrink-0"
+              >
                 <MoreHorizontal className="w-4 h-4" />
               </Button>
             )}
@@ -854,9 +1054,14 @@ const Dashboard = () => {
 
           {/* Post Type Badge */}
           {(post.type === 'job' || post.type === 'announcement') && (
-            <Badge className="mb-3" variant={post.type === 'job' ? 'default' : 'secondary'}>
+            <Badge
+              className="mb-3"
+              variant={post.type === 'job' ? 'default' : 'secondary'}
+            >
               {post.type === 'job' && <Briefcase className="w-3 h-3 mr-1.5" />}
-              {post.type === 'announcement' && <Megaphone className="w-3 h-3 mr-1.5" />}
+              {post.type === 'announcement' && (
+                <Megaphone className="w-3 h-3 mr-1.5" />
+              )}
               {post.type === 'job' ? 'Job Opportunity' : 'Announcement'}
             </Badge>
           )}
@@ -865,12 +1070,14 @@ const Dashboard = () => {
           {post.type === 'job' && (
             <div className="mb-4 p-3 sm:p-4 bg-primary/5 rounded-lg border border-primary/10">
               <h4 className="font-semibold text-base mb-1">{post.jobTitle}</h4>
-              <p className="text-sm text-muted-foreground">{post.company} • {post.location}</p>
+              <p className="text-sm text-muted-foreground">
+                {post.company} • {post.location}
+              </p>
             </div>
           )}
 
           {/* Post Content */}
-          <div 
+          <div
             className="text-base leading-relaxed mb-4 whitespace-pre-line"
             dangerouslySetInnerHTML={{ __html: linkifyText(post.content) }}
           />
@@ -907,41 +1114,71 @@ const Dashboard = () => {
         )}
 
         {/* Post Actions */}
-        <div className="p-4 sm:p-5 border-t border-border">
+        <div
+          className="p-4 sm:p-5 border-t border-border"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="sm"
-              className={`gap-2 hover:bg-red-100 dark:hover:bg-red-950/50 ${isLiked ? 'text-red-500 hover:text-red-600' : 'hover:text-red-600 dark:hover:text-red-400'}`}
-              onClick={() => toggleLike(post.id)}
+              className={`gap-2 hover:bg-red-100 dark:hover:bg-red-950/50 ${
+                isLiked
+                  ? 'text-red-500 hover:text-red-600'
+                  : 'hover:text-red-600 dark:hover:text-red-400'
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleLike(post.id);
+              }}
             >
               <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
               <span className="text-sm font-medium">{displayLikes}</span>
             </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className={`gap-2 hover:bg-blue-100 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 ${showComments ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400' : ''}`}
-              onClick={() => toggleComments(post.id)}
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`gap-2 hover:bg-blue-100 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 ${
+                showComments
+                  ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
+                  : ''
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleComments(post.id);
+              }}
             >
               <MessageCircle className="w-5 h-5" />
               <span className="text-sm font-medium">{post.comments}</span>
             </Button>
-            
+
             {/* Share Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   className="gap-2 hover:bg-green-100 dark:hover:bg-green-950/50 hover:text-green-600 dark:hover:text-green-400"
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <Share2 className="w-5 h-5" />
-                  <span className="hidden sm:inline text-sm font-medium">Share</span>
+                  <span className="hidden sm:inline text-sm font-medium">
+                    Share
+                  </span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuItem onClick={() => handleShare(post, 'copy')} className="gap-2 cursor-pointer">
+              <DropdownMenuContent
+                align="end"
+                className="w-52"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleShare(post, 'copy');
+                  }}
+                  className="gap-2 cursor-pointer"
+                >
                   {isCopied ? (
                     <>
                       <Check className="w-4 h-4 text-green-500" />
@@ -955,17 +1192,35 @@ const Dashboard = () => {
                   )}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => handleShare(post, 'facebook')} className="gap-2 cursor-pointer">
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleShare(post, 'facebook');
+                  }}
+                  className="gap-2 cursor-pointer"
+                >
                   <Facebook className="w-4 h-4" />
                   <span>Share on Facebook</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleShare(post, 'twitter')} className="gap-2 cursor-pointer">
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleShare(post, 'twitter');
+                  }}
+                  className="gap-2 cursor-pointer"
+                >
                   <Twitter className="w-4 h-4" />
                   <span>Share on Twitter</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 {navigator.share && (
-                  <DropdownMenuItem onClick={() => handleShare(post, 'native')} className="gap-2 cursor-pointer">
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleShare(post, 'native');
+                    }}
+                    className="gap-2 cursor-pointer"
+                  >
                     <Share2 className="w-4 h-4" />
                     <span>More options...</span>
                   </DropdownMenuItem>
@@ -977,10 +1232,12 @@ const Dashboard = () => {
 
         {/* Comment Section */}
         {showComments && (
-          <CommentSection
-            postId={post.id}
-            onCommentAdded={() => handleCommentAdded(post.id)}
-          />
+          <div onClick={(e) => e.stopPropagation()}>
+            <CommentSection
+              postId={post.id}
+              onCommentAdded={() => handleCommentAdded(post.id)}
+            />
+          </div>
         )}
       </Card>
     );
@@ -988,9 +1245,14 @@ const Dashboard = () => {
 
   const renderAd = (ad: Ad) => {
     return (
-      <Card key={ad.id} className="overflow-hidden border border-primary/10 bg-card hover:shadow-lg transition-all duration-200">
+      <Card
+        key={ad.id}
+        className="overflow-hidden border border-primary/10 bg-card hover:shadow-lg transition-all duration-200"
+      >
         <div className="relative bg-muted">
-          <Badge className="absolute top-3 right-3 z-10 bg-muted/80 text-muted-foreground text-xs font-normal backdrop-blur-sm">Sponsored</Badge>
+          <Badge className="absolute top-3 right-3 z-10 bg-muted/80 text-muted-foreground text-xs font-normal backdrop-blur-sm">
+            Sponsored
+          </Badge>
           <img
             src={ad.image}
             alt={ad.title}
@@ -1000,9 +1262,17 @@ const Dashboard = () => {
           />
         </div>
         <div className="p-4 sm:p-5">
-          <h3 className="font-semibold text-base sm:text-lg mb-1.5">{ad.title}</h3>
-          <p className="text-xs sm:text-sm text-muted-foreground mb-4 leading-relaxed">{ad.description}</p>
-          <Button className="w-full h-9 text-sm" variant="outline" size="sm">
+          <h3 className="font-semibold text-base sm:text-lg mb-1.5">
+            {ad.title}
+          </h3>
+          <p className="text-xs sm:text-sm text-muted-foreground mb-4 leading-relaxed">
+            {ad.description}
+          </p>
+          <Button
+            className="w-full h-9 text-sm"
+            variant="outline"
+            size="sm"
+          >
             Learn More
           </Button>
         </div>
@@ -1012,12 +1282,12 @@ const Dashboard = () => {
 
   // Get upcoming events (next 3)
   const upcomingEvents = events
-    .filter(event => new Date(event.date) > new Date())
+    .filter((event) => new Date(event.date) > new Date())
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .slice(0, 3);
 
   // Get today's events
-  const todaysEvents = events.filter(event => {
+  const todaysEvents = events.filter((event) => {
     const eventDate = new Date(event.date);
     const today = new Date();
     return eventDate.toDateString() === today.toDateString();
@@ -1026,8 +1296,12 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       <DesktopNav />
-      
-      <main className={`min-h-screen pb-20 md:pb-0 transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'md:ml-0'}`}>
+
+      <main
+        className={`min-h-screen pb-20 md:pb-0 transition-all duration-300 ${
+          isSidebarOpen ? 'md:ml-64' : 'md:ml-0'
+        }`}
+      >
         {/* Header with Search, Notifications and Theme Toggle */}
         <div className="sticky top-0 z-20 bg-card/95 backdrop-blur-sm border-b border-border shadow-sm">
           <div className="w-full px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
@@ -1051,18 +1325,48 @@ const Dashboard = () => {
                     strokeLinejoin="round"
                     className="w-5 h-5"
                   >
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                    <line x1="9" y1="3" x2="9" y2="21" />
-                    <line x1="14" y1="8" x2="19" y2="8" />
-                    <line x1="14" y1="12" x2="19" y2="12" />
-                    <line x1="14" y1="16" x2="19" y2="16" />
+                    <rect
+                      x="3"
+                      y="3"
+                      width="18"
+                      height="18"
+                      rx="2"
+                      ry="2"
+                    />
+                    <line
+                      x1="9"
+                      y1="3"
+                      x2="9"
+                      y2="21"
+                    />
+                    <line
+                      x1="14"
+                      y1="8"
+                      x2="19"
+                      y2="8"
+                    />
+                    <line
+                      x1="14"
+                      y1="12"
+                      x2="19"
+                      y2="12"
+                    />
+                    <line
+                      x1="14"
+                      y1="16"
+                      x2="19"
+                      y2="16"
+                    />
                   </svg>
                 ) : (
                   <Menu className="w-5 h-5" />
                 )}
               </Button>
               {/* Search Bar with Dropdown */}
-              <div className="relative flex-1 min-w-0" ref={searchRef}>
+              <div
+                className="relative flex-1 min-w-0"
+                ref={searchRef}
+              >
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground pointer-events-none z-10" />
                 <Input
                   type="search"
@@ -1088,13 +1392,21 @@ const Dashboard = () => {
                 {/* Notification Bell */}
                 <NotificationBell />
 
+                {/* Filter Button */}
+                <PostFilter
+                  onFilterChange={handleFilterChange}
+                  activeFilters={filters}
+                />
+
                 {/* Theme Toggle */}
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={toggleTheme}
                   className="h-10 w-10 flex-shrink-0 rounded-lg"
-                  title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+                  title={`Switch to ${
+                    theme === 'light' ? 'dark' : 'light'
+                  } mode`}
                 >
                   {theme === 'light' ? (
                     <Moon className="w-5 h-5" />
@@ -1120,9 +1432,8 @@ const Dashboard = () => {
         <div className="w-full px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
           <div className="max-w-[1600px] mx-auto">
             <div className="flex flex-col xl:flex-row gap-4 lg:gap-6 items-start">
-              
               {/* Left Sidebar - Ads & People (hidden on mobile/tablet) */}
-              <aside 
+              <aside
                 className="hidden xl:block xl:w-72 shrink-0 sticky top-24 space-y-4 max-h-[calc(100vh-7rem)] overflow-y-auto pr-2 hide-scrollbar"
                 onWheel={(e) => {
                   // ALWAYS stop propagation to prevent feed scroll
@@ -1143,9 +1454,17 @@ const Dashboard = () => {
                       />
                     </div>
                     <div className="p-3">
-                      <h3 className="font-semibold text-sm mb-1">{compactAds[0].title}</h3>
-                      <p className="text-xs text-muted-foreground mb-2">{compactAds[0].description}</p>
-                      <Button className="w-full h-7 text-xs" variant="outline" size="sm">
+                      <h3 className="font-semibold text-sm mb-1">
+                        {compactAds[0].title}
+                      </h3>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        {compactAds[0].description}
+                      </p>
+                      <Button
+                        className="w-full h-7 text-xs"
+                        variant="outline"
+                        size="sm"
+                      >
                         Learn More
                       </Button>
                     </div>
@@ -1159,16 +1478,21 @@ const Dashboard = () => {
                       <Users2 className="w-5 h-5 text-primary" />
                       <h2 className="font-bold text-base">Connect</h2>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">Suggested for you</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Suggested for you
+                    </p>
                   </div>
-                  <div 
+                  <div
                     className="divide-y divide-border max-h-[280px] overflow-y-auto subtle-scrollbar"
                     onWheel={(e) => {
                       e.stopPropagation();
                     }}
                   >
                     {suggestedConnections.slice(0, 3).map((person) => (
-                      <div key={person.id} className="p-2 hover:bg-accent/50 transition-colors">
+                      <div
+                        key={person.id}
+                        className="p-2 hover:bg-accent/50 transition-colors"
+                      >
                         <div className="flex gap-2">
                           <img
                             src={person.image}
@@ -1176,13 +1500,17 @@ const Dashboard = () => {
                             className="w-10 h-10 rounded-full flex-shrink-0 ring-2 ring-primary/20"
                           />
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-xs truncate">{person.name}</h3>
-                            <p className="text-[10px] text-muted-foreground truncate">{person.title}</p>
+                            <h3 className="font-semibold text-xs truncate">
+                              {person.name}
+                            </h3>
+                            <p className="text-[10px] text-muted-foreground truncate">
+                              {person.title}
+                            </p>
                             <p className="text-[10px] text-muted-foreground">
                               {person.mutualConnections} mutual
                             </p>
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               className="mt-1 h-6 text-[10px] w-full px-2"
                               onClick={() => {
                                 toast({
@@ -1200,9 +1528,9 @@ const Dashboard = () => {
                     ))}
                   </div>
                   <div className="p-2 border-t border-border">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="w-full text-[10px] h-7"
                       onClick={() => navigate('/connections')}
                     >
@@ -1211,14 +1539,14 @@ const Dashboard = () => {
                   </div>
                 </Card>
               </aside>
-              
+
               {/* Main Feed - Center Column */}
               <div className="flex-1 min-w-0 space-y-4">
                 {/* Mobile AI Assistant - Shows at top on mobile/tablet */}
                 <div className="lg:hidden">
                   <UniversityChatbot />
                 </div>
-                
+
                 {/* Today's Event Reminder */}
                 {!dismissedEventReminder && todaysEvents.length > 0 && (
                   <Card className="overflow-hidden border-2 border-blue-500/50 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-blue-500/10 shadow-lg">
@@ -1230,20 +1558,30 @@ const Dashboard = () => {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <Badge className="bg-blue-500 text-white">Today's Event</Badge>
-                              <span className="text-xs text-muted-foreground">Happening now!</span>
+                              <Badge className="bg-blue-500 text-white">
+                                Today's Event
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                Happening now!
+                              </span>
                             </div>
-                            <h3 className="font-bold text-lg mb-1">{todaysEvents[0].title}</h3>
+                            <h3 className="font-bold text-lg mb-1">
+                              {todaysEvents[0].title}
+                            </h3>
                             <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mb-2">
                               <div className="flex items-center gap-1">
                                 <MapPin className="w-4 h-4" />
                                 <span>{todaysEvents[0].location}</span>
                               </div>
-                              <Badge variant="secondary">{todaysEvents[0].category}</Badge>
+                              <Badge variant="secondary">
+                                {todaysEvents[0].category}
+                              </Badge>
                             </div>
-                            <p className="text-sm text-muted-foreground line-clamp-2">{todaysEvents[0].description}</p>
-                            <Button 
-                              size="sm" 
+                            <p className="text-sm text-muted-foreground line-clamp-2">
+                              {todaysEvents[0].description}
+                            </p>
+                            <Button
+                              size="sm"
                               className="mt-3"
                               onClick={() => navigate('/events')}
                             >
@@ -1271,23 +1609,34 @@ const Dashboard = () => {
                     <div className="p-4 border-b border-border bg-gradient-to-r from-blue-500/10 to-purple-500/10">
                       <div className="flex items-center gap-2">
                         <Users2 className="w-5 h-5 text-primary" />
-                        <h2 className="font-bold text-base">People to Connect</h2>
+                        <h2 className="font-bold text-base">
+                          People to Connect
+                        </h2>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">Expand your network</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Expand your network
+                      </p>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4">
                       {suggestedConnections.slice(0, 4).map((person) => (
-                        <div key={person.id} className="flex gap-3 p-3 border border-border rounded-lg hover:bg-accent/50 transition-colors">
+                        <div
+                          key={person.id}
+                          className="flex gap-3 p-3 border border-border rounded-lg hover:bg-accent/50 transition-colors"
+                        >
                           <img
                             src={person.image}
                             alt={person.name}
                             className="w-12 h-12 rounded-full flex-shrink-0 ring-2 ring-primary/20"
                           />
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-sm truncate">{person.name}</h3>
-                            <p className="text-xs text-muted-foreground truncate">{person.title}</p>
-                            <Button 
-                              size="sm" 
+                            <h3 className="font-semibold text-sm truncate">
+                              {person.name}
+                            </h3>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {person.title}
+                            </p>
+                            <Button
+                              size="sm"
                               className="mt-2 h-7 text-xs w-full"
                               onClick={() => {
                                 toast({
@@ -1304,9 +1653,9 @@ const Dashboard = () => {
                       ))}
                     </div>
                     <div className="p-3 border-t border-border">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         className="w-full text-xs"
                         onClick={() => navigate('/connections')}
                       >
@@ -1315,7 +1664,7 @@ const Dashboard = () => {
                     </div>
                   </Card>
                 </div>
-                
+
                 {/* Posts Feed */}
                 {/* Posts Feed with Ads */}
                 {displayedPosts.map((item) => {
@@ -1327,7 +1676,10 @@ const Dashboard = () => {
 
                 {/* Loading Indicator */}
                 {hasMore && displayedPosts.length > 0 && (
-                  <div ref={observerTarget} className="py-6 sm:py-8 text-center">
+                  <div
+                    ref={observerTarget}
+                    className="py-6 sm:py-8 text-center"
+                  >
                     <div className="inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                   </div>
                 )}
@@ -1335,20 +1687,21 @@ const Dashboard = () => {
                 {/* End of Feed */}
                 {!hasMore && displayedPosts.length > 0 && (
                   <Card className="p-4 sm:p-6 text-center">
-                    <p className="text-sm sm:text-base text-muted-foreground">You're all caught up! 🎉</p>
+                    <p className="text-sm sm:text-base text-muted-foreground">
+                      You're all caught up! 🎉
+                    </p>
                   </Card>
                 )}
               </div>
 
               {/* Right Sidebar - Ads, AI Assistant & Content */}
-              <aside 
+              <aside
                 className="hidden lg:block lg:w-80 xl:w-96 shrink-0 sticky top-24 space-y-4 max-h-[calc(100vh-7rem)] overflow-y-auto pl-2 hide-scrollbar"
                 onWheel={(e) => {
                   // ALWAYS stop propagation to prevent feed scroll
                   e.stopPropagation();
                 }}
               >
-                
                 {/* Compact Ad 2 - TOP POSITION */}
                 {compactAds[1] && (
                   <Card className="overflow-hidden border border-border/50 bg-card hover:shadow-md transition-all">
@@ -1363,9 +1716,17 @@ const Dashboard = () => {
                       />
                     </div>
                     <div className="p-3">
-                      <h3 className="font-semibold text-sm mb-1">{compactAds[1].title}</h3>
-                      <p className="text-xs text-muted-foreground mb-2">{compactAds[1].description}</p>
-                      <Button className="w-full h-7 text-xs" variant="outline" size="sm">
+                      <h3 className="font-semibold text-sm mb-1">
+                        {compactAds[1].title}
+                      </h3>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        {compactAds[1].description}
+                      </p>
+                      <Button
+                        className="w-full h-7 text-xs"
+                        variant="outline"
+                        size="sm"
+                      >
                         Learn More
                       </Button>
                     </div>
@@ -1374,7 +1735,7 @@ const Dashboard = () => {
 
                 {/* University AI Assistant */}
                 <UniversityChatbot />
-                
+
                 {/* Success Stories */}
                 <Card className="overflow-hidden">
                   <div className="p-4 border-b border-border bg-gradient-to-r from-primary/10 to-secondary/10">
@@ -1382,16 +1743,21 @@ const Dashboard = () => {
                       <Trophy className="w-5 h-5 text-primary" />
                       <h2 className="font-bold text-lg">Success Stories</h2>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">Inspiring alumni achievements</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Inspiring alumni achievements
+                    </p>
                   </div>
-                  <div 
+                  <div
                     className="divide-y divide-border max-h-[300px] overflow-y-auto subtle-scrollbar"
                     onWheel={(e) => {
                       e.stopPropagation();
                     }}
                   >
                     {successStories.map((story) => (
-                      <div key={story.id} className="p-4 hover:bg-accent/50 transition-colors cursor-pointer">
+                      <div
+                        key={story.id}
+                        className="p-4 hover:bg-accent/50 transition-colors cursor-pointer"
+                      >
                         <div className="flex gap-3">
                           <img
                             src={story.image}
@@ -1399,20 +1765,33 @@ const Dashboard = () => {
                             className="w-12 h-12 rounded-full flex-shrink-0 ring-2 ring-primary/20"
                           />
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-sm truncate">{story.name}</h3>
-                            <p className="text-xs text-muted-foreground truncate">{story.title}</p>
-                            <Badge variant="outline" className="mt-2 text-xs">
+                            <h3 className="font-semibold text-sm truncate">
+                              {story.name}
+                            </h3>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {story.title}
+                            </p>
+                            <Badge
+                              variant="outline"
+                              className="mt-2 text-xs"
+                            >
                               <TrendingUp className="w-3 h-3 mr-1" />
                               {story.achievement}
                             </Badge>
-                            <p className="text-xs mt-2 text-muted-foreground line-clamp-2">{story.story}</p>
+                            <p className="text-xs mt-2 text-muted-foreground line-clamp-2">
+                              {story.story}
+                            </p>
                           </div>
                         </div>
                       </div>
                     ))}
                   </div>
                   <div className="p-3 border-t border-border">
-                    <Button variant="ghost" size="sm" className="w-full text-xs">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-xs"
+                    >
                       View All Stories
                     </Button>
                   </div>
@@ -1426,11 +1805,13 @@ const Dashboard = () => {
                         <Calendar className="w-5 h-5 text-blue-600" />
                         <h2 className="font-bold text-lg">Upcoming Events</h2>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">Don't miss these events</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Don't miss these events
+                      </p>
                     </div>
                     <div className="divide-y divide-border">
                       {upcomingEvents.map((event) => (
-                        <div 
+                        <div
                           key={event.id}
                           onClick={() => navigate('/events')}
                           className="p-4 hover:bg-accent/50 transition-colors cursor-pointer"
@@ -1444,16 +1825,25 @@ const Dashboard = () => {
                               />
                             )}
                             <div className="flex-1 min-w-0">
-                              <h3 className="font-semibold text-sm line-clamp-1">{event.title}</h3>
+                              <h3 className="font-semibold text-sm line-clamp-1">
+                                {event.title}
+                              </h3>
                               <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
                                 <Calendar className="w-3 h-3" />
-                                <span>{new Date(event.date).toLocaleDateString()}</span>
+                                <span>
+                                  {new Date(event.date).toLocaleDateString()}
+                                </span>
                               </div>
                               <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
                                 <MapPin className="w-3 h-3" />
-                                <span className="truncate">{event.location}</span>
+                                <span className="truncate">
+                                  {event.location}
+                                </span>
                               </div>
-                              <Badge variant="secondary" className="mt-2 text-xs">
+                              <Badge
+                                variant="secondary"
+                                className="mt-2 text-xs"
+                              >
                                 {event.category}
                               </Badge>
                             </div>
@@ -1462,9 +1852,9 @@ const Dashboard = () => {
                       ))}
                     </div>
                     <div className="p-3 border-t border-border">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         className="w-full text-xs"
                         onClick={() => navigate('/events')}
                       >
@@ -1488,17 +1878,23 @@ const Dashboard = () => {
                       />
                     </div>
                     <div className="p-3">
-                      <h3 className="font-semibold text-sm mb-1">{compactAds[1].title}</h3>
-                      <p className="text-xs text-muted-foreground mb-2">{compactAds[1].description}</p>
-                      <Button className="w-full h-7 text-xs" variant="outline" size="sm">
+                      <h3 className="font-semibold text-sm mb-1">
+                        {compactAds[1].title}
+                      </h3>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        {compactAds[1].description}
+                      </p>
+                      <Button
+                        className="w-full h-7 text-xs"
+                        variant="outline"
+                        size="sm"
+                      >
                         Learn More
                       </Button>
                     </div>
                   </Card>
                 )}
               </aside>
-
-
             </div>
           </div>
         </div>

@@ -7,9 +7,22 @@ import CommentSection from '@/components/CommentSection';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Heart, MessageCircle, Share2, MoreHorizontal, Briefcase, Megaphone, Play, 
-  ArrowLeft, Edit, Trash2, Facebook, Twitter, Copy, Check, Menu
+import {
+  Heart,
+  MessageCircle,
+  Share2,
+  MoreHorizontal,
+  Briefcase,
+  Megaphone,
+  Play,
+  ArrowLeft,
+  Edit,
+  Trash2,
+  Facebook,
+  Twitter,
+  Copy,
+  Check,
+  Menu,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -19,7 +32,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 
 const SinglePost = () => {
   const location = useLocation();
@@ -27,14 +40,15 @@ const SinglePost = () => {
   const { user } = useAuth();
   const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
   const { toast } = useToast();
-  
+
   const post = location.state?.post;
-  
+
   const [isLiked, setIsLiked] = useState(false);
   const [likes, setLikes] = useState(post?.likes || 0);
   const [comments, setComments] = useState(post?.comments || 0);
   const [copiedPostId, setCopiedPostId] = useState<number | null>(null);
-  const [showComments, setShowComments] = useState(true);
+  // Always show comments in single post view
+  const showComments = true;
 
   if (!post) {
     return (
@@ -50,7 +64,7 @@ const SinglePost = () => {
   const linkifyText = (text: string) => {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/g;
-    
+
     let result = text;
     result = result.replace(urlRegex, (url) => {
       return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:text-primary/80 font-medium">${url}</a>`;
@@ -62,29 +76,34 @@ const SinglePost = () => {
   };
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    e.currentTarget.src = 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=600&fit=crop';
+    e.currentTarget.src =
+      'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=600&fit=crop';
   };
 
   const handleProfileClick = () => {
     if (post.author === user?.name || post.author === 'You') {
       navigate('/profile');
     } else {
-      navigate('/profile', { 
-        state: { 
+      navigate('/profile', {
+        state: {
           userData: {
             name: post.author,
             avatar: post.avatar,
             university: post.university,
             year: post.year,
-          }
-        } 
+          },
+        },
       });
     }
   };
 
-  const handleShare = async (method: 'copy' | 'facebook' | 'twitter' | 'native') => {
+  const handleShare = async (
+    method: 'copy' | 'facebook' | 'twitter' | 'native',
+  ) => {
     const postUrl = `${window.location.origin}/post/${post.id}`;
-    const shareText = `Check out this post by ${post.author}: ${post.content.slice(0, 100)}...`;
+    const shareText = `Check out this post by ${
+      post.author
+    }: ${post.content.slice(0, 100)}...`;
 
     try {
       switch (method) {
@@ -98,14 +117,28 @@ const SinglePost = () => {
           });
           break;
         case 'facebook':
-          window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(postUrl)}`, '_blank');
+          window.open(
+            `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+              postUrl,
+            )}`,
+            '_blank',
+          );
           break;
         case 'twitter':
-          window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(postUrl)}`, '_blank');
+          window.open(
+            `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+              shareText,
+            )}&url=${encodeURIComponent(postUrl)}`,
+            '_blank',
+          );
           break;
         case 'native':
           if (navigator.share) {
-            await navigator.share({ title: `Post by ${post.author}`, text: shareText, url: postUrl });
+            await navigator.share({
+              title: `Post by ${post.author}`,
+              text: shareText,
+              url: postUrl,
+            });
           }
           break;
       }
@@ -118,8 +151,12 @@ const SinglePost = () => {
     <div className="min-h-screen bg-background">
       <DesktopNav />
       <MobileNav />
-      
-      <main className={`min-h-screen pb-20 md:pb-0 transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'md:ml-0'}`}>
+
+      <main
+        className={`min-h-screen pb-20 md:pb-0 transition-all duration-300 ${
+          isSidebarOpen ? 'md:ml-64' : 'md:ml-0'
+        }`}
+      >
         <div className="w-full px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
           <div className="max-w-4xl mx-auto">
             {/* Header with Back and Toggle */}
@@ -134,13 +171,12 @@ const SinglePost = () => {
                 <Menu className="w-5 h-5" />
               </Button>
               <Button
-                variant="ghost"
+                variant="default"
                 onClick={() => navigate('/dashboard')}
-                className="gap-2 h-9 text-sm flex-1"
+                className="gap-2 h-9 text-sm flex-1 font-medium"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span className="hidden sm:inline">Return to Feed</span>
-                <span className="sm:hidden">Back</span>
+                <span>Back to Feed</span>
               </Button>
             </div>
 
@@ -157,7 +193,7 @@ const SinglePost = () => {
                       className="w-12 h-12 rounded-full ring-2 ring-primary/10 flex-shrink-0 object-cover cursor-pointer hover:ring-primary/30 transition-all"
                     />
                     <div className="min-w-0 flex-1">
-                      <h3 
+                      <h3
                         className="font-semibold text-base cursor-pointer hover:underline hover:text-primary transition-colors"
                         onClick={handleProfileClick}
                       >
@@ -170,11 +206,67 @@ const SinglePost = () => {
                   </div>
                 </div>
 
+                {/* Post Tag Badge */}
+                {post.tag &&
+                  (() => {
+                    const tagMap: Record<
+                      string,
+                      { label: string; color: string; icon: string }
+                    > = {
+                      'success-story': {
+                        label: 'Success Story',
+                        color:
+                          'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20',
+                        icon: '🏆',
+                      },
+                      'career-milestone': {
+                        label: 'Career Milestone',
+                        color:
+                          'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20',
+                        icon: '📈',
+                      },
+                      achievement: {
+                        label: 'Achievement',
+                        color:
+                          'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20',
+                        icon: '⭐',
+                      },
+                      learning: {
+                        label: 'Learning Journey',
+                        color:
+                          'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20',
+                        icon: '📚',
+                      },
+                      volunteering: {
+                        label: 'Volunteering',
+                        color:
+                          'bg-pink-500/10 text-pink-700 dark:text-pink-400 border-pink-500/20',
+                        icon: '❤️',
+                      },
+                    };
+                    const tagInfo = tagMap[post.tag];
+                    return tagInfo ? (
+                      <Badge
+                        className={`mb-3 ${tagInfo.color} border font-medium`}
+                      >
+                        <span className="mr-1">{tagInfo.icon}</span>
+                        {tagInfo.label}
+                      </Badge>
+                    ) : null;
+                  })()}
+
                 {/* Post Type Badge */}
                 {(post.type === 'job' || post.type === 'announcement') && (
-                  <Badge className="mb-3" variant={post.type === 'job' ? 'default' : 'secondary'}>
-                    {post.type === 'job' && <Briefcase className="w-3 h-3 mr-1.5" />}
-                    {post.type === 'announcement' && <Megaphone className="w-3 h-3 mr-1.5" />}
+                  <Badge
+                    className="mb-3"
+                    variant={post.type === 'job' ? 'default' : 'secondary'}
+                  >
+                    {post.type === 'job' && (
+                      <Briefcase className="w-3 h-3 mr-1.5" />
+                    )}
+                    {post.type === 'announcement' && (
+                      <Megaphone className="w-3 h-3 mr-1.5" />
+                    )}
                     {post.type === 'job' ? 'Job Opportunity' : 'Announcement'}
                   </Badge>
                 )}
@@ -182,15 +274,21 @@ const SinglePost = () => {
                 {/* Job Details */}
                 {post.type === 'job' && (
                   <div className="mb-4 p-3 sm:p-4 bg-primary/5 rounded-lg border border-primary/10">
-                    <h4 className="font-semibold text-base mb-1">{post.jobTitle}</h4>
-                    <p className="text-sm text-muted-foreground">{post.company} • {post.location}</p>
+                    <h4 className="font-semibold text-base mb-1">
+                      {post.jobTitle}
+                    </h4>
+                    <p className="text-sm text-muted-foreground">
+                      {post.company} • {post.location}
+                    </p>
                   </div>
                 )}
 
                 {/* Post Content */}
-                <div 
+                <div
                   className="text-base leading-relaxed mb-4 whitespace-pre-line"
-                  dangerouslySetInnerHTML={{ __html: linkifyText(post.content) }}
+                  dangerouslySetInnerHTML={{
+                    __html: linkifyText(post.content),
+                  }}
                 />
               </div>
 
@@ -228,38 +326,54 @@ const SinglePost = () => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className={`gap-2 hover:bg-red-100 dark:hover:bg-red-950/50 ${isLiked ? 'text-red-500 hover:text-red-600' : 'hover:text-red-600 dark:hover:text-red-400'}`}
+                    className={`gap-2 hover:bg-red-100 dark:hover:bg-red-950/50 ${
+                      isLiked
+                        ? 'text-red-500 hover:text-red-600'
+                        : 'hover:text-red-600 dark:hover:text-red-400'
+                    }`}
                     onClick={() => {
                       setIsLiked(!isLiked);
                       setLikes(isLiked ? likes - 1 : likes + 1);
                     }}
                   >
-                    <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+                    <Heart
+                      className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`}
+                    />
                     <span className="text-sm font-medium">{likes}</span>
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className={`gap-2 hover:bg-blue-100 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 ${showComments ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400' : ''}`}
-                    onClick={() => setShowComments(!showComments)}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-2 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 cursor-default"
+                    disabled
                   >
                     <MessageCircle className="w-5 h-5" />
-                    <span className="text-sm font-medium">{comments}</span>
+                    <span className="text-sm font-medium">
+                      {comments} Comments
+                    </span>
                   </Button>
-                  
+
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         className="gap-2 hover:bg-green-100 dark:hover:bg-green-950/50 hover:text-green-600 dark:hover:text-green-400"
                       >
                         <Share2 className="w-5 h-5" />
-                        <span className="hidden sm:inline text-sm font-medium">Share</span>
+                        <span className="hidden sm:inline text-sm font-medium">
+                          Share
+                        </span>
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-52">
-                      <DropdownMenuItem onClick={() => handleShare('copy')} className="gap-2 cursor-pointer">
+                    <DropdownMenuContent
+                      align="end"
+                      className="w-52"
+                    >
+                      <DropdownMenuItem
+                        onClick={() => handleShare('copy')}
+                        className="gap-2 cursor-pointer"
+                      >
                         {copiedPostId === post.id ? (
                           <>
                             <Check className="w-4 h-4 text-green-500" />
@@ -273,11 +387,17 @@ const SinglePost = () => {
                         )}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => handleShare('facebook')} className="gap-2 cursor-pointer">
+                      <DropdownMenuItem
+                        onClick={() => handleShare('facebook')}
+                        className="gap-2 cursor-pointer"
+                      >
                         <Facebook className="w-4 h-4" />
                         <span>Share on Facebook</span>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleShare('twitter')} className="gap-2 cursor-pointer">
+                      <DropdownMenuItem
+                        onClick={() => handleShare('twitter')}
+                        className="gap-2 cursor-pointer"
+                      >
                         <Twitter className="w-4 h-4" />
                         <span>Share on Twitter</span>
                       </DropdownMenuItem>
@@ -302,4 +422,3 @@ const SinglePost = () => {
 };
 
 export default SinglePost;
-
