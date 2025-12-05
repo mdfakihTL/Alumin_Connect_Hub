@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Users, UserPlus, Upload, Shield, FileText, Calendar, 
   UsersRound, DollarSign, Settings, LayoutDashboard, Trash2,
-  AlertCircle, CheckCircle, Clock, XCircle, Book
+  AlertCircle, CheckCircle, Clock, XCircle, Book, Menu
 } from 'lucide-react';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
@@ -18,7 +18,7 @@ import WorldMapHeatmap from '@/components/WorldMapHeatmap';
 const AdminDashboard = () => {
   const { user, isAdmin } = useAuth();
   const { getUniversity } = useUniversity();
-  const { isOpen: isSidebarOpen } = useSidebar();
+  const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
   const navigate = useNavigate();
 
   const university = user?.universityId ? getUniversity(user.universityId) : null;
@@ -71,8 +71,9 @@ const AdminDashboard = () => {
         <div className="sticky top-0 z-20 bg-card/95 backdrop-blur-sm border-b border-border shadow-sm">
           <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
             <div className="max-w-7xl mx-auto">
-              <div className="flex items-center gap-3">
-                {university?.logo ? (
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  {university?.logo ? (
                   <div className="w-12 h-12 rounded-xl bg-card border-2 border-primary/20 flex items-center justify-center p-2">
                     <img 
                       src={university.logo} 
@@ -93,10 +94,21 @@ const AdminDashboard = () => {
                     <Shield className="w-6 h-6 text-white" />
                   </div>
                 )}
-                <div>
-                  <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-                  <p className="text-sm text-muted-foreground">{university?.name || user?.university}</p>
+                  <div>
+                    <h1 className="text-xl sm:text-2xl font-bold">Admin Dashboard</h1>
+                    <p className="text-xs sm:text-sm text-muted-foreground">{university?.name || user?.university}</p>
+                  </div>
                 </div>
+                {/* Sidebar Toggle - All Screen Sizes */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleSidebar}
+                  className="h-10 w-10 flex-shrink-0"
+                  title="Toggle menu"
+                >
+                  <Menu className="w-5 h-5" />
+                </Button>
               </div>
             </div>
           </div>

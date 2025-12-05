@@ -53,6 +53,23 @@ const Profile = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [profileCompletion, setProfileCompletion] = useState(0);
   const [additionalProfileData, setAdditionalProfileData] = useState<any>(null);
+  
+  // Initialize profileData state first (before using it in useEffect)
+  const [profileData, setProfileData] = useState<ProfileData>({
+    name: user?.name || '',
+    bio: 'Passionate about technology and building meaningful connections. Always eager to help fellow alumni and students navigate their career paths.',
+    major: user?.major || 'Computer Science',
+    graduationYear: user?.graduationYear || '2020',
+    jobTitle: 'Software Engineer',
+    company: 'Tech Company',
+    location: 'San Francisco, CA',
+    linkedin: 'https://linkedin.com/in/yourprofile',
+    email: user?.email || '',
+    phone: '+1 (555) 000-0000',
+    website: 'https://yourwebsite.com',
+    avatar: user?.avatar || '',
+    banner: '',
+  });
 
   // Calculate profile completion percentage
   useEffect(() => {
@@ -87,21 +104,6 @@ const Profile = () => {
   // Check connection status
   const connected = !isOwnProfile && isConnected(viewingUserData?.name || '');
   const requestPending = !isOwnProfile && hasPendingRequest(viewingUserData?.name || '');
-  const [profileData, setProfileData] = useState<ProfileData>({
-    name: user?.name || '',
-    bio: 'Passionate about technology and building meaningful connections. Always eager to help fellow alumni and students navigate their career paths.',
-    major: user?.major || 'Computer Science',
-    graduationYear: user?.graduationYear || '2020',
-    jobTitle: 'Software Engineer',
-    company: 'Tech Company',
-    location: 'San Francisco, CA',
-    linkedin: 'https://linkedin.com/in/yourprofile',
-    email: user?.email || '',
-    phone: '+1 (555) 000-0000',
-    website: 'https://yourwebsite.com',
-    avatar: user?.avatar || '',
-    banner: '',
-  });
 
   // Update profile data when user changes
   useEffect(() => {
@@ -153,9 +155,9 @@ const Profile = () => {
       
       <main className={`min-h-screen pb-20 md:pb-0 transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'md:ml-0'}`}>
         <div className="max-w-5xl mx-auto">
-          {/* Back Button for Other Profiles */}
-          {!isOwnProfile && (
-            <div className="p-3 sm:p-4 lg:p-6">
+          {/* Back Button for Other Profiles and Mobile Menu Button */}
+          {!isOwnProfile ? (
+            <div className="p-3 sm:p-4 lg:p-6 flex items-center justify-between">
               <Button
                 variant="ghost"
                 onClick={() => navigate(-1)}
@@ -165,11 +167,18 @@ const Profile = () => {
                 <span className="hidden sm:inline">Back to Feed</span>
                 <span className="sm:hidden">Back</span>
               </Button>
+              {/* Mobile Menu Button for viewing other profiles */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleSidebar}
+                className="h-9 w-9 md:hidden"
+              >
+                <Menu className="w-5 h-5" />
+              </Button>
             </div>
-          )}
-          
-          {/* Mobile Menu Button */}
-          {isOwnProfile && (
+          ) : (
+            /* Mobile Menu Button for own profile */
             <div className="p-3 sm:p-4 md:hidden">
               <Button
                 variant="ghost"
@@ -179,29 +188,6 @@ const Profile = () => {
               >
                 <Menu className="w-5 h-5" />
               </Button>
-            </div>
-          )}
-
-          {/* Profile Completion Meter - Only for own profile */}
-          {isOwnProfile && profileCompletion < 100 && (
-            <div className="px-3 sm:px-4 lg:px-6 mb-4">
-              <Card className="p-4 bg-gradient-to-r from-primary/10 to-secondary/10 border-primary/20">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
-                    <TrendingUp className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <h3 className="font-semibold text-sm sm:text-base">Profile Completion</h3>
-                      <Badge variant="secondary" className="text-xs">{profileCompletion}%</Badge>
-                    </div>
-                    <Progress value={profileCompletion} className="h-2" />
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Complete your profile to unlock all features and improve your visibility
-                </p>
-              </Card>
             </div>
           )}
 
@@ -246,7 +232,7 @@ const Profile = () => {
                   </div>
                 </div>
               </div>
-              <div className="flex gap-2 w-full sm:w-auto">
+              <div className="flex gap-2 w-full sm:w-auto flex-shrink-0">
                 {isOwnProfile ? (
                   <Button className="gap-2 flex-1 sm:flex-none" onClick={() => setIsEditModalOpen(true)}>
                     <Edit className="w-4 h-4" />
@@ -283,6 +269,19 @@ const Profile = () => {
                 )}
               </div>
             </div>
+
+            {/* Profile Completion Progress - Only for own profile */}
+            {isOwnProfile && profileCompletion < 100 && (
+              <div className="mb-6">
+                <div className="bg-gradient-to-r from-primary/5 to-secondary/5 rounded-lg p-4 border border-primary/10">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">Profile Completion</span>
+                    <span className="text-sm font-semibold text-primary">{profileCompletion}%</span>
+                  </div>
+                  <Progress value={profileCompletion} className="h-2" />
+                </div>
+              </div>
+            )}
 
             <div className="grid md:grid-cols-3 gap-6">
               {/* About */}

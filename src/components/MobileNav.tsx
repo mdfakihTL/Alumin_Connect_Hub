@@ -1,12 +1,14 @@
-import { Home, Users, Calendar, MessageCircle, User, FileText, Moon, Sun, Heart, Shield, LayoutDashboard, Settings } from 'lucide-react';
+import { Home, Users, Calendar, MessageCircle, User, FileText, Moon, Sun, Heart, Shield, LayoutDashboard, Settings, Menu } from 'lucide-react';
 import { NavLink } from './NavLink';
 import { Button } from './ui/button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSidebar } from '@/contexts/SidebarContext';
 
 const MobileNav = () => {
   const { theme, toggleTheme } = useTheme();
   const { isAdmin, isSuperAdmin } = useAuth();
+  const { toggleSidebar } = useSidebar();
   
   // Super Admin navigation items
   const superAdminNavItems = [
@@ -34,19 +36,15 @@ const MobileNav = () => {
 
   return (
     <>
-      {/* Theme Toggle Button - Floating */}
+      {/* Menu Toggle Button - Floating (opens sidebar with logout) */}
       <Button
         variant="outline"
         size="icon"
-        onClick={toggleTheme}
+        onClick={toggleSidebar}
         className="fixed top-4 right-4 z-50 md:hidden w-10 h-10 rounded-full bg-card/80 backdrop-blur-sm border-border shadow-lg hover:shadow-xl transition-all"
-        title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+        title="Open menu"
       >
-        {theme === 'light' ? (
-          <Moon className="w-5 h-5" />
-        ) : (
-          <Sun className="w-5 h-5" />
-        )}
+        <Menu className="w-5 h-5" />
       </Button>
 
       {/* Bottom Navigation */}

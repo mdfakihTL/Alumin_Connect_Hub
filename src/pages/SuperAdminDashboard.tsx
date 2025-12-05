@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   Crown, Building2, Users, TrendingUp, DollarSign, 
-  LayoutDashboard, Settings, Shield, Image, Key
+  LayoutDashboard, Settings, Shield, Image, Key, Menu
 } from 'lucide-react';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
@@ -15,7 +15,7 @@ import SuperAdminAnalytics from '@/components/superadmin/SuperAdminAnalytics';
 
 const SuperAdminDashboard = () => {
   const { user, isSuperAdmin } = useAuth();
-  const { isOpen: isSidebarOpen } = useSidebar();
+  const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
   const navigate = useNavigate();
 
   // Redirect if not super admin
@@ -78,17 +78,29 @@ const SuperAdminDashboard = () => {
         <div className="sticky top-0 z-20 bg-card/95 backdrop-blur-sm border-b border-border shadow-sm">
           <div className="w-full px-3 sm:px-4 lg:px-6 py-4">
             <div className="max-w-7xl mx-auto">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-                  <Crown className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-xl sm:text-2xl font-bold">Super Admin Dashboard</h1>
-                    <Badge variant="secondary">Master Control</Badge>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center flex-shrink-0">
+                    <Crown className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
-                  <p className="text-xs sm:text-sm text-muted-foreground">AlumniHub Central Management</p>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-lg sm:text-xl md:text-2xl font-bold">Super Admin Dashboard</h1>
+                      <Badge variant="secondary" className="text-[10px] hidden sm:inline-flex">Master Control</Badge>
+                    </div>
+                    <p className="text-xs sm:text-sm text-muted-foreground">AlumniHub Central Management</p>
+                  </div>
                 </div>
+                {/* Sidebar Toggle - All Screen Sizes */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleSidebar}
+                  className="h-10 w-10 flex-shrink-0"
+                  title="Toggle menu"
+                >
+                  <Menu className="w-5 h-5" />
+                </Button>
               </div>
             </div>
           </div>

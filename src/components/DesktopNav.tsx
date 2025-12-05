@@ -129,14 +129,15 @@ const DesktopNav = () => {
       {/* Sidebar */}
       <aside 
         className={`
-          fixed left-0 top-0 flex flex-col w-64 bg-card border-r border-border h-screen z-50
+          fixed left-0 top-0 flex flex-col w-64 bg-card border-r border-border z-50
           transition-transform duration-300 ease-in-out
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+          h-[calc(100dvh-4rem)] md:h-[100dvh]
           md:z-40
         `}
       >
         {/* Header - Fixed */}
-        <div className="p-4 sm:p-5 lg:p-6 border-b border-border flex-shrink-0">
+        <div className="p-3 sm:p-4 lg:p-5 border-b border-border flex-shrink-0">
           <div className="flex items-center justify-between gap-2 sm:gap-3">
             <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
               {university?.logo && !isSuperAdmin ? (
@@ -190,7 +191,7 @@ const DesktopNav = () => {
         {/* Navigation - Scrollable */}
         <nav 
           ref={navRef} 
-          className="flex-1 p-3 sm:p-4 space-y-1 sm:space-y-2 overflow-y-auto"
+          className="flex-1 p-2 sm:p-3 space-y-1 overflow-y-auto min-h-0"
           style={{ scrollBehavior: 'auto' }}
         >
           {navItems.map((item) => (
@@ -205,48 +206,48 @@ const DesktopNav = () => {
                 }
                 if (window.innerWidth < 768) closeSidebar();
               }}
-              className="flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors text-sm sm:text-base"
+              className="flex items-center gap-2 sm:gap-2.5 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors text-xs sm:text-sm"
               activeClassName="bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
             >
-              <item.icon className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+              <item.icon className="w-4 h-4 flex-shrink-0" />
               <span className="font-medium truncate">{item.label}</span>
             </NavLink>
           ))}
         </nav>
 
         {/* Bottom Section - Fixed */}
-        <div className="p-3 sm:p-4 border-t border-border space-y-1.5 sm:space-y-2 flex-shrink-0">
+        <div className="p-2 sm:p-3 border-t border-border space-y-1 sm:space-y-1.5 flex-shrink-0 bg-card">
           <NavLink
             to="/profile"
             onClick={() => {
               if (window.innerWidth < 768) closeSidebar();
             }}
-            className="flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg hover:bg-accent transition-colors"
+            className="flex items-center gap-2 sm:gap-2.5 px-2 sm:px-3 py-2 rounded-lg hover:bg-accent transition-colors"
           >
             <img
               src={user?.avatar}
               alt={user?.name}
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover flex-shrink-0"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover flex-shrink-0"
             />
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm truncate">{user?.name}</p>
-              <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{user?.email}</p>
+              <p className="font-medium text-xs sm:text-sm truncate">{user?.name}</p>
+              <p className="text-[9px] sm:text-[10px] text-muted-foreground truncate">{user?.email}</p>
             </div>
           </NavLink>
           <Button
             variant="ghost"
             onClick={toggleTheme}
-            className="w-full justify-start gap-2.5 sm:gap-3 text-muted-foreground hover:text-foreground h-9 sm:h-10 text-sm"
+            className="w-full justify-start gap-2 sm:gap-2.5 text-muted-foreground hover:text-foreground h-8 sm:h-9 text-xs sm:text-sm px-2 sm:px-3"
             title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
           >
             {theme === 'light' ? (
               <>
-                <Moon className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                <Moon className="w-4 h-4 flex-shrink-0" />
                 <span className="truncate">Dark Mode</span>
               </>
             ) : (
               <>
-                <Sun className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                <Sun className="w-4 h-4 flex-shrink-0" />
                 <span className="truncate">Light Mode</span>
               </>
             )}
@@ -254,9 +255,9 @@ const DesktopNav = () => {
           <Button
             variant="ghost"
             onClick={handleLogout}
-            className="w-full justify-start gap-2.5 sm:gap-3 text-muted-foreground h-9 sm:h-10 text-sm"
+            className="w-full justify-start gap-2 sm:gap-2.5 text-muted-foreground hover:text-foreground h-8 sm:h-9 text-xs sm:text-sm px-2 sm:px-3"
           >
-            <LogOut className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+            <LogOut className="w-4 h-4 flex-shrink-0" />
             <span className="truncate">Logout</span>
           </Button>
         </div>

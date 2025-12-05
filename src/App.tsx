@@ -49,6 +49,7 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+// Protected Routes Components - Must be inside Router and AuthProvider
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
   return user ? <>{children}</> : <Navigate to="/login" />;
@@ -77,6 +78,52 @@ const SuperAdminRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+// Routes Component - Must be inside AuthProvider
+const AppRoutes = () => (
+  <Routes>
+    <Route path="/" element={<Index />} />
+    <Route path="/login" element={<Login />} />
+    <Route path="/forgot-password" element={<ForgotPassword />} />
+    
+    {/* Super Admin Routes */}
+    <Route path="/superadmin" element={<SuperAdminRoute><SuperAdminDashboard /></SuperAdminRoute>} />
+    <Route path="/superadmin/universities" element={<SuperAdminRoute><SuperAdminUniversitiesPage /></SuperAdminRoute>} />
+    <Route path="/superadmin/users" element={<SuperAdminRoute><SuperAdminUsersPage /></SuperAdminRoute>} />
+    <Route path="/superadmin/admins" element={<SuperAdminRoute><SuperAdminAdminsPage /></SuperAdminRoute>} />
+    <Route path="/superadmin/ads" element={<SuperAdminRoute><SuperAdminAdsPage /></SuperAdminRoute>} />
+    <Route path="/superadmin/passwords" element={<SuperAdminRoute><SuperAdminPasswordsPage /></SuperAdminRoute>} />
+    <Route path="/superadmin/analytics" element={<SuperAdminRoute><SuperAdminAnalyticsPage /></SuperAdminRoute>} />
+    
+    {/* Admin Routes */}
+    <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+    <Route path="/admin/branding" element={<AdminRoute><AdminBrandingPage /></AdminRoute>} />
+    <Route path="/admin/feed" element={<AdminRoute><AdminFeedPage /></AdminRoute>} />
+    <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
+    <Route path="/admin/mentors" element={<AdminRoute><AdminMentorsPage /></AdminRoute>} />
+    <Route path="/admin/passwords" element={<AdminRoute><AdminPasswordsPage /></AdminRoute>} />
+    <Route path="/admin/documents" element={<AdminRoute><AdminDocumentsPage /></AdminRoute>} />
+    <Route path="/admin/events" element={<AdminRoute><AdminEventsPage /></AdminRoute>} />
+    <Route path="/admin/groups" element={<AdminRoute><AdminGroupsPage /></AdminRoute>} />
+    <Route path="/admin/fundraiser" element={<AdminRoute><AdminFundraiserPage /></AdminRoute>} />
+    <Route path="/admin/knowledge" element={<AdminRoute><AdminKnowledgePage /></AdminRoute>} />
+    
+    {/* Alumni Routes */}
+    <Route path="/profile-completion" element={<ProtectedRoute><ProfileCompletion /></ProtectedRoute>} />
+    <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+    <Route path="/profile" element={<ProfileRoute />} />
+    <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
+    <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
+    <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+    <Route path="/roadmap" element={<ProtectedRoute><AIRoadmap /></ProtectedRoute>} />
+    <Route path="/mentorship" element={<ProtectedRoute><MentorshipMatch /></ProtectedRoute>} />
+    <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
+    <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+    <Route path="/connections" element={<ProtectedRoute><Connections /></ProtectedRoute>} />
+    <Route path="/post/:id" element={<ProtectedRoute><SinglePost /></ProtectedRoute>} />
+    <Route path="*" element={<NotFound />} />
+  </Routes>
+);
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
@@ -91,48 +138,7 @@ const App = () => (
                     <Sonner />
                     <PWAInstallPrompt />
                     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-                        <Routes>
-                          <Route path="/" element={<Index />} />
-                          <Route path="/login" element={<Login />} />
-                          <Route path="/forgot-password" element={<ForgotPassword />} />
-                          
-                          {/* Super Admin Routes */}
-                          <Route path="/superadmin" element={<SuperAdminRoute><SuperAdminDashboard /></SuperAdminRoute>} />
-                          <Route path="/superadmin/universities" element={<SuperAdminRoute><SuperAdminUniversitiesPage /></SuperAdminRoute>} />
-                          <Route path="/superadmin/users" element={<SuperAdminRoute><SuperAdminUsersPage /></SuperAdminRoute>} />
-                          <Route path="/superadmin/admins" element={<SuperAdminRoute><SuperAdminAdminsPage /></SuperAdminRoute>} />
-                          <Route path="/superadmin/ads" element={<SuperAdminRoute><SuperAdminAdsPage /></SuperAdminRoute>} />
-                          <Route path="/superadmin/passwords" element={<SuperAdminRoute><SuperAdminPasswordsPage /></SuperAdminRoute>} />
-                          <Route path="/superadmin/analytics" element={<SuperAdminRoute><SuperAdminAnalyticsPage /></SuperAdminRoute>} />
-                          
-                          {/* Admin Routes */}
-                          <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-                          <Route path="/admin/branding" element={<AdminRoute><AdminBrandingPage /></AdminRoute>} />
-                          <Route path="/admin/feed" element={<AdminRoute><AdminFeedPage /></AdminRoute>} />
-                          <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
-                          <Route path="/admin/mentors" element={<AdminRoute><AdminMentorsPage /></AdminRoute>} />
-                          <Route path="/admin/passwords" element={<AdminRoute><AdminPasswordsPage /></AdminRoute>} />
-                          <Route path="/admin/documents" element={<AdminRoute><AdminDocumentsPage /></AdminRoute>} />
-                          <Route path="/admin/events" element={<AdminRoute><AdminEventsPage /></AdminRoute>} />
-                          <Route path="/admin/groups" element={<AdminRoute><AdminGroupsPage /></AdminRoute>} />
-                          <Route path="/admin/fundraiser" element={<AdminRoute><AdminFundraiserPage /></AdminRoute>} />
-                          <Route path="/admin/knowledge" element={<AdminRoute><AdminKnowledgePage /></AdminRoute>} />
-                          
-                          {/* Alumni Routes */}
-                          <Route path="/profile-completion" element={<ProtectedRoute><ProfileCompletion /></ProtectedRoute>} />
-                          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                          <Route path="/profile" element={<ProfileRoute />} />
-                          <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
-                          <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
-                          <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
-                          <Route path="/roadmap" element={<ProtectedRoute><AIRoadmap /></ProtectedRoute>} />
-                          <Route path="/mentorship" element={<ProtectedRoute><MentorshipMatch /></ProtectedRoute>} />
-                          <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
-                          <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-                          <Route path="/connections" element={<ProtectedRoute><Connections /></ProtectedRoute>} />
-                          <Route path="/post/:id" element={<ProtectedRoute><SinglePost /></ProtectedRoute>} />
-                          <Route path="*" element={<NotFound />} />
-                        </Routes>
+                      <AppRoutes />
                     </BrowserRouter>
                   </TooltipProvider>
                 </EventsProvider>

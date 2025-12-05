@@ -1032,12 +1032,12 @@ const Dashboard = () => {
         <div className="sticky top-0 z-20 bg-card/95 backdrop-blur-sm border-b border-border shadow-sm">
           <div className="w-full px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
             <div className="max-w-7xl mx-auto flex items-center gap-3">
-              {/* Sidebar Toggle Button - All screens */}
+              {/* Sidebar Toggle Button - Desktop only (mobile has bottom nav) */}
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={toggleSidebar}
-                className="h-10 w-10 flex-shrink-0 hover:bg-accent rounded-lg"
+                className="h-10 w-10 flex-shrink-0 hover:bg-accent rounded-lg hidden md:flex"
                 title={isSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
               >
                 {isSidebarOpen ? (
@@ -1103,13 +1103,13 @@ const Dashboard = () => {
                   )}
                 </Button>
 
-                {/* Create Post Button */}
+                {/* Create Post Button - Desktop Only */}
                 <Button
                   onClick={() => setIsModalOpen(true)}
-                  className="gap-2 h-10 text-sm font-medium px-3 sm:px-4"
+                  className="gap-2 h-10 text-sm font-medium px-3 sm:px-4 hidden md:flex"
                 >
                   <PlusCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span className="hidden sm:inline">Create</span>
+                  <span>Create</span>
                 </Button>
               </div>
             </div>
@@ -1503,6 +1503,16 @@ const Dashboard = () => {
           </div>
         </div>
       </main>
+
+      {/* Floating Action Button - Mobile Only */}
+      <Button
+        onClick={() => setIsModalOpen(true)}
+        className="fixed bottom-20 right-4 z-40 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all md:hidden"
+        size="icon"
+        title="Create Post"
+      >
+        <PlusCircle className="w-6 h-6" />
+      </Button>
 
       {/* Post Modal */}
       <PostModal

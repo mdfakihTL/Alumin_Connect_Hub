@@ -212,9 +212,9 @@ const MentorshipMatch = () => {
       <DesktopNav />
       <MobileNav />
       
-      <main className={`h-screen pb-20 md:pb-0 transition-all duration-300 flex flex-col ${isSidebarOpen ? 'md:ml-64' : 'md:ml-0'}`}>
-        <div className="w-full px-3 sm:px-4 lg:px-6 py-3 sm:py-4 flex-1 flex flex-col overflow-hidden">
-          <div className="max-w-6xl mx-auto w-full flex-1 flex flex-col">
+      <main className={`min-h-screen pb-24 md:pb-0 transition-all duration-300 flex flex-col ${isSidebarOpen ? 'md:ml-64' : 'md:ml-0'}`}>
+        <div className="w-full px-3 sm:px-4 lg:px-6 py-3 sm:py-4 flex-1 flex flex-col">
+          <div className="max-w-6xl mx-auto w-full flex-1 flex flex-col min-h-0">
             {/* Header */}
             <div className="mb-3 sm:mb-4 flex items-center gap-2 sm:gap-3 flex-shrink-0">
               <Button
@@ -258,8 +258,8 @@ const MentorshipMatch = () => {
 
             {/* Content */}
             {activeTab === 'discover' ? (
-              <div className="flex-1 flex flex-col min-h-0">
-                <div className="max-w-4xl w-full mx-auto flex-1 flex flex-col justify-center">
+              <div className="flex-1 flex flex-col min-h-0 overflow-y-auto subtle-scrollbar">
+                <div className="max-w-4xl w-full mx-auto flex flex-col py-2">
                 {hasMore ? (
                   <>
                     {/* Match Animation Overlay */}
@@ -278,51 +278,51 @@ const MentorshipMatch = () => {
 
                     {/* Mentor Card */}
                     <div 
-                      className={`transition-all duration-300 ${
+                      className={`transition-all duration-300 mb-4 ${
                         swipeDirection === 'left' ? 'translate-x-[-150%] rotate-[-25deg] opacity-0' :
                         swipeDirection === 'right' ? 'translate-x-[150%] rotate-[25deg] opacity-0' :
                         'translate-x-0 rotate-0 opacity-100'
                       }`}
                     >
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-6">
                         {/* Left Column - Profile & Stats */}
-                        <Card className="overflow-hidden border-2 border-purple-500/30 shadow-xl flex flex-col">
+                        <Card className="overflow-hidden border-2 border-purple-500/30 shadow-xl flex flex-col relative">
                           {/* Match Score Badge */}
-                          <div className="absolute top-3 right-3 z-10">
-                            <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold text-xs sm:text-sm px-2 sm:px-3 py-1">
+                          <div className="absolute top-2 right-2 z-10">
+                            <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold text-xs px-2 py-0.5">
                               <Star className="w-3 h-3 mr-1 fill-white" />
                               {currentMentor.matchScore}%
                             </Badge>
                           </div>
 
                           {/* Avatar Section */}
-                          <div className="p-4 sm:p-6 text-center bg-gradient-to-b from-purple-500/10 via-pink-500/10 to-transparent">
+                          <div className="p-3 sm:p-4 text-center bg-gradient-to-b from-purple-500/10 via-pink-500/10 to-transparent">
                             <img
                               src={currentMentor.avatar}
                               alt={currentMentor.name}
-                              className="w-24 h-24 sm:w-28 sm:h-28 lg:w-32 lg:h-32 rounded-full mx-auto ring-4 ring-purple-500/30 shadow-lg mb-3"
+                              className="w-20 h-20 sm:w-24 sm:h-24 rounded-full mx-auto ring-4 ring-purple-500/30 shadow-lg mb-2"
                             />
-                            <h2 className="font-bold text-xl sm:text-2xl mb-1.5">{currentMentor.name}</h2>
-                            <p className="text-sm sm:text-base text-muted-foreground mb-2">{currentMentor.title}</p>
-                            <Badge className={`${getAvailabilityColor(currentMentor.availability)} border text-xs px-2.5 py-0.5`}>
+                            <h2 className="font-bold text-lg sm:text-xl mb-1">{currentMentor.name}</h2>
+                            <p className="text-xs sm:text-sm text-muted-foreground mb-1.5">{currentMentor.title}</p>
+                            <Badge className={`${getAvailabilityColor(currentMentor.availability)} border text-[10px] px-2 py-0.5`}>
                               {currentMentor.availability} Availability
                             </Badge>
                           </div>
 
                           {/* Stats */}
-                          <div className="px-4 sm:px-6 pb-4 sm:pb-6">
-                            <div className="grid grid-cols-3 gap-3 p-3 sm:p-4 bg-muted/30 rounded-lg">
+                          <div className="px-3 sm:px-4 pb-3 sm:pb-4">
+                            <div className="grid grid-cols-3 gap-2 p-2 sm:p-3 bg-muted/30 rounded-lg">
                               <div className="text-center">
-                                <p className="text-xl sm:text-2xl font-bold text-primary">{currentMentor.yearsExperience}</p>
-                                <p className="text-[10px] sm:text-xs text-muted-foreground">Years Exp.</p>
+                                <p className="text-lg sm:text-xl font-bold text-primary">{currentMentor.yearsExperience}</p>
+                                <p className="text-[9px] sm:text-[10px] text-muted-foreground">Years Exp.</p>
                               </div>
                               <div className="text-center">
-                                <p className="text-xl sm:text-2xl font-bold text-purple-600">{currentMentor.mentees}</p>
-                                <p className="text-[10px] sm:text-xs text-muted-foreground">Mentees</p>
+                                <p className="text-lg sm:text-xl font-bold text-purple-600">{currentMentor.mentees}</p>
+                                <p className="text-[9px] sm:text-[10px] text-muted-foreground">Mentees</p>
                               </div>
                               <div className="text-center">
-                                <p className="text-xl sm:text-2xl font-bold text-blue-600">{currentMentor.matchScore}%</p>
-                                <p className="text-[10px] sm:text-xs text-muted-foreground">Match</p>
+                                <p className="text-lg sm:text-xl font-bold text-blue-600">{currentMentor.matchScore}%</p>
+                                <p className="text-[9px] sm:text-[10px] text-muted-foreground">Match</p>
                               </div>
                             </div>
                           </div>
@@ -330,23 +330,7 @@ const MentorshipMatch = () => {
 
                         {/* Right Column - Details */}
                         <Card className="overflow-hidden border-2 border-border shadow-xl flex flex-col">
-                          <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 flex-1 overflow-y-auto subtle-scrollbar">
-                          {/* Stats */}
-                          <div className="grid grid-cols-3 gap-4 p-4 bg-muted/30 rounded-lg">
-                            <div className="text-center">
-                              <p className="text-2xl font-bold text-primary">{currentMentor.yearsExperience}</p>
-                              <p className="text-xs text-muted-foreground">Years Exp.</p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-2xl font-bold text-purple-600">{currentMentor.mentees}</p>
-                              <p className="text-xs text-muted-foreground">Mentees</p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-2xl font-bold text-blue-600">{currentMentor.matchScore}%</p>
-                              <p className="text-xs text-muted-foreground">Match</p>
-                            </div>
-                          </div>
-
+                          <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 flex-1 overflow-y-auto subtle-scrollbar max-h-[400px] lg:max-h-none">
                             {/* Details */}
                             <div className="space-y-3">
                               <div className="flex items-start gap-2.5">
@@ -395,31 +379,32 @@ const MentorshipMatch = () => {
                     </div>
 
                     {/* Swipe Buttons */}
-                    <div className="flex items-center justify-center gap-4 sm:gap-6 mt-4 sm:mt-6 flex-shrink-0">
-                      <Button
-                        size="lg"
-                        variant="outline"
-                        onClick={() => handleSwipe('left')}
-                        className="h-14 w-14 sm:h-16 sm:w-16 rounded-full border-2 border-red-500/50 hover:bg-red-500/10 hover:border-red-500 hover:scale-110 transition-all"
-                      >
-                        <X className="w-6 h-6 sm:w-7 sm:h-7 text-red-500" />
-                      </Button>
-                      <Button
-                        size="lg"
-                        onClick={() => handleSwipe('right')}
-                        className="h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 shadow-xl hover:scale-110 transition-all"
-                      >
-                        <GraduationCap className="w-7 h-7 sm:w-9 sm:h-9 text-white" />
-                      </Button>
-                    </div>
-
-                    <div className="text-center mt-3 sm:mt-4 space-y-1 flex-shrink-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground">
-                        Swipe right to match • Left to pass
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {currentIndex + 1} of {mentorProfiles.length}
-                      </p>
+                    <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm py-3 mt-4 border-t border-border/50">
+                      <div className="flex items-center justify-center gap-4 sm:gap-6">
+                        <Button
+                          size="lg"
+                          variant="outline"
+                          onClick={() => handleSwipe('left')}
+                          className="h-12 w-12 sm:h-14 sm:w-14 rounded-full border-2 border-red-500/50 hover:bg-red-500/10 hover:border-red-500 hover:scale-110 transition-all shadow-lg"
+                        >
+                          <X className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" />
+                        </Button>
+                        <Button
+                          size="lg"
+                          onClick={() => handleSwipe('right')}
+                          className="h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 shadow-xl hover:scale-110 transition-all"
+                        >
+                          <GraduationCap className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+                        </Button>
+                      </div>
+                      <div className="text-center mt-2 space-y-0.5">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground">
+                          Swipe right to match • Left to pass
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {currentIndex + 1} of {mentorProfiles.length}
+                        </p>
+                      </div>
                     </div>
                   </>
                 ) : (
