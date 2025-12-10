@@ -25,7 +25,7 @@ class User(BaseModel):
     full_name = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     is_verified = Column(Boolean, default=False, nullable=False)
-    role = Column(SQLEnum(UserRole), default=UserRole.GUEST, nullable=False)
+    role = Column(String(50), default=UserRole.GUEST.value, nullable=False)
     last_login = Column(String(255), nullable=True)
     refresh_token = Column(String(512), nullable=True)
 

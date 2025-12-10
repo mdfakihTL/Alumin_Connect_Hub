@@ -22,7 +22,7 @@ def init_db():
                 username="admin",
                 hashed_password=get_password_hash("admin123"),
                 full_name="System Administrator",
-                role=UserRole.ADMIN,
+                role="admin",
                 is_active=True,
                 is_verified=True
             )
@@ -38,7 +38,7 @@ def init_db():
                 username="alumni",
                 hashed_password=get_password_hash("alumni123"),
                 full_name="Test Alumni",
-                role=UserRole.ALUMNI,
+                role="alumni",
                 is_active=True,
                 is_verified=True
             )

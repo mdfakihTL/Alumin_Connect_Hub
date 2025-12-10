@@ -55,9 +55,11 @@ class AlumniProfileResponse(AlumniProfileBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+# Import at the end to avoid circular imports
+from app.schemas.user import UserResponse
+
 class AlumniProfileWithUser(AlumniProfileResponse):
     """Alumni profile with user information"""
-    from app.schemas.user import UserResponse
     user: UserResponse
 
 
