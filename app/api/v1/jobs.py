@@ -11,6 +11,7 @@ from app.models.user import User
 from sqlalchemy import select
 from app.models.job import JobPosting, JobApplication, JobStatus
 from datetime import datetime
+from app.utils.datetime_utils import ensure_naive_utc
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
 
@@ -22,8 +23,13 @@ async def create_job_posting(
     session: AsyncSession = Depends(get_async_session)
 ):
     """Create a new job posting"""
+    job_dict = job_data.model_dump()
+    # Convert timezone-aware datetimes to naive for database compatibility
+    if 'application_deadline' in job_dict and job_dict['application_deadline']:
+        job_dict['application_deadline'] = ensure_naive_utc(job_dict['application_deadline'])
+    
     job = JobPosting(
-        **job_data.model_dump(),
+        **job_dict,
         poster_id=current_user.id
     )
     session.add(job)

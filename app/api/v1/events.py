@@ -11,6 +11,7 @@ from app.models.user import User
 from sqlalchemy import select
 from app.models.event import Event, EventRegistration
 from datetime import datetime
+from app.utils.datetime_utils import ensure_naive_utc
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
@@ -22,8 +23,17 @@ async def create_event(
     session: AsyncSession = Depends(get_async_session)
 ):
     """Create a new event"""
+    event_dict = event_data.model_dump()
+    # Convert timezone-aware datetimes to naive for database compatibility
+    if 'start_date' in event_dict and event_dict['start_date']:
+        event_dict['start_date'] = ensure_naive_utc(event_dict['start_date'])
+    if 'end_date' in event_dict and event_dict['end_date']:
+        event_dict['end_date'] = ensure_naive_utc(event_dict['end_date'])
+    if 'registration_deadline' in event_dict and event_dict['registration_deadline']:
+        event_dict['registration_deadline'] = ensure_naive_utc(event_dict['registration_deadline'])
+    
     event = Event(
-        **event_data.model_dump(),
+        **event_dict,
         creator_id=current_user.id
     )
     session.add(event)

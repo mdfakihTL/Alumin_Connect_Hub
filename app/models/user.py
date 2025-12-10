@@ -9,11 +9,11 @@ from app.db.base import BaseModel
 
 
 class UserRole(str, enum.Enum):
-    """User roles - values must match PostgreSQL enum (lowercase)"""
-    SUPER_ADMIN = "admin"  # Maps to 'admin' in database
-    UNIVERSITY_ADMIN = "moderator"  # Maps to 'moderator' in database
-    ALUMNI = "alumni"  # Maps to 'alumni' in database
-    GUEST = "guest"  # Maps to 'guest' in database
+    """User roles - values must match PostgreSQL enum (uppercase)"""
+    SUPER_ADMIN = "SUPER_ADMIN"
+    UNIVERSITY_ADMIN = "UNIVERSITY_ADMIN"
+    ALUMNI = "ALUMNI"
+    GUEST = "GUEST"
 
 
 class UserRoleEnum(TypeDecorator):
@@ -23,7 +23,7 @@ class UserRoleEnum(TypeDecorator):
     
     def __init__(self):
         super().__init__(
-            'admin', 'alumni', 'moderator', 'guest',
+            'SUPER_ADMIN', 'UNIVERSITY_ADMIN', 'ALUMNI', 'GUEST',
             name='userrole',
             native_enum=True
         )
@@ -43,10 +43,10 @@ class UserRoleEnum(TypeDecorator):
         if isinstance(value, str):
             # Map database values to enum members
             mapping = {
-                'admin': UserRole.SUPER_ADMIN,
-                'moderator': UserRole.UNIVERSITY_ADMIN,
-                'alumni': UserRole.ALUMNI,
-                'guest': UserRole.GUEST
+                'SUPER_ADMIN': UserRole.SUPER_ADMIN,
+                'UNIVERSITY_ADMIN': UserRole.UNIVERSITY_ADMIN,
+                'ALUMNI': UserRole.ALUMNI,
+                'GUEST': UserRole.GUEST
             }
             return mapping.get(value, UserRole.GUEST)
         return value

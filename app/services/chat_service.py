@@ -4,7 +4,7 @@ Chat service for AI-powered Q&A with RAG
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import select
 from app.models.chat import ChatSession, ChatMessage
 from app.schemas.chat import ChatMessageCreate, ChatResponse, ChatSessionResponse
