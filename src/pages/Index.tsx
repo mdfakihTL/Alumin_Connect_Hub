@@ -10,13 +10,44 @@ const Index = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if app is running as PWA (standalone mode)
-    const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
-                  (window.navigator as any).standalone ||
-                  document.referrer.includes('android-app://');
+    // PWA detection for both desktop and mobile
+    // This ensures consistent login routing regardless of platform
+    const detectPWA = (): boolean => {
+      // Primary method: Check display mode (works for both desktop and mobile PWAs)
+      // This is the most reliable indicator for installed PWAs
+      if (window.matchMedia('(display-mode: standalone)').matches) {
+        return true;
+      }
 
-    // If PWA, redirect to login
+      // Secondary method: iOS Safari standalone mode
+      // iOS Safari uses navigator.standalone when added to home screen
+      if ((window.navigator as any).standalone === true) {
+        return true;
+      }
+
+      // Tertiary method: Android app referrer
+      // Android PWAs launched from home screen have this referrer
+      if (document.referrer.includes('android-app://')) {
+        return true;
+      }
+
+      // Additional check: Fullscreen or minimal-ui display modes
+      // Some desktop PWAs may use these modes
+      if (window.matchMedia('(display-mode: fullscreen)').matches ||
+          window.matchMedia('(display-mode: minimal-ui)').matches) {
+        return true;
+      }
+
+      return false;
+    };
+
+    const isPWA = detectPWA();
+
+    // If running as PWA (desktop or mobile), redirect to login immediately
+    // This ensures consistent behavior: PWAs always open to login page
     if (isPWA) {
+      console.log('PWA detected - redirecting to login');
+      // Use replace to avoid adding to history stack
       navigate('/login', { replace: true });
     }
   }, [navigate]);
