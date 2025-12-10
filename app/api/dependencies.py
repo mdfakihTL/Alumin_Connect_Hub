@@ -3,18 +3,19 @@ API dependencies for authentication and authorization
 """
 from typing import Optional
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_async_session
 from app.repositories.user_repository import UserRepository
 from app.core.security import decode_token
 from app.models.user import UserRole, User
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+# Use HTTPBearer for simpler Bearer token authentication in Swagger UI
+security = HTTPBearer()
 
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     session: AsyncSession = Depends(get_async_session)
 ) -> User:
     """Get current authenticated user"""
@@ -24,6 +25,7 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
+    token = credentials.credentials
     payload = decode_token(token)
     if payload is None:
         raise credentials_exception
@@ -56,7 +58,11 @@ async def get_current_active_user(
 def require_role(allowed_roles: list[UserRole]):
     """Dependency factory for role-based access control"""
     async def role_checker(current_user: User = Depends(get_current_user)) -> User:
-        if current_user.role not in allowed_roles:
+        # Convert current_user.role to string (handles both enum and string)
+        user_role_str = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+        # Convert allowed roles to strings for comparison
+        allowed_role_values = [role.value for role in allowed_roles]
+        if user_role_str not in allowed_role_values:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Insufficient permissions"

@@ -8,7 +8,7 @@ from fastapi import HTTPException, status
 from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token, decode_token
 from app.core.config import settings
 from app.repositories.user_repository import UserRepository
-from app.schemas.user import UserCreate, UserLogin, Token
+from app.schemas.user import UserCreate, UserLogin, Token, UserResponse
 from app.models.user import UserRole
 
 
@@ -40,9 +40,10 @@ class AuthService:
         hashed_password = get_password_hash(user_data.password)
         user = await self.user_repo.create(user_data, hashed_password)
 
-        # Generate tokens
+        # Generate tokens - convert role to string if it's an enum
+        role_str = user.role.value if hasattr(user.role, 'value') else str(user.role)
         access_token = create_access_token(
-            data={"sub": str(user.id), "username": user.username, "role": user.role.value}
+            data={"sub": str(user.id), "username": user.username, "role": role_str}
         )
         refresh_token = create_refresh_token(
             data={"sub": str(user.id), "username": user.username}
@@ -51,8 +52,11 @@ class AuthService:
         # Save refresh token
         await self.user_repo.update_refresh_token(user.id, refresh_token)
 
+        # Convert user to response schema
+        user_response = UserResponse.model_validate(user)
+
         return {
-            "user": user,
+            "user": user_response.model_dump(),
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "bearer"
@@ -79,9 +83,10 @@ class AuthService:
                 detail="User account is inactive"
             )
 
-        # Generate tokens
+        # Generate tokens - convert role to string if it's an enum
+        role_str = user.role.value if hasattr(user.role, 'value') else str(user.role)
         access_token = create_access_token(
-            data={"sub": str(user.id), "username": user.username, "role": user.role.value}
+            data={"sub": str(user.id), "username": user.username, "role": role_str}
         )
         refresh_token = create_refresh_token(
             data={"sub": str(user.id), "username": user.username}
@@ -115,7 +120,7 @@ class AuthService:
 
         # Generate new tokens
         access_token = create_access_token(
-            data={"sub": str(user.id), "username": user.username, "role": user.role.value}
+            data={"sub": str(user.id), "username": user.username, "role": user.role}
         )
         new_refresh_token = create_refresh_token(
             data={"sub": str(user.id), "username": user.username}

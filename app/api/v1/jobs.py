@@ -9,7 +9,7 @@ from app.schemas.job import JobPostingCreate, JobPostingUpdate, JobPostingRespon
 from app.api.dependencies import get_current_active_user
 from app.models.user import User
 from sqlalchemy import select
-from app.models.job import JobPosting, JobApplication
+from app.models.job import JobPosting, JobApplication, JobStatus
 from datetime import datetime
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
@@ -41,7 +41,7 @@ async def list_jobs(
     """List all job postings"""
     result = await session.execute(
         select(JobPosting)
-        .where(JobPosting.status == "active")
+        .where(JobPosting.status == JobStatus.ACTIVE)
         .offset(skip)
         .limit(limit)
         .order_by(JobPosting.created_at.desc())

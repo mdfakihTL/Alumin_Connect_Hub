@@ -33,7 +33,7 @@ class UserInDB(UserBase):
     id: int
     is_active: bool
     is_verified: bool
-    role: UserRole
+    role: str  # Stored as string in DB, can be UserRole enum value
     created_at: datetime
     updated_at: datetime
 
