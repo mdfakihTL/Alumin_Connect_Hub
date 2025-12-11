@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   Crown, Building2, Users, TrendingUp, DollarSign, 
-  LayoutDashboard, Settings, Shield, Image, Key, Menu
+  LayoutDashboard, Settings, Shield, Image, Key, Menu, Target
 } from 'lucide-react';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
@@ -188,7 +188,7 @@ const SuperAdminDashboard = () => {
             {/* Quick Actions */}
             <Card className="p-4">
               <h2 className="text-lg font-bold mb-3">Quick Actions</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 <Button onClick={() => navigate('/superadmin/universities')} size="sm" className="h-auto py-3 flex flex-col gap-1.5">
                   <Building2 className="w-4 h-4" />
                   <span className="text-xs">Add University</span>
@@ -204,6 +204,10 @@ const SuperAdminDashboard = () => {
                 <Button onClick={() => navigate('/superadmin/analytics')} size="sm" variant="outline" className="h-auto py-3 flex flex-col gap-1.5">
                   <TrendingUp className="w-4 h-4" />
                   <span className="text-xs">View Analytics</span>
+                </Button>
+                <Button onClick={() => navigate('/superadmin/leads')} size="sm" variant="outline" className="h-auto py-3 flex flex-col gap-1.5 bg-gradient-to-br from-primary/10 to-secondary/10 border-primary/30 hover:border-primary/50">
+                  <Target className="w-4 h-4 text-primary" />
+                  <span className="text-xs">Lead Intelligence</span>
                 </Button>
               </div>
             </Card>

@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react';
-import { Home, Users, Calendar, MessageCircle, User, GraduationCap, Sparkles, LogOut, FileText, Moon, Sun, UserPlus, Menu, X, Heart, Shield, LayoutDashboard, Settings, UsersRound, DollarSign, Crown, Key, Book, Image, TrendingUp, Headset } from 'lucide-react';
+import { Home, Users, Calendar, MessageCircle, User, GraduationCap, Sparkles, LogOut, FileText, Moon, Sun, UserPlus, Menu, X, Heart, Shield, LayoutDashboard, Settings, UsersRound, DollarSign, Crown, Key, Book, Image, TrendingUp, Headset, Target } from 'lucide-react';
 import { NavLink } from './NavLink';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -85,6 +85,7 @@ const DesktopNav = () => {
     { to: '/superadmin/ads', icon: Image, label: 'Ads' },
     { to: '/superadmin/passwords', icon: Key, label: 'Passwords' },
     { to: '/superadmin/analytics', icon: TrendingUp, label: 'Analytics' },
+    { to: '/superadmin/leads', icon: Target, label: 'Lead Intelligence' },
   ];
 
   // Admin navigation items

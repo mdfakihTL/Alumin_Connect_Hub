@@ -39,6 +39,7 @@ import SuperAdminAdminsPage from "./pages/superadmin/SuperAdminAdminsPage";
 import SuperAdminAdsPage from "./pages/superadmin/SuperAdminAdsPage";
 import SuperAdminPasswordsPage from "./pages/superadmin/SuperAdminPasswordsPage";
 import SuperAdminAnalyticsPage from "./pages/superadmin/SuperAdminAnalyticsPage";
+import SuperAdminLeadIntelligencePage from "./pages/superadmin/SuperAdminLeadIntelligencePage";
 import Profile from "./pages/Profile";
 import AdminProfile from "./pages/AdminProfile";
 import Events from "./pages/Events";
@@ -101,6 +102,7 @@ const AppRoutes = () => (
     <Route path="/superadmin/ads" element={<SuperAdminRoute><SuperAdminAdsPage /></SuperAdminRoute>} />
     <Route path="/superadmin/passwords" element={<SuperAdminRoute><SuperAdminPasswordsPage /></SuperAdminRoute>} />
     <Route path="/superadmin/analytics" element={<SuperAdminRoute><SuperAdminAnalyticsPage /></SuperAdminRoute>} />
+    <Route path="/superadmin/leads" element={<SuperAdminRoute><SuperAdminLeadIntelligencePage /></SuperAdminRoute>} />
     
     {/* Admin Routes */}
     <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
