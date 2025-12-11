@@ -12,7 +12,10 @@ import { ConnectionsProvider } from "./contexts/ConnectionsContext";
 import { SidebarProvider } from "./contexts/SidebarContext";
 import { SupportProvider } from "./contexts/SupportContext";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
+import ScrollToTop from "./components/ScrollToTop";
 import Index from "./pages/Index";
+import FeaturesPage from "./pages/FeaturesPage";
+import AboutPage from "./pages/AboutPage";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import ProfileCompletion from "./pages/ProfileCompletion";
@@ -85,6 +88,8 @@ const SuperAdminRoute = ({ children }: { children: React.ReactNode }) => {
 const AppRoutes = () => (
   <Routes>
     <Route path="/" element={<Index />} />
+    <Route path="/features" element={<FeaturesPage />} />
+    <Route path="/about" element={<AboutPage />} />
     <Route path="/login" element={<Login />} />
     <Route path="/forgot-password" element={<ForgotPassword />} />
     
@@ -144,6 +149,7 @@ const App = () => (
                       <Sonner />
                       <PWAInstallPrompt />
                       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                        <ScrollToTop />
                         <AppRoutes />
                       </BrowserRouter>
                     </TooltipProvider>

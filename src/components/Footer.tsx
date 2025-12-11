@@ -1,8 +1,16 @@
 import { GraduationCap, Linkedin, Twitter, Facebook, Instagram } from "lucide-react";
+import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 
 const Footer = () => {
+  const { ref, isVisible } = useScrollAnimation(0.1);
+
   return (
-    <footer className="bg-card border-t border-border py-6 sm:py-8">
+    <footer 
+      ref={ref}
+      className={`bg-card border-t border-border py-6 sm:py-8 transition-all duration-700 ${
+        isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+      }`}
+    >
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-8">
           {/* Brand - Compact */}

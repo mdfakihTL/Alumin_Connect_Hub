@@ -19,10 +19,13 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      'react': path.resolve(__dirname, './node_modules/react'),
+      'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
     },
+    dedupe: ['react', 'react-dom', 'three'],
   },
   optimizeDeps: {
-    include: ['three', '@react-three/fiber', '@react-three/drei'],
+    include: ['three', '@react-three/fiber', '@react-three/drei', 'react', 'react-dom'],
     exclude: [],
     esbuildOptions: {
       target: 'es2020',

@@ -31,12 +31,20 @@ const Navigation = () => {
             >
               Home
             </NavLink>
-            <a href="#features" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+            <NavLink
+              to="/features"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              activeClassName="text-foreground"
+            >
               Features
-            </a>
-            <a href="#about" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+            </NavLink>
+            <NavLink
+              to="/about"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              activeClassName="text-foreground"
+            >
               About
-            </a>
+            </NavLink>
           </div>
 
           {/* Desktop CTA */}
@@ -92,12 +100,20 @@ const Navigation = () => {
             >
               Home
             </NavLink>
-            <a href="#features" className="block py-2 text-sm font-medium" onClick={() => setMobileMenuOpen(false)}>
+            <NavLink
+              to="/features"
+              className="block py-2 text-sm font-medium"
+              onClick={() => setMobileMenuOpen(false)}
+            >
               Features
-            </a>
-            <a href="#about" className="block py-2 text-sm font-medium" onClick={() => setMobileMenuOpen(false)}>
+            </NavLink>
+            <NavLink
+              to="/about"
+              className="block py-2 text-sm font-medium"
+              onClick={() => setMobileMenuOpen(false)}
+            >
               About
-            </a>
+            </NavLink>
             <div className="pt-4">
               <Button className="w-full" onClick={() => { navigate('/login'); setMobileMenuOpen(false); }}>
                 Sign In
