@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSidebar } from '@/contexts/SidebarContext';
@@ -13,11 +13,15 @@ import CommentSection from '@/components/CommentSection';
 import GlobalSearchDropdown from '@/components/GlobalSearchDropdown';
 import UniversityChatbot from '@/components/UniversityChatbot';
 import PostFilter, { FilterOptions } from '@/components/PostFilter';
+import { PostTag } from '@/types/feed';
 import WorldMapHeatmap from '@/components/WorldMapHeatmap';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { feedService } from '@/services/feedService';
+import { ApiPost, PostMedia } from '@/types/feed';
 import {
   Heart,
   MessageCircle,
@@ -25,7 +29,6 @@ import {
   MoreHorizontal,
   Briefcase,
   Megaphone,
-  Play,
   PlusCircle,
   Search,
   Moon,
@@ -55,12 +58,34 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 
+// Frontend tag format (kebab-case for display)
+type FrontendTag = 'success-story' | 'career-milestone' | 'achievement' | 'learning' | 'volunteering';
+
+// Mapping between API tags and frontend tags
+const apiToFrontendTag: Record<PostTag, FrontendTag> = {
+  'success_story': 'success-story',
+  'career_milestone': 'career-milestone',
+  'achievement': 'achievement',
+  'learning_journey': 'learning',
+  'volunteering': 'volunteering',
+};
+
+const frontendToApiTag: Record<FrontendTag, PostTag> = {
+  'success-story': 'success_story',
+  'career-milestone': 'career_milestone',
+  'achievement': 'achievement',
+  'learning': 'learning_journey',
+  'volunteering': 'volunteering',
+};
+
+// Extended Post type for frontend display
 interface Post {
   id: number;
   type: 'text' | 'image' | 'video' | 'job' | 'announcement';
   author: string;
   avatar: string;
   university: string;
+  universityId?: number;
   year: string;
   content: string;
   media?: string;
@@ -72,13 +97,85 @@ interface Post {
   jobTitle?: string;
   company?: string;
   location?: string;
-  tag?:
-    | 'success-story'
-    | 'career-milestone'
-    | 'achievement'
-    | 'learning'
-    | 'volunteering';
+  tag?: FrontendTag;
+  apiTag?: PostTag; // Original API tag
+  // API fields
+  author_id?: number;
+  user_liked?: boolean;
+  isFromApi?: boolean;
+  // API media attachments
+  apiMedia?: PostMedia[];
 }
+
+// Helper to format relative time
+const formatRelativeTime = (dateString: string): string => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+};
+
+// Helper to get API base URL for media
+const getMediaUrl = (url: string): string => {
+  // If it's a relative URL, prepend the API base URL
+  if (url.startsWith('/media/')) {
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://alumni-portal-yw7q.onrender.com';
+    return `${API_BASE_URL}${url}`;
+  }
+  return url;
+};
+
+// Convert API post to frontend Post format
+const mapApiPostToPost = (apiPost: ApiPost): Post => {
+  // Determine post type and media URLs from API media attachments
+  let type: Post['type'] = 'text';
+  let media: string | undefined;
+  let videoUrl: string | undefined;
+  let thumbnail: string | undefined;
+
+  if (apiPost.media && apiPost.media.length > 0) {
+    const firstMedia = apiPost.media[0];
+    if (firstMedia.media_type === 'image') {
+      type = 'image';
+      media = getMediaUrl(firstMedia.media_url);
+    } else if (firstMedia.media_type === 'video') {
+      type = 'video';
+      videoUrl = getMediaUrl(firstMedia.media_url);
+      thumbnail = firstMedia.thumbnail_url ? getMediaUrl(firstMedia.thumbnail_url) : undefined;
+    }
+  }
+
+  return {
+    id: apiPost.id,
+    type,
+    author: apiPost.author_name,
+    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${apiPost.author_name.replace(/\s+/g, '')}`,
+    university: apiPost.university_name,
+    universityId: apiPost.university_id,
+    year: new Date(apiPost.created_at).getFullYear().toString(),
+    content: apiPost.content,
+    media,
+    videoUrl,
+    thumbnail,
+    likes: apiPost.likes_count,
+    comments: apiPost.comments_count,
+    time: formatRelativeTime(apiPost.created_at),
+    tag: apiPost.tag ? apiToFrontendTag[apiPost.tag] : undefined,
+    apiTag: apiPost.tag,
+    author_id: apiPost.author_id,
+    user_liked: apiPost.user_liked,
+    isFromApi: true,
+    apiMedia: apiPost.media,
+  };
+};
 
 interface Ad {
   id: string;
@@ -434,7 +531,7 @@ const compactAds = [
 ];
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
   const { toast } = useToast();
@@ -446,14 +543,18 @@ const Dashboard = () => {
   const [editingPost, setEditingPost] = useState<{
     id: number;
     content: string;
-    media?: { type: 'image' | 'video'; url: string };
-    tag?: string;
+    existingMedia?: { id: number; type: 'image' | 'video'; url: string; postId: number }[];
+    tag?: PostTag;
   } | null>(null);
-  const [userPosts, setUserPosts] = useState<Post[]>([]);
+  const [apiPosts, setApiPosts] = useState<Post[]>([]);
   const [displayedPosts, setDisplayedPosts] = useState<(Post | Ad)[]>([]);
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
+  const [likingPosts, setLikingPosts] = useState<Set<number>>(new Set()); // Track posts being liked
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [expandedComments, setExpandedComments] = useState<Set<number>>(
@@ -464,55 +565,110 @@ const Dashboard = () => {
   const [filters, setFilters] = useState<FilterOptions>({
     postTypes: [],
     tags: [],
-    companies: [],
     universities: [],
-    searchText: '',
   });
+  const [totalPages, setTotalPages] = useState(1);
+  const [isCreatingPost, setIsCreatingPost] = useState(false);
+  const [isDeletingPost, setIsDeletingPost] = useState<number | null>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
-  const POSTS_PER_PAGE = 6;
-  const nextPostId = useRef(1000); // Start user posts at 1000 to avoid conflicts
+  const POSTS_PER_PAGE = 20;
 
-  // Combine user posts with mock posts and apply filters
-  const getAllPosts = () => {
-    let posts = [...userPosts, ...allMockPosts];
+  // Fetch posts from API
+  const fetchPosts = useCallback(async (pageNum: number, reset: boolean = false, currentFilters?: FilterOptions) => {
+    if (isLoading) return;
+    
+    setIsLoading(true);
+    setError(null);
 
-    // Apply filters
+    // Use provided filters or current state
+    const activeFilters = currentFilters || filters;
+
+    try {
+      const response = await feedService.listPosts({
+        page: pageNum,
+        page_size: POSTS_PER_PAGE,
+        // University filter from API - use first selected or user's university
+        university_id: activeFilters.universities.length > 0 
+          ? activeFilters.universities[0] 
+          : user?.universityId,
+        // Tag filter from API - use first selected tag (API only supports single tag)
+        tag: activeFilters.tags.length > 0 ? activeFilters.tags[0] : undefined,
+      });
+
+      const mappedPosts = response.posts.map(mapApiPostToPost);
+      
+      // Initialize liked posts from API response
+      const initialLikedPosts = new Set<number>();
+      response.posts.forEach(post => {
+        if (post.user_liked) {
+          initialLikedPosts.add(post.id);
+        }
+      });
+      
+      if (reset) {
+        setApiPosts(mappedPosts);
+        setLikedPosts(initialLikedPosts);
+      } else {
+        setApiPosts(prev => [...prev, ...mappedPosts]);
+        setLikedPosts(prev => new Set([...prev, ...initialLikedPosts]));
+      }
+      
+      setTotalPages(response.total_pages);
+      setHasMore(pageNum < response.total_pages);
+      setPage(pageNum);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load posts';
+      setError(errorMessage);
+      toast({
+        title: 'Error loading posts',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+      setIsInitialLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.universityId, toast]);
+
+  // Get all posts with filters applied (combines API posts with mock posts as fallback)
+  const getAllPosts = useCallback(() => {
+    let posts = apiPosts.length > 0 ? [...apiPosts] : [...allMockPosts];
+
+    // Apply client-side filters (post type filtering is client-side only)
     if (filters.postTypes.length > 0) {
       posts = posts.filter((post) => filters.postTypes.includes(post.type));
     }
 
+    // Tag filtering - API posts use apiTag, mock posts use frontend tag format
     if (filters.tags.length > 0) {
-      posts = posts.filter(
-        (post) => post.tag && filters.tags.includes(post.tag),
-      );
+      posts = posts.filter((post) => {
+        if (post.apiTag) {
+          // API post - check against apiTag
+          return filters.tags.includes(post.apiTag);
+        } else if (post.tag) {
+          // Mock post - convert frontend tag to API format and check
+          const apiTag = frontendToApiTag[post.tag];
+          return apiTag && filters.tags.includes(apiTag);
+        }
+        return false;
+      });
     }
 
-    if (filters.companies.length > 0) {
-      posts = posts.filter(
-        (post) => post.company && filters.companies.includes(post.company),
-      );
-    }
-
+    // University filtering - use university ID for API posts
     if (filters.universities.length > 0) {
-      posts = posts.filter((post) =>
-        filters.universities.includes(post.university),
-      );
+      posts = posts.filter((post) => {
+        if (post.universityId) {
+          return filters.universities.includes(post.universityId);
+        }
+        // Fallback for mock posts (not ideal, but maintains compatibility)
+        return false;
+      });
     }
 
-    if (filters.searchText) {
-      const searchLower = filters.searchText.toLowerCase();
-      posts = posts.filter(
-        (post) =>
-          post.content.toLowerCase().includes(searchLower) ||
-          post.author.toLowerCase().includes(searchLower) ||
-          (post.company && post.company.toLowerCase().includes(searchLower)) ||
-          (post.jobTitle && post.jobTitle.toLowerCase().includes(searchLower)),
-      );
-    }
-
-    return posts.sort((a, b) => b.id - a.id);
-  };
+    return posts;
+  }, [apiPosts, filters]);
 
   // Handle search result selection
   const handleSearchResultSelect = (result: any) => {
@@ -564,113 +720,169 @@ const Dashboard = () => {
     setShowSearchDropdown(searchQuery.trim().length > 0);
   }, [searchQuery]);
 
-  // Load more posts
-  const loadMorePosts = () => {
+  // Load more posts from API
+  const loadMorePosts = useCallback(() => {
+    if (isLoading || !hasMore) return;
+    fetchPosts(page + 1);
+  }, [isLoading, hasMore, page, fetchPosts]);
+
+  // Update displayed posts when API posts change
+  useEffect(() => {
     const allPosts = getAllPosts();
-    const startIdx = page * POSTS_PER_PAGE;
-    const endIdx = startIdx + POSTS_PER_PAGE;
-    const newPosts = allPosts.slice(startIdx, endIdx);
-
-    if (newPosts.length === 0) {
-      setHasMore(false);
-      return;
-    }
-
+    
     // Insert ads every 8 posts (less intrusive)
     const postsWithAds: (Post | Ad)[] = [];
-    newPosts.forEach((post, idx) => {
+    allPosts.forEach((post, idx) => {
       postsWithAds.push(post);
       // Add ad after every 8 posts (less intrusive)
-      if ((startIdx + idx + 1) % 8 === 0) {
-        const adIndex = Math.floor((startIdx + idx) / 8) % mockAds.length;
+      if ((idx + 1) % 8 === 0) {
+        const adIndex = Math.floor(idx / 8) % mockAds.length;
         postsWithAds.push(mockAds[adIndex]);
       }
     });
 
-    setDisplayedPosts((prev) => [...prev, ...postsWithAds]);
-    setPage((prev) => prev + 1);
-  };
+    setDisplayedPosts(postsWithAds);
+  }, [getAllPosts]);
 
-  // Create or edit post
-  const handlePostSubmit = (
+  // Create or edit post via API with media upload
+  const handlePostSubmit = async (
     content: string,
-    media: { type: 'image' | 'video'; url: string } | null,
-    tag?: string,
+    mediaFiles: File[],
+    tag?: PostTag,
   ) => {
-    if (editingPost) {
-      // Edit existing post
-      setUserPosts((prev) =>
-        prev.map((post) =>
-          post.id === editingPost.id
-            ? {
-                ...post,
-                content,
-                type: media?.type || 'text',
-                media: media?.type === 'image' ? media.url : undefined,
-                thumbnail: media?.type === 'video' ? media.url : undefined,
-                videoUrl: media?.type === 'video' ? media.url : undefined,
-                tag: tag as Post['tag'],
+    if (!isAuthenticated) {
+      toast({
+        title: 'Authentication required',
+        description: 'Please log in to create posts',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsCreatingPost(true);
+
+    try {
+      if (editingPost) {
+        // Edit existing post via API - include tag in the update
+        const updatedPost = await feedService.updatePost(editingPost.id, { 
+          content,
+          tag: tag || undefined,
+        });
+
+        // Upload new media files if any
+        let uploadedMedia: PostMedia[] = [];
+        if (mediaFiles.length > 0) {
+          try {
+            uploadedMedia = await feedService.uploadMultipleMedia(
+              editingPost.id,
+              mediaFiles,
+              (progress) => {
+                // Could show progress in UI if needed
+                console.log('Upload progress:', progress);
               }
-            : post,
-        ),
-      );
-
-      // Also update in displayed posts
-      setDisplayedPosts((prev) =>
-        prev.map((item) => {
-          if ('id' in item && item.id === editingPost.id) {
-            return {
-              ...item,
-              content,
-              type: media?.type || 'text',
-              media: media?.type === 'image' ? media.url : undefined,
-              thumbnail: media?.type === 'video' ? media.url : undefined,
-              videoUrl: media?.type === 'video' ? media.url : undefined,
-              tag: tag as Post['tag'],
-            } as Post;
+            );
+          } catch (uploadErr) {
+            console.error('Media upload failed:', uploadErr);
+            toast({
+              title: 'Media upload failed',
+              description: 'Post was updated but some media failed to upload',
+              variant: 'destructive',
+            });
           }
-          return item;
-        }),
-      );
+        }
 
-      toast({
-        title: 'Post updated!',
-        description: 'Your post has been updated successfully',
-      });
-      setEditingPost(null);
-    } else {
-      // Create new post
-      const newPost: Post = {
-        id: nextPostId.current++,
-        type: media?.type || 'text',
-        author: user?.name || 'You',
-        avatar: user?.avatar || '',
-        university: user?.university || '',
-        year: new Date().getFullYear().toString(),
-        content,
-        media: media?.type === 'image' ? media.url : undefined,
-        thumbnail: media?.type === 'video' ? media.url : undefined,
-        videoUrl: media?.type === 'video' ? media.url : undefined,
-        likes: 0,
-        comments: 0,
-        time: 'Just now',
-        tag: tag as Post['tag'],
-      };
-      setUserPosts((prev) => [newPost, ...prev]);
-      toast({
-        title: 'Post created!',
-        description: 'Your post has been shared with the network',
-      });
+        // Re-fetch the post to get updated media
+        const refreshedPost = await feedService.getPost(editingPost.id);
+        
+        // Update the post in local state with refreshed data
+        setApiPosts((prev) =>
+          prev.map((post) =>
+            post.id === editingPost.id
+              ? mapApiPostToPost(refreshedPost)
+              : post,
+          ),
+        );
 
-      // Reset displayed posts to show new post
-      setDisplayedPosts([]);
-      setPage(0);
-      setHasMore(true);
+        toast({
+          title: 'Post updated!',
+          description: 'Your post has been updated successfully',
+        });
+        setEditingPost(null);
+      } else {
+        // Create new post via API - include tag
+        const createdPost = await feedService.createPost({ 
+          content,
+          tag: tag || undefined,
+        });
+
+        // Upload media files if any
+        let uploadedMedia: PostMedia[] = [];
+        if (mediaFiles.length > 0) {
+          try {
+            uploadedMedia = await feedService.uploadMultipleMedia(
+              createdPost.id,
+              mediaFiles,
+              (progress) => {
+                // Could show progress in UI if needed
+                console.log('Upload progress:', progress);
+              }
+            );
+          } catch (uploadErr) {
+            console.error('Media upload failed:', uploadErr);
+            toast({
+              title: 'Media upload partially failed',
+              description: 'Post was created but some media failed to upload',
+              variant: 'destructive',
+            });
+          }
+        }
+
+        // Create the new post with uploaded media
+        const firstMedia = uploadedMedia[0];
+        const newPost: Post = {
+          ...mapApiPostToPost(createdPost),
+          // Update type and media based on uploaded files
+          type: firstMedia 
+            ? (firstMedia.media_type === 'image' ? 'image' : 'video') 
+            : 'text',
+          media: firstMedia?.media_type === 'image' 
+            ? getMediaUrl(firstMedia.media_url) 
+            : undefined,
+          videoUrl: firstMedia?.media_type === 'video' 
+            ? getMediaUrl(firstMedia.media_url) 
+            : undefined,
+          thumbnail: firstMedia?.thumbnail_url 
+            ? getMediaUrl(firstMedia.thumbnail_url) 
+            : undefined,
+          apiMedia: uploadedMedia.length > 0 ? uploadedMedia : undefined,
+          // Override tag from mapApiPostToPost if we have a local tag
+          tag: tag ? apiToFrontendTag[tag] : (createdPost.tag ? apiToFrontendTag[createdPost.tag] : undefined),
+          apiTag: tag || createdPost.tag,
+        };
+        
+        setApiPosts((prev) => [newPost, ...prev]);
+        
+        toast({
+          title: 'Post created!',
+          description: mediaFiles.length > 0 
+            ? 'Your post with media has been shared with the network'
+            : 'Your post has been shared with the network',
+        });
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save post';
+      toast({
+        title: editingPost ? 'Failed to update post' : 'Failed to create post',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCreatingPost(false);
     }
   };
 
-  // Delete post with confirmation
-  const handleDeletePost = (postId: number, e?: React.MouseEvent) => {
+  // Delete post with confirmation via API
+  const handleDeletePost = async (postId: number, e?: React.MouseEvent) => {
     if (e) {
       e.stopPropagation();
     }
@@ -680,29 +892,59 @@ const Dashboard = () => {
       'Are you sure you want to delete this post? This action cannot be undone.',
     );
 
-    if (confirmed) {
-      setUserPosts((prev) => prev.filter((post) => post.id !== postId));
-      setDisplayedPosts((prev) =>
-        prev.filter((item) => !('id' in item && item.id === postId)),
-      );
+    if (!confirmed) return;
+
+    setIsDeletingPost(postId);
+
+    try {
+      await feedService.deletePost(postId);
+      
+      // Remove from local state
+      setApiPosts((prev) => prev.filter((post) => post.id !== postId));
+      
       toast({
         title: 'Post deleted',
         description: 'Your post has been removed',
       });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete post';
+      toast({
+        title: 'Failed to delete post',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeletingPost(null);
     }
   };
 
-  // Edit post
+  // Edit post - only allow editing own posts
   const handleEditPost = (post: Post) => {
+    if (!isAuthenticated) {
+      toast({
+        title: 'Authentication required',
+        description: 'Please log in to edit posts',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Use apiTag if available, otherwise convert frontend tag to API format
+    const tagForEdit = post.apiTag || (post.tag ? frontendToApiTag[post.tag] : undefined);
+
+    // Convert API media to the format expected by PostModal
+    const existingMedia = post.apiMedia?.map(m => ({
+      id: m.id,
+      type: m.media_type as 'image' | 'video',
+      url: getMediaUrl(m.media_url),
+      postId: post.id,
+    }));
+
     setEditingPost({
       id: post.id,
       content: post.content,
-      media: post.media
-        ? { type: 'image', url: post.media }
-        : post.videoUrl
-        ? { type: 'video', url: post.videoUrl }
-        : undefined,
-      tag: post.tag,
+      existingMedia,
+      tag: tagForEdit,
     });
     setIsModalOpen(true);
   };
@@ -766,26 +1008,26 @@ const Dashboard = () => {
     return result;
   };
 
-  // Handle filter changes - reset feed
+  // Handle filter changes - refetch from API with new filters
   const handleFilterChange = (newFilters: FilterOptions) => {
     setFilters(newFilters);
-    setDisplayedPosts([]);
-    setPage(0);
+    // Reset and refetch with new filters
+    setPage(1);
     setHasMore(true);
+    fetchPosts(1, true, newFilters);
   };
 
   // Initial load
   useEffect(() => {
-    if (displayedPosts.length === 0 && page === 0) {
-      loadMorePosts();
-    }
-  }, [userPosts, filters]);
+    fetchPosts(1, true);
+  }, []);
+
 
   // Infinite scroll observer
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore) {
+        if (entries[0].isIntersecting && hasMore && !isLoading) {
           loadMorePosts();
         }
       },
@@ -797,9 +1039,26 @@ const Dashboard = () => {
     }
 
     return () => observer.disconnect();
-  }, [hasMore, page, userPosts, searchQuery]);
+  }, [hasMore, isLoading, loadMorePosts]);
 
-  const toggleLike = (postId: number) => {
+  // Toggle like via API
+  const toggleLike = async (postId: number) => {
+    if (!isAuthenticated) {
+      toast({
+        title: 'Authentication required',
+        description: 'Please log in to like posts',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Prevent double-clicking
+    if (likingPosts.has(postId)) return;
+
+    setLikingPosts(prev => new Set(prev).add(postId));
+
+    // Optimistic update
+    const wasLiked = likedPosts.has(postId);
     setLikedPosts((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(postId)) {
@@ -809,6 +1068,65 @@ const Dashboard = () => {
       }
       return newSet;
     });
+
+    // Update like count optimistically
+    setApiPosts((prev) =>
+      prev.map((post) =>
+        post.id === postId
+          ? { ...post, likes: post.likes + (wasLiked ? -1 : 1) }
+          : post,
+      ),
+    );
+
+    try {
+      const response = await feedService.toggleLike(postId);
+      
+      // Verify the response matches our optimistic update
+      if (response.liked !== !wasLiked) {
+        // Server state differs, revert to server state
+        setLikedPosts((prev) => {
+          const newSet = new Set(prev);
+          if (response.liked) {
+            newSet.add(postId);
+          } else {
+            newSet.delete(postId);
+          }
+          return newSet;
+        });
+      }
+    } catch (err) {
+      // Revert optimistic update on error
+      setLikedPosts((prev) => {
+        const newSet = new Set(prev);
+        if (wasLiked) {
+          newSet.add(postId);
+        } else {
+          newSet.delete(postId);
+        }
+        return newSet;
+      });
+      
+      setApiPosts((prev) =>
+        prev.map((post) =>
+          post.id === postId
+            ? { ...post, likes: post.likes + (wasLiked ? 1 : -1) }
+            : post,
+        ),
+      );
+
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update like';
+      toast({
+        title: 'Error',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setLikingPosts(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(postId);
+        return newSet;
+      });
+    }
   };
 
   const toggleComments = (postId: number) => {
@@ -824,18 +1142,8 @@ const Dashboard = () => {
   };
 
   const handleCommentAdded = (postId: number) => {
-    // Update comment count in displayed posts
-    setDisplayedPosts((prev) =>
-      prev.map((item) => {
-        if ('id' in item && item.id === postId && 'comments' in item) {
-          return { ...item, comments: item.comments + 1 } as Post;
-        }
-        return item;
-      }),
-    );
-
-    // Update in user posts if applicable
-    setUserPosts((prev) =>
+    // Update comment count in API posts
+    setApiPosts((prev) =>
       prev.map((post) =>
         post.id === postId ? { ...post, comments: post.comments + 1 } : post,
       ),
@@ -949,12 +1257,17 @@ const Dashboard = () => {
 
   const renderPost = (post: Post) => {
     const isLiked = likedPosts.has(post.id);
-    const displayLikes = isLiked ? post.likes + 1 : post.likes;
-    const isUserPost = userPosts.some((p) => p.id === post.id);
+    const displayLikes = post.likes;
+    // Check if user owns this post (by author_id or author name match)
+    const isUserPost = (post.author_id && user?.id && String(post.author_id) === user.id) || 
+                       post.author === user?.name || 
+                       post.author === 'You';
     const showComments = expandedComments.has(post.id);
     const isCopied = copiedPostId === post.id;
     const tagInfo = getTagInfo(post.tag);
     const hasTag = !!tagInfo;
+    const isLiking = likingPosts.has(post.id);
+    const isDeleting = isDeletingPost === post.id;
 
     return (
       <Card
@@ -1099,20 +1412,18 @@ const Dashboard = () => {
           </div>
         )}
 
-        {post.type === 'video' && post.thumbnail && (
-          <div className="relative w-full group cursor-pointer bg-muted">
-            <img
-              src={post.thumbnail}
-              alt="Video thumbnail"
-              onError={handleImageError}
+        {post.type === 'video' && post.videoUrl && (
+          <div className="relative w-full bg-muted">
+            <video
+              src={post.videoUrl}
+              poster={post.thumbnail}
               className="w-full object-cover max-h-[450px]"
-              loading="lazy"
-            />
-            <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/40 transition-colors">
-              <div className="w-20 h-20 rounded-full bg-white/95 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-                <Play className="w-10 h-10 text-primary ml-1" />
-              </div>
-            </div>
+              controls
+              preload="metadata"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Your browser does not support the video tag.
+            </video>
           </div>
         )}
 
@@ -1122,22 +1433,23 @@ const Dashboard = () => {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`gap-2 hover:bg-red-100 dark:hover:bg-red-950/50 ${
-                isLiked
-                  ? 'text-red-500 hover:text-red-600'
-                  : 'hover:text-red-600 dark:hover:text-red-400'
-              }`}
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleLike(post.id);
-              }}
-            >
-              <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
-              <span className="text-sm font-medium">{displayLikes}</span>
-            </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`gap-2 hover:bg-red-100 dark:hover:bg-red-950/50 ${
+                      isLiked
+                        ? 'text-red-500 hover:text-red-600'
+                        : 'hover:text-red-600 dark:hover:text-red-400'
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleLike(post.id);
+                    }}
+                    disabled={isLiking}
+                  >
+                    <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''} ${isLiking ? 'animate-pulse' : ''}`} />
+                    <span className="text-sm font-medium">{displayLikes}</span>
+                  </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -1682,8 +1994,62 @@ const Dashboard = () => {
                 )}
 
                 {/* Posts Feed */}
+                {/* Error State */}
+                {error && !isInitialLoading && (
+                  <Card className="p-6 text-center border-destructive">
+                    <div className="text-destructive mb-4">
+                      <svg
+                        className="w-12 h-12 mx-auto mb-2"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                        />
+                      </svg>
+                      <p className="font-medium">Failed to load posts</p>
+                      <p className="text-sm text-muted-foreground mt-1">{error}</p>
+                    </div>
+                    <Button onClick={() => fetchPosts(1, true)} variant="outline">
+                      Try Again
+                    </Button>
+                  </Card>
+                )}
+
+                {/* Loading Skeleton */}
+                {isInitialLoading && (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <Card key={i} className="p-5">
+                        <div className="flex gap-3 mb-4">
+                          <Skeleton className="w-12 h-12 rounded-full" />
+                          <div className="flex-1 space-y-2">
+                            <Skeleton className="h-4 w-32" />
+                            <Skeleton className="h-3 w-48" />
+                          </div>
+                        </div>
+                        <div className="space-y-2 mb-4">
+                          <Skeleton className="h-4 w-full" />
+                          <Skeleton className="h-4 w-full" />
+                          <Skeleton className="h-4 w-3/4" />
+                        </div>
+                        <Skeleton className="h-48 w-full rounded-lg" />
+                        <div className="flex gap-4 mt-4">
+                          <Skeleton className="h-8 w-20" />
+                          <Skeleton className="h-8 w-24" />
+                          <Skeleton className="h-8 w-16" />
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+
                 {/* Posts Feed with Ads */}
-                {displayedPosts.map((item) => {
+                {!isInitialLoading && !error && displayedPosts.map((item) => {
                   if ('image' in item && 'title' in item) {
                     return renderAd(item as Ad);
                   }
@@ -1691,17 +2057,49 @@ const Dashboard = () => {
                 })}
 
                 {/* Loading Indicator */}
-                {hasMore && displayedPosts.length > 0 && (
+                {hasMore && displayedPosts.length > 0 && !isInitialLoading && (
                   <div
                     ref={observerTarget}
                     className="py-6 sm:py-8 text-center"
                   >
-                    <div className="inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                    {isLoading ? (
+                      <div className="inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Scroll for more</p>
+                    )}
                   </div>
                 )}
 
+                {/* Empty State */}
+                {!isInitialLoading && !error && displayedPosts.length === 0 && (
+                  <Card className="p-8 text-center">
+                    <div className="text-muted-foreground">
+                      <svg
+                        className="w-16 h-16 mx-auto mb-4 opacity-50"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                          d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                        />
+                      </svg>
+                      <p className="text-lg font-medium mb-2">No posts yet</p>
+                      <p className="text-sm mb-4">Be the first to share something with the community!</p>
+                      {isAuthenticated && (
+                        <Button onClick={() => setIsModalOpen(true)}>
+                          Create Post
+                        </Button>
+                      )}
+                    </div>
+                  </Card>
+                )}
+
                 {/* End of Feed */}
-                {!hasMore && displayedPosts.length > 0 && (
+                {!hasMore && displayedPosts.length > 0 && !isInitialLoading && (
                   <Card className="p-4 sm:p-6 text-center">
                     <p className="text-sm sm:text-base text-muted-foreground">
                       You're all caught up! 🎉
@@ -1946,6 +2344,7 @@ const Dashboard = () => {
         }}
         onSubmit={handlePostSubmit}
         editPost={editingPost}
+        isSubmitting={isCreatingPost}
       />
 
       <MobileNav />

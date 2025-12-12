@@ -4,18 +4,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Camera, X, Upload } from 'lucide-react';
+import { Camera, X, Upload, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface ProfileData {
   name: string;
   bio: string;
   major: string;
+  degree: string;
   graduationYear: string;
   jobTitle: string;
   company: string;
   location: string;
   linkedin: string;
+  github: string;
   email: string;
   phone: string;
   website: string;
@@ -28,9 +30,10 @@ interface ProfileEditModalProps {
   onClose: () => void;
   onSubmit: (data: ProfileData) => void;
   currentData: ProfileData;
+  isSaving?: boolean;
 }
 
-const ProfileEditModal = ({ open, onClose, onSubmit, currentData }: ProfileEditModalProps) => {
+const ProfileEditModal = ({ open, onClose, onSubmit, currentData, isSaving = false }: ProfileEditModalProps) => {
   const { user } = useAuth();
   const [formData, setFormData] = useState<ProfileData>(currentData);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -77,9 +80,9 @@ const ProfileEditModal = ({ open, onClose, onSubmit, currentData }: ProfileEditM
     handleChange('banner', '');
   };
 
-  const handleSubmit = () => {
-    if (!formData.name.trim()) return;
-    onSubmit(formData);
+  const handleSubmit = async () => {
+    if (!formData.name.trim() || isSaving) return;
+    await onSubmit(formData);
     onClose();
   };
 
@@ -220,6 +223,17 @@ const ProfileEditModal = ({ open, onClose, onSubmit, currentData }: ProfileEditM
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="degree" className="text-base font-medium">Degree</Label>
+                <Input
+                  id="degree"
+                  value={formData.degree}
+                  onChange={(e) => handleChange('degree', e.target.value)}
+                  className="h-11"
+                  placeholder="e.g., Bachelor of Science, MBA"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="major" className="text-base font-medium">Major/Field</Label>
                 <Input
                   id="major"
@@ -234,10 +248,13 @@ const ProfileEditModal = ({ open, onClose, onSubmit, currentData }: ProfileEditM
                 <Label htmlFor="graduationYear" className="text-base font-medium">Graduation Year</Label>
                 <Input
                   id="graduationYear"
+                  type="number"
                   value={formData.graduationYear}
                   onChange={(e) => handleChange('graduationYear', e.target.value)}
                   className="h-11"
                   placeholder="e.g., 2020"
+                  min="1900"
+                  max={new Date().getFullYear() + 10}
                 />
               </div>
             </div>
@@ -325,6 +342,18 @@ const ProfileEditModal = ({ open, onClose, onSubmit, currentData }: ProfileEditM
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="github" className="text-base font-medium">GitHub URL</Label>
+                <Input
+                  id="github"
+                  type="url"
+                  value={formData.github}
+                  onChange={(e) => handleChange('github', e.target.value)}
+                  className="h-11"
+                  placeholder="https://github.com/yourusername"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="website" className="text-base font-medium">Personal Website</Label>
                 <Input
                   id="website"
@@ -344,15 +373,23 @@ const ProfileEditModal = ({ open, onClose, onSubmit, currentData }: ProfileEditM
               variant="outline"
               onClick={onClose}
               className="flex-1 h-11"
+              disabled={isSaving}
             >
               Cancel
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={!formData.name.trim()}
+              disabled={!formData.name.trim() || isSaving}
               className="flex-1 h-11"
             >
-              Save Changes
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
             </Button>
           </div>
         </div>

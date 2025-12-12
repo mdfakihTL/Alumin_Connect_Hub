@@ -12,7 +12,7 @@ export const useUniversityBranding = () => {
 
   useEffect(() => {
     // Check if we're on a public page
-    const isPublicPage = ['/', '/login', '/forgot-password'].includes(location.pathname);
+    const isPublicPage = ['/', '/login', '/register', '/forgot-password'].includes(location.pathname);
     
     // Super admin should always use default theme
     if (user?.role === 'superadmin') {

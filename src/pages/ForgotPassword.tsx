@@ -5,19 +5,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
-import { GraduationCap, ArrowLeft, Mail, CheckCircle, AlertCircle } from 'lucide-react';
+import { GraduationCap, ArrowLeft, Mail, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { requestPasswordReset } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     setIsSubmitting(true);
 
     try {
@@ -30,16 +32,19 @@ const ForgotPassword = () => {
           description: result.message,
         });
       } else {
+        setError(result.message);
         toast({
           title: 'Request failed',
           description: result.message,
           variant: 'destructive',
         });
       }
-    } catch (error) {
+    } catch (err) {
+      const errorMessage = 'Something went wrong. Please try again.';
+      setError(errorMessage);
       toast({
         title: 'Error',
-        description: 'Something went wrong. Please try again.',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -107,6 +112,14 @@ const ForgotPassword = () => {
         </div>
 
         <Card className="p-6 sm:p-8">
+          {/* Error Alert */}
+          {error && (
+            <div className="mb-5 p-4 rounded-lg bg-destructive/10 border border-destructive/20 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="email" className="text-base font-medium">Email Address</Label>
@@ -115,10 +128,14 @@ const ForgotPassword = () => {
                 type="email"
                 placeholder="you@university.edu"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setError(null);
+                }}
                 className="h-11"
                 required
                 disabled={isSubmitting}
+                autoComplete="email"
               />
             </div>
 
@@ -135,9 +152,16 @@ const ForgotPassword = () => {
             <Button 
               type="submit" 
               className="w-full h-11 text-base font-medium"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !email}
             >
-              {isSubmitting ? 'Sending Request...' : 'Send Reset Request'}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Sending Request...
+                </>
+              ) : (
+                'Send Reset Request'
+              )}
             </Button>
           </form>
 

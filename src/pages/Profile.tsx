@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -9,9 +9,11 @@ import ProfileEditModal from '@/components/ProfileEditModal';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Briefcase, Calendar, Mail, Linkedin, Edit, MessageCircle, ArrowLeft, Plus, Phone, Globe, Camera, UserCheck, UserPlus, Clock, Menu, Award, TrendingUp } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { MapPin, Briefcase, Calendar, Mail, Linkedin, Edit, MessageCircle, ArrowLeft, Plus, Phone, Globe, Camera, UserCheck, UserPlus, Clock, Menu, Award, TrendingUp, Github, AlertCircle, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
+import { alumniService, FrontendAlumniProfile } from '@/services/alumniService';
 
 interface UserData {
   name: string;
@@ -22,15 +24,17 @@ interface UserData {
   email?: string;
 }
 
-interface ProfileData {
+export interface ProfileData {
   name: string;
   bio: string;
   major: string;
+  degree: string;
   graduationYear: string;
   jobTitle: string;
   company: string;
   location: string;
   linkedin: string;
+  github: string;
   email: string;
   phone: string;
   website: string;
@@ -38,8 +42,11 @@ interface ProfileData {
   banner: string;
 }
 
+// API loading states
+type LoadingState = 'idle' | 'loading' | 'success' | 'error';
+
 const Profile = () => {
-  const { user } = useAuth();
+  const { user, isAuthenticated, updateAlumniProfile, refreshAlumniProfile } = useAuth();
   const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
   const location = useLocation();
   const navigate = useNavigate();
@@ -54,22 +61,78 @@ const Profile = () => {
   const [profileCompletion, setProfileCompletion] = useState(0);
   const [additionalProfileData, setAdditionalProfileData] = useState<any>(null);
   
+  // API states
+  const [loadingState, setLoadingState] = useState<LoadingState>('idle');
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [alumniProfile, setAlumniProfile] = useState<FrontendAlumniProfile | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  
   // Initialize profileData state first (before using it in useEffect)
   const [profileData, setProfileData] = useState<ProfileData>({
     name: user?.name || '',
-    bio: 'Passionate about technology and building meaningful connections. Always eager to help fellow alumni and students navigate their career paths.',
-    major: user?.major || 'Computer Science',
-    graduationYear: user?.graduationYear || '2020',
-    jobTitle: 'Software Engineer',
-    company: 'Tech Company',
-    location: 'San Francisco, CA',
-    linkedin: 'https://linkedin.com/in/yourprofile',
+    bio: '',
+    major: '',
+    degree: '',
+    graduationYear: '',
+    jobTitle: '',
+    company: '',
+    location: '',
+    linkedin: '',
+    github: '',
     email: user?.email || '',
-    phone: '+1 (555) 000-0000',
-    website: 'https://yourwebsite.com',
+    phone: '',
+    website: '',
     avatar: user?.avatar || '',
     banner: '',
   });
+
+  // Fetch alumni profile from API
+  const fetchAlumniProfile = useCallback(async () => {
+    if (!isOwnProfile || !isAuthenticated) return;
+    
+    setLoadingState('loading');
+    setApiError(null);
+    
+    try {
+      const profile = await alumniService.getMyProfile();
+      setAlumniProfile(profile);
+      
+      // Merge API data with profile data
+      setProfileData(prev => ({
+        ...prev,
+        bio: profile.bio || prev.bio,
+        major: profile.major || prev.major,
+        degree: profile.degree || prev.degree,
+        graduationYear: profile.graduationYear?.toString() || prev.graduationYear,
+        jobTitle: profile.currentPosition || prev.jobTitle,
+        company: profile.company || prev.company,
+        location: profile.location || prev.location,
+        linkedin: profile.linkedinUrl || prev.linkedin,
+        github: profile.githubUrl || prev.github,
+        website: profile.website || prev.website,
+      }));
+      
+      setLoadingState('success');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load profile';
+      setApiError(errorMessage);
+      setLoadingState('error');
+      
+      // Only show toast for unexpected errors, not 404 (new profile)
+      if (!errorMessage.includes('not found')) {
+        toast({
+          title: 'Error loading profile',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+      }
+    }
+  }, [isOwnProfile, isAuthenticated, toast]);
+
+  // Fetch profile on mount
+  useEffect(() => {
+    fetchAlumniProfile();
+  }, [fetchAlumniProfile]);
 
   // Calculate profile completion percentage
   useEffect(() => {
@@ -79,19 +142,21 @@ const Profile = () => {
         setAdditionalProfileData(JSON.parse(stored));
       }
 
-      // Calculate completion
+      // Calculate completion based on both user data and profile data
       let completed = 0;
-      const total = 10;
+      const total = 12;
 
       if (user.name) completed++;
       if (user.email) completed++;
       if (user.university) completed++;
-      if (user.graduationYear) completed++;
-      if (user.major) completed++;
+      if (profileData.graduationYear) completed++;
+      if (profileData.major) completed++;
       if (profileData.bio) completed++;
       if (profileData.jobTitle) completed++;
       if (profileData.company) completed++;
       if (profileData.location) completed++;
+      if (profileData.linkedin) completed++;
+      if (profileData.website || profileData.github) completed++;
       if (stored) {
         const data = JSON.parse(stored);
         if (data.skills && data.skills.length > 0) completed++;
@@ -113,8 +178,6 @@ const Profile = () => {
         name: user.name || prev.name,
         email: user.email || prev.email,
         avatar: user.avatar || prev.avatar,
-        major: user.major || prev.major,
-        graduationYear: user.graduationYear || prev.graduationYear,
       }));
     }
   }, [user, isOwnProfile]);
@@ -130,12 +193,65 @@ const Profile = () => {
     email: viewingUserData.email || 'Not available',
   };
 
-  const handleSaveProfile = (data: ProfileData) => {
-    setProfileData(data);
-    toast({
-      title: 'Profile updated!',
-      description: 'Your profile has been updated successfully',
-    });
+  const handleSaveProfile = async (data: ProfileData) => {
+    setIsSaving(true);
+    
+    try {
+      // Prepare data for API
+      const updateData: Partial<FrontendAlumniProfile> = {
+        graduationYear: data.graduationYear ? parseInt(data.graduationYear, 10) : null,
+        degree: data.degree || null,
+        major: data.major || null,
+        currentPosition: data.jobTitle || null,
+        company: data.company || null,
+        location: data.location || null,
+        bio: data.bio || null,
+        linkedinUrl: data.linkedin || null,
+        githubUrl: data.github || null,
+        website: data.website || null,
+      };
+
+      // Call API to update profile
+      const updatedProfile = await alumniService.updateMyProfile(updateData);
+      
+      // Update local state with API response
+      setAlumniProfile(updatedProfile);
+      setProfileData(prev => ({
+        ...prev,
+        ...data,
+        // Ensure API values are reflected
+        bio: updatedProfile.bio || data.bio,
+        major: updatedProfile.major || data.major,
+        degree: updatedProfile.degree || data.degree,
+        graduationYear: updatedProfile.graduationYear?.toString() || data.graduationYear,
+        jobTitle: updatedProfile.currentPosition || data.jobTitle,
+        company: updatedProfile.company || data.company,
+        location: updatedProfile.location || data.location,
+        linkedin: updatedProfile.linkedinUrl || data.linkedin,
+        github: updatedProfile.githubUrl || data.github,
+        website: updatedProfile.website || data.website,
+      }));
+      
+      // Also refresh the context's alumni profile
+      refreshAlumniProfile();
+      
+      toast({
+        title: 'Profile updated!',
+        description: 'Your profile has been saved successfully',
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save profile';
+      toast({
+        title: 'Error saving profile',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+      
+      // Still update local state for optimistic UX
+      setProfileData(data);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleConnect = () => {
@@ -191,7 +307,65 @@ const Profile = () => {
             </div>
           )}
 
-          {/* Cover & Avatar */}
+          {/* Loading State */}
+          {isOwnProfile && loadingState === 'loading' && (
+            <div className="p-6 space-y-6">
+              <div className="relative">
+                <Skeleton className="h-32 sm:h-40 md:h-48 lg:h-56 w-full rounded-none" />
+                <Skeleton className="absolute -bottom-10 left-4 md:left-8 w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 rounded-full" />
+              </div>
+              <div className="pt-12 sm:pt-16 md:pt-20 px-4 md:px-8 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div className="space-y-2">
+                    <Skeleton className="h-8 w-48" />
+                    <Skeleton className="h-4 w-64" />
+                    <Skeleton className="h-4 w-56" />
+                  </div>
+                  <Skeleton className="h-10 w-32" />
+                </div>
+                <div className="grid md:grid-cols-3 gap-6 mt-6">
+                  <div className="md:col-span-2 space-y-4">
+                    <Skeleton className="h-32 w-full" />
+                    <Skeleton className="h-24 w-full" />
+                  </div>
+                  <Skeleton className="h-48 w-full" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Error State */}
+          {isOwnProfile && loadingState === 'error' && (
+            <div className="p-6">
+              <Card className="p-8 text-center border-destructive/50">
+                <AlertCircle className="w-12 h-12 mx-auto mb-4 text-destructive" />
+                <h3 className="text-lg font-semibold mb-2">
+                  {apiError?.includes('not found') ? 'Profile Not Set Up' : 'Error Loading Profile'}
+                </h3>
+                <p className="text-muted-foreground mb-4">
+                  {apiError?.includes('not found') 
+                    ? 'Your alumni profile hasn\'t been created yet. Click below to set it up.'
+                    : apiError || 'An error occurred while loading your profile.'}
+                </p>
+                <div className="flex justify-center gap-3">
+                  {apiError?.includes('not found') ? (
+                    <Button onClick={() => setIsEditModalOpen(true)}>
+                      <Edit className="w-4 h-4 mr-2" />
+                      Set Up Profile
+                    </Button>
+                  ) : (
+                    <Button onClick={fetchAlumniProfile} variant="outline">
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Try Again
+                    </Button>
+                  )}
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* Cover & Avatar - Show when loaded or for other profiles */}
+          {(loadingState !== 'loading' && (loadingState !== 'error' || !isOwnProfile)) && (
           <div className="relative">
             <div className="h-32 sm:h-40 md:h-48 lg:h-56 bg-gradient-to-r from-primary to-secondary overflow-hidden">
               {displayUser.banner && (
@@ -210,26 +384,33 @@ const Profile = () => {
               />
             </div>
           </div>
+          )}
 
+          {/* Main Profile Content - Show when loaded or for other profiles */}
+          {(loadingState !== 'loading' && (loadingState !== 'error' || !isOwnProfile)) && (
           <div className="px-3 sm:px-4 md:px-8 pt-12 sm:pt-16 md:pt-20 pb-6 sm:pb-8">
             <div className="flex flex-col sm:flex-row items-start justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
               <div className="flex-1 min-w-0 w-full">
                 <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-1 sm:mb-2 truncate">{displayUser.name}</h1>
                 <p className="text-xs sm:text-sm md:text-base text-muted-foreground mb-1">
-                  {displayUser.major} • {user?.university}
+                  {displayUser.degree ? `${displayUser.degree} in ` : ''}{displayUser.major || 'Not specified'} • {user?.university}
                 </p>
                 <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
-                  {displayUser.jobTitle} at {displayUser.company}
+                  {displayUser.jobTitle ? `${displayUser.jobTitle}${displayUser.company ? ` at ${displayUser.company}` : ''}` : 'Position not specified'}
                 </p>
                 <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4 text-xs sm:text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 flex-shrink-0" />
-                    <span>{displayUser.location}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 flex-shrink-0" />
-                    <span>Class of {displayUser.graduationYear}</span>
-                  </div>
+                  {displayUser.location && (
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 flex-shrink-0" />
+                      <span>{displayUser.location}</span>
+                    </div>
+                  )}
+                  {displayUser.graduationYear && (
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 flex-shrink-0" />
+                      <span>Class of {displayUser.graduationYear}</span>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex gap-2 w-full sm:w-auto flex-shrink-0">
@@ -288,11 +469,18 @@ const Profile = () => {
               <Card className="p-5 sm:p-6 md:col-span-2 space-y-6">
                 <div>
                   <h2 className="text-lg sm:text-xl font-semibold mb-3">About</h2>
-                  <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-                    {displayUser.bio}
-                  </p>
+                  {displayUser.bio ? (
+                    <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
+                      {displayUser.bio}
+                    </p>
+                  ) : (
+                    <p className="text-sm sm:text-base text-muted-foreground/60 italic">
+                      No bio added yet. {isOwnProfile && 'Click "Edit Profile" to add one.'}
+                    </p>
+                  )}
                 </div>
 
+                {(displayUser.jobTitle || displayUser.company) && (
                 <div>
                   <h2 className="text-lg sm:text-xl font-semibold mb-4">Experience</h2>
                   <div className="space-y-4">
@@ -301,13 +489,19 @@ const Profile = () => {
                         <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-sm sm:text-base">{displayUser.jobTitle}</h3>
-                        <p className="text-xs sm:text-sm text-muted-foreground">{displayUser.company} • 2021 - Present</p>
-                        <p className="text-xs sm:text-sm text-muted-foreground mt-1">{displayUser.location}</p>
+                        <h3 className="font-semibold text-sm sm:text-base">{displayUser.jobTitle || 'Position not specified'}</h3>
+                        <p className="text-xs sm:text-sm text-muted-foreground">
+                          {displayUser.company || 'Company not specified'}
+                          {' • Present'}
+                        </p>
+                        {displayUser.location && (
+                          <p className="text-xs sm:text-sm text-muted-foreground mt-1">{displayUser.location}</p>
+                        )}
                       </div>
                     </div>
                   </div>
                 </div>
+                )}
 
                 <div>
                   <h2 className="text-lg sm:text-xl font-semibold mb-4">Education</h2>
@@ -316,9 +510,16 @@ const Profile = () => {
                       <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-secondary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-sm sm:text-base">{user?.university}</h3>
-                      <p className="text-xs sm:text-sm text-muted-foreground">{displayUser.major}</p>
-                      <p className="text-xs sm:text-sm text-muted-foreground">Class of {displayUser.graduationYear}</p>
+                      <h3 className="font-semibold text-sm sm:text-base">{user?.university || 'University not specified'}</h3>
+                      {displayUser.degree && (
+                        <p className="text-xs sm:text-sm text-muted-foreground">{displayUser.degree}</p>
+                      )}
+                      {displayUser.major && (
+                        <p className="text-xs sm:text-sm text-muted-foreground">{displayUser.major}</p>
+                      )}
+                      {displayUser.graduationYear && (
+                        <p className="text-xs sm:text-sm text-muted-foreground">Class of {displayUser.graduationYear}</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -357,6 +558,17 @@ const Profile = () => {
                       <span className="truncate group-hover:underline">LinkedIn</span>
                     </a>
                   )}
+                  {displayUser.github && (
+                    <a 
+                      href={displayUser.github} 
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 text-xs sm:text-sm hover:text-primary transition-colors group"
+                    >
+                      <Github className="w-5 h-5 flex-shrink-0" />
+                      <span className="truncate group-hover:underline">GitHub</span>
+                    </a>
+                  )}
                   {displayUser.website && (
                     <a 
                       href={displayUser.website} 
@@ -386,6 +598,7 @@ const Profile = () => {
               </Card>
             </div>
           </div>
+          )}
         </div>
       </main>
 
@@ -396,6 +609,7 @@ const Profile = () => {
           onClose={() => setIsEditModalOpen(false)}
           onSubmit={handleSaveProfile}
           currentData={profileData}
+          isSaving={isSaving}
         />
       )}
 

@@ -17,6 +17,7 @@ import Index from "./pages/Index";
 import FeaturesPage from "./pages/FeaturesPage";
 import AboutPage from "./pages/AboutPage";
 import Login from "./pages/Login";
+import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ProfileCompletion from "./pages/ProfileCompletion";
 import Dashboard from "./pages/Dashboard";
@@ -85,56 +86,76 @@ const SuperAdminRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-// Routes Component - Must be inside AuthProvider
-const AppRoutes = () => (
-  <Routes>
-    <Route path="/" element={<Index />} />
-    <Route path="/features" element={<FeaturesPage />} />
-    <Route path="/about" element={<AboutPage />} />
-    <Route path="/login" element={<Login />} />
-    <Route path="/forgot-password" element={<ForgotPassword />} />
-    
-    {/* Super Admin Routes */}
-    <Route path="/superadmin" element={<SuperAdminRoute><SuperAdminDashboard /></SuperAdminRoute>} />
-    <Route path="/superadmin/universities" element={<SuperAdminRoute><SuperAdminUniversitiesPage /></SuperAdminRoute>} />
-    <Route path="/superadmin/users" element={<SuperAdminRoute><SuperAdminUsersPage /></SuperAdminRoute>} />
-    <Route path="/superadmin/admins" element={<SuperAdminRoute><SuperAdminAdminsPage /></SuperAdminRoute>} />
-    <Route path="/superadmin/ads" element={<SuperAdminRoute><SuperAdminAdsPage /></SuperAdminRoute>} />
-    <Route path="/superadmin/passwords" element={<SuperAdminRoute><SuperAdminPasswordsPage /></SuperAdminRoute>} />
-    <Route path="/superadmin/analytics" element={<SuperAdminRoute><SuperAdminAnalyticsPage /></SuperAdminRoute>} />
-    <Route path="/superadmin/leads" element={<SuperAdminRoute><SuperAdminLeadIntelligencePage /></SuperAdminRoute>} />
-    
-    {/* Admin Routes */}
-    <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-    <Route path="/admin/branding" element={<AdminRoute><AdminBrandingPage /></AdminRoute>} />
-    <Route path="/admin/feed" element={<AdminRoute><AdminFeedPage /></AdminRoute>} />
-    <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
-    <Route path="/admin/mentors" element={<AdminRoute><AdminMentorsPage /></AdminRoute>} />
-    <Route path="/admin/passwords" element={<AdminRoute><AdminPasswordsPage /></AdminRoute>} />
-    <Route path="/admin/documents" element={<AdminRoute><AdminDocumentsPage /></AdminRoute>} />
-    <Route path="/admin/events" element={<AdminRoute><AdminEventsPage /></AdminRoute>} />
-    <Route path="/admin/groups" element={<AdminRoute><AdminGroupsPage /></AdminRoute>} />
-    <Route path="/admin/fundraiser" element={<AdminRoute><AdminFundraiserPage /></AdminRoute>} />
-    <Route path="/admin/knowledge" element={<AdminRoute><AdminKnowledgePage /></AdminRoute>} />
-    <Route path="/admin/support" element={<AdminRoute><AdminSupportPage /></AdminRoute>} />
-    
-    {/* Alumni Routes */}
-    <Route path="/profile-completion" element={<ProtectedRoute><ProfileCompletion /></ProtectedRoute>} />
-    <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-    <Route path="/profile" element={<ProfileRoute />} />
-    <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
-    <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
-    <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
-    <Route path="/roadmap" element={<ProtectedRoute><AIRoadmap /></ProtectedRoute>} />
-    <Route path="/mentorship" element={<ProtectedRoute><MentorshipMatch /></ProtectedRoute>} />
-    <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
-    <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-    <Route path="/connections" element={<ProtectedRoute><Connections /></ProtectedRoute>} />
-    <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
-    <Route path="/post/:id" element={<ProtectedRoute><SinglePost /></ProtectedRoute>} />
-    <Route path="*" element={<NotFound />} />
-  </Routes>
+// Loading spinner component for auth initialization
+const AuthLoadingScreen = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-primary/5 to-secondary/5">
+    <div className="text-center">
+      <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+      <p className="text-muted-foreground">Loading...</p>
+    </div>
+  </div>
 );
+
+// Routes Component - Must be inside AuthProvider
+const AppRoutes = () => {
+  const { isInitialized } = useAuth();
+
+  // Show loading screen while auth is initializing
+  if (!isInitialized) {
+    return <AuthLoadingScreen />;
+  }
+
+  return (
+    <Routes>
+      <Route path="/" element={<Index />} />
+      <Route path="/features" element={<FeaturesPage />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      
+      {/* Super Admin Routes */}
+      <Route path="/superadmin" element={<SuperAdminRoute><SuperAdminDashboard /></SuperAdminRoute>} />
+      <Route path="/superadmin/universities" element={<SuperAdminRoute><SuperAdminUniversitiesPage /></SuperAdminRoute>} />
+      <Route path="/superadmin/users" element={<SuperAdminRoute><SuperAdminUsersPage /></SuperAdminRoute>} />
+      <Route path="/superadmin/admins" element={<SuperAdminRoute><SuperAdminAdminsPage /></SuperAdminRoute>} />
+      <Route path="/superadmin/ads" element={<SuperAdminRoute><SuperAdminAdsPage /></SuperAdminRoute>} />
+      <Route path="/superadmin/passwords" element={<SuperAdminRoute><SuperAdminPasswordsPage /></SuperAdminRoute>} />
+      <Route path="/superadmin/analytics" element={<SuperAdminRoute><SuperAdminAnalyticsPage /></SuperAdminRoute>} />
+      <Route path="/superadmin/leads" element={<SuperAdminRoute><SuperAdminLeadIntelligencePage /></SuperAdminRoute>} />
+      
+      {/* Admin Routes */}
+      <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+      <Route path="/admin/branding" element={<AdminRoute><AdminBrandingPage /></AdminRoute>} />
+      <Route path="/admin/feed" element={<AdminRoute><AdminFeedPage /></AdminRoute>} />
+      <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
+      <Route path="/admin/mentors" element={<AdminRoute><AdminMentorsPage /></AdminRoute>} />
+      <Route path="/admin/passwords" element={<AdminRoute><AdminPasswordsPage /></AdminRoute>} />
+      <Route path="/admin/documents" element={<AdminRoute><AdminDocumentsPage /></AdminRoute>} />
+      <Route path="/admin/events" element={<AdminRoute><AdminEventsPage /></AdminRoute>} />
+      <Route path="/admin/groups" element={<AdminRoute><AdminGroupsPage /></AdminRoute>} />
+      <Route path="/admin/fundraiser" element={<AdminRoute><AdminFundraiserPage /></AdminRoute>} />
+      <Route path="/admin/knowledge" element={<AdminRoute><AdminKnowledgePage /></AdminRoute>} />
+      <Route path="/admin/support" element={<AdminRoute><AdminSupportPage /></AdminRoute>} />
+      
+      {/* Alumni Routes */}
+      <Route path="/profile-completion" element={<ProtectedRoute><ProfileCompletion /></ProtectedRoute>} />
+      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/profile" element={<ProfileRoute />} />
+      <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
+      <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
+      <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+      <Route path="/roadmap" element={<ProtectedRoute><AIRoadmap /></ProtectedRoute>} />
+      <Route path="/mentorship" element={<ProtectedRoute><MentorshipMatch /></ProtectedRoute>} />
+      <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+      <Route path="/connections" element={<ProtectedRoute><Connections /></ProtectedRoute>} />
+      <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
+      <Route path="/post/:id" element={<ProtectedRoute><SinglePost /></ProtectedRoute>} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
