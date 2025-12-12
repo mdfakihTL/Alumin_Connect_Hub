@@ -213,7 +213,7 @@ async def get_sent_requests(
                 university=None,
                 year=None
             ),
-            to_user_id=to_user.name,  # Return name for display
+            to_user_id=to_user.id,
             status=req.status.value,
             date=req.created_at.isoformat()
         ))
