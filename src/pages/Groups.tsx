@@ -7,10 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Plus, Search, Lock, Settings, LogOut, Edit, Trash2, Check, Menu } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Users, Plus, Search, Lock, Settings, LogOut, Edit, Trash2, Check, Menu, RefreshCw } from 'lucide-react';
 import { useGroups, Group } from '@/contexts/GroupsContext';
 import { useToast } from '@/hooks/use-toast';
+import { LoadingState } from '@/components/ui/loading-state';
+import { ErrorState } from '@/components/ui/error-state';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,13 +22,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const Groups = () => {
-  const { groups, joinedGroups, createGroup, updateGroup, deleteGroup, joinGroup, leaveGroup } = useGroups();
+  const { groups, joinedGroups, isLoading, error, createGroup, updateGroup, deleteGroup, joinGroup, leaveGroup, refreshGroups } = useGroups();
   const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
   const [filter, setFilter] = useState<'all' | 'joined'>('all');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const filteredGroups = groups.filter(group => {
     const matchesSearch = 
@@ -38,13 +42,17 @@ const Groups = () => {
     return matchesSearch && matchesFilter;
   });
 
-  const handleCreateGroup = (groupData: Omit<Group, 'id' | 'members' | 'isJoined'>) => {
-    createGroup(groupData);
-    toast({
-      title: 'Group created!',
-      description: 'Your new group has been created successfully',
-    });
-    setIsModalOpen(false);
+  const handleCreateGroup = async (groupData: Omit<Group, 'id' | 'members' | 'isJoined'>) => {
+    try {
+      await createGroup(groupData);
+      toast({
+        title: 'Group created!',
+        description: 'Your new group has been created successfully',
+      });
+      setIsModalOpen(false);
+    } catch (err) {
+      // Error already handled in context
+    }
   };
 
   const handleEditGroup = (group: Group) => {
@@ -52,45 +60,70 @@ const Groups = () => {
     setIsModalOpen(true);
   };
 
-  const handleUpdateGroup = (groupData: Omit<Group, 'id' | 'members' | 'isJoined'>) => {
+  const handleUpdateGroup = async (groupData: Omit<Group, 'id' | 'members' | 'isJoined'>) => {
     if (editingGroup) {
-      updateGroup(editingGroup.id, groupData);
-      toast({
-        title: 'Group updated!',
-        description: 'Group details have been updated successfully',
-      });
-      setEditingGroup(null);
-      setIsModalOpen(false);
+      try {
+        await updateGroup(editingGroup.id, groupData);
+        toast({
+          title: 'Group updated!',
+          description: 'Group details have been updated successfully',
+        });
+        setEditingGroup(null);
+        setIsModalOpen(false);
+      } catch (err) {
+        // Error already handled in context
+      }
     }
   };
 
-  const handleDeleteGroup = (groupId: number, groupName: string) => {
+  const handleDeleteGroup = async (groupId: string, groupName: string) => {
     const confirmed = window.confirm(`Are you sure you want to delete "${groupName}"? This action cannot be undone.`);
     if (confirmed) {
-      deleteGroup(groupId);
-      toast({
-        title: 'Group deleted',
-        description: 'The group has been removed',
-      });
+      setActionLoading(groupId);
+      try {
+        await deleteGroup(groupId);
+        toast({
+          title: 'Group deleted',
+          description: 'The group has been removed',
+        });
+      } catch (err) {
+        // Error already handled in context
+      } finally {
+        setActionLoading(null);
+      }
     }
   };
 
-  const handleJoinGroup = (groupId: number, groupName: string) => {
-    joinGroup(groupId);
-    toast({
-      title: 'Joined group!',
-      description: `You are now a member of ${groupName}`,
-    });
+  const handleJoinGroup = async (groupId: string, groupName: string) => {
+    setActionLoading(groupId);
+    try {
+      await joinGroup(groupId);
+      toast({
+        title: 'Joined group!',
+        description: `You are now a member of ${groupName}`,
+      });
+    } catch (err) {
+      // Error already handled in context
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleLeaveGroup = (groupId: number, groupName: string) => {
+  const handleLeaveGroup = async (groupId: string, groupName: string) => {
     const confirmed = window.confirm(`Are you sure you want to leave "${groupName}"?`);
     if (confirmed) {
-      leaveGroup(groupId);
-      toast({
-        title: 'Left group',
-        description: `You have left ${groupName}`,
-      });
+      setActionLoading(groupId);
+      try {
+        await leaveGroup(groupId);
+        toast({
+          title: 'Left group',
+          description: `You have left ${groupName}`,
+        });
+      } catch (err) {
+        // Error already handled in context
+      } finally {
+        setActionLoading(null);
+      }
     }
   };
 
@@ -118,10 +151,21 @@ const Groups = () => {
                 <p className="text-xs sm:text-sm text-muted-foreground">Connect with alumni communities</p>
               </div>
             </div>
-            <Button className="gap-2 h-9 sm:h-10 text-sm w-full sm:w-auto" onClick={() => setIsModalOpen(true)}>
-              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span>Create Group</span>
-            </Button>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={refreshGroups}
+                disabled={isLoading}
+                className="h-9 w-9"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button className="gap-2 h-9 sm:h-10 text-sm flex-1 sm:flex-none" onClick={() => setIsModalOpen(true)}>
+                <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span>Create Group</span>
+              </Button>
+            </div>
           </div>
 
           {/* Search & Filter */}
@@ -150,116 +194,136 @@ const Groups = () => {
             </Tabs>
           </div>
 
+          {/* Loading State */}
+          {isLoading && groups.length === 0 && (
+            <LoadingState message="Loading groups..." />
+          )}
+
+          {/* Error State */}
+          {error && !isLoading && (
+            <ErrorState 
+              message={error} 
+              onRetry={refreshGroups}
+            />
+          )}
+
           {/* Empty State */}
-          {filteredGroups.length === 0 && (
-            <Card className="p-12 text-center">
-              <Users className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="text-lg font-semibold mb-2">No groups found</h3>
-              <p className="text-muted-foreground mb-4">
-                {searchQuery 
+          {!isLoading && !error && filteredGroups.length === 0 && (
+            <EmptyState 
+              icon={Users}
+              title="No groups found"
+              description={
+                searchQuery 
                   ? "Try adjusting your search terms" 
                   : filter === 'joined'
                     ? "You haven't joined any groups yet"
-                    : "Be the first to create a group!"}
-              </p>
-              {!searchQuery && filter === 'all' && (
-                <Button onClick={() => setIsModalOpen(true)} className="gap-2">
-                  <Plus className="w-5 h-5" />
-                  Create Your First Group
-                </Button>
-              )}
-            </Card>
+                    : "Be the first to create a group!"
+              }
+              action={!searchQuery && filter === 'all' ? {
+                label: 'Create Your First Group',
+                onClick: () => setIsModalOpen(true)
+              } : undefined}
+            />
           )}
 
           {/* Groups Grid */}
-          <div className="grid md:grid-cols-2 gap-4">
-            {filteredGroups.map((group) => {
-              const isOwner = group.isJoined && group.id >= 1000; // User created groups
-              
-              return (
-                <Card key={group.id} className="p-5 sm:p-6 hover:shadow-lg transition-shadow">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex gap-3 flex-1 min-w-0">
-                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden flex-shrink-0 bg-primary/10">
-                        <img 
-                          src={group.avatar} 
-                          alt={group.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <h3 className="font-semibold text-base sm:text-lg truncate">{group.name}</h3>
-                            {group.isPrivate && <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0" />}
+          {!isLoading && filteredGroups.length > 0 && (
+            <div className="grid md:grid-cols-2 gap-4">
+              {filteredGroups.map((group) => {
+                const isOwner = group.isJoined && parseInt(group.id) >= 1000; // User created groups
+                const isActionLoading = actionLoading === group.id;
+                
+                return (
+                  <Card key={group.id} className="p-5 sm:p-6 hover:shadow-lg transition-shadow">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex gap-3 flex-1 min-w-0">
+                        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden flex-shrink-0 bg-primary/10">
+                          <img 
+                            src={group.avatar} 
+                            alt={group.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <h3 className="font-semibold text-base sm:text-lg truncate">{group.name}</h3>
+                              {group.isPrivate && <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0" />}
+                            </div>
+                            {isOwner && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
+                                    <Settings className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48">
+                                  <DropdownMenuItem onClick={() => handleEditGroup(group)} className="gap-2">
+                                    <Edit className="w-4 h-4" />
+                                    Edit Group
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    onClick={() => handleDeleteGroup(group.id, group.name)}
+                                    className="gap-2 text-destructive focus:text-destructive"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                    Delete Group
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
                           </div>
-                          {isOwner && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
-                                  <Settings className="w-4 h-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-48">
-                                <DropdownMenuItem onClick={() => handleEditGroup(group)} className="gap-2">
-                                  <Edit className="w-4 h-4" />
-                                  Edit Group
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  onClick={() => handleDeleteGroup(group.id, group.name)}
-                                  className="gap-2 text-destructive focus:text-destructive"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                  Delete Group
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
-                        </div>
-                        <p className="text-xs sm:text-sm text-muted-foreground mb-3 line-clamp-2">
-                          {group.description}
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          <Badge variant="secondary" className="text-xs">
-                            {group.category}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            <Users className="w-3 h-3 mr-1" />
-                            {group.members}
-                          </Badge>
+                          <p className="text-xs sm:text-sm text-muted-foreground mb-3 line-clamp-2">
+                            {group.description}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="secondary" className="text-xs">
+                              {group.category}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              <Users className="w-3 h-3 mr-1" />
+                              {group.members}
+                            </Badge>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                  
-                  {group.isJoined ? (
-                    <div className="flex gap-2">
-                      <Button className="flex-1 gap-2" variant="outline">
-                        <Check className="w-4 h-4" />
-                        Joined
-                      </Button>
+                    
+                    {group.isJoined ? (
+                      <div className="flex gap-2">
+                        <Button className="flex-1 gap-2" variant="outline" disabled={isActionLoading}>
+                          <Check className="w-4 h-4" />
+                          Joined
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleLeaveGroup(group.id, group.name)}
+                          className="text-destructive hover:text-destructive"
+                          disabled={isActionLoading}
+                        >
+                          <LogOut className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ) : (
                       <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleLeaveGroup(group.id, group.name)}
-                        className="text-destructive hover:text-destructive"
+                        className="w-full gap-2" 
+                        onClick={() => handleJoinGroup(group.id, group.name)}
+                        disabled={isActionLoading}
                       >
-                        <LogOut className="w-4 h-4" />
+                        {isActionLoading ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Plus className="w-4 h-4" />
+                        )}
+                        Join Group
                       </Button>
-                    </div>
-                  ) : (
-                    <Button 
-                      className="w-full gap-2" 
-                      onClick={() => handleJoinGroup(group.id, group.name)}
-                    >
-                      <Plus className="w-4 h-4" />
-                      Join Group
-                    </Button>
-                  )}
-                </Card>
-              );
-            })}
-          </div>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
       </main>
 

@@ -7,10 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, MapPin, Users, Plus, Search, Video, Settings, Edit, Trash2, Check, ExternalLink, Menu } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Calendar, MapPin, Users, Plus, Search, Video, Settings, Edit, Trash2, Check, ExternalLink, Menu, RefreshCw } from 'lucide-react';
 import { useEvents, Event } from '@/contexts/EventsContext';
 import { useToast } from '@/hooks/use-toast';
+import { LoadingState } from '@/components/ui/loading-state';
+import { ErrorState } from '@/components/ui/error-state';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,13 +22,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const Events = () => {
-  const { events, registeredEvents, createEvent, updateEvent, deleteEvent, registerForEvent, unregisterFromEvent } = useEvents();
+  const { events, registeredEvents, isLoading, error, createEvent, updateEvent, deleteEvent, registerForEvent, unregisterFromEvent, refreshEvents } = useEvents();
   const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [filter, setFilter] = useState<'all' | 'registered'>('all');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const filteredEvents = events.filter(event => {
     const matchesSearch = 
@@ -39,13 +43,17 @@ const Events = () => {
     return matchesSearch && matchesFilter;
   });
 
-  const handleCreateEvent = (eventData: Omit<Event, 'id' | 'attendees' | 'isRegistered' | 'organizer'>) => {
-    createEvent(eventData);
-    toast({
-      title: 'Event created!',
-      description: 'Your event has been created successfully',
-    });
-    setIsModalOpen(false);
+  const handleCreateEvent = async (eventData: Omit<Event, 'id' | 'attendees' | 'isRegistered' | 'organizer'>) => {
+    try {
+      await createEvent(eventData);
+      toast({
+        title: 'Event created!',
+        description: 'Your event has been created successfully',
+      });
+      setIsModalOpen(false);
+    } catch (err) {
+      // Error already handled in context
+    }
   };
 
   const handleEditEvent = (event: Event) => {
@@ -53,45 +61,70 @@ const Events = () => {
     setIsModalOpen(true);
   };
 
-  const handleUpdateEvent = (eventData: Omit<Event, 'id' | 'attendees' | 'isRegistered' | 'organizer'>) => {
+  const handleUpdateEvent = async (eventData: Omit<Event, 'id' | 'attendees' | 'isRegistered' | 'organizer'>) => {
     if (editingEvent) {
-      updateEvent(editingEvent.id, eventData);
-      toast({
-        title: 'Event updated!',
-        description: 'Event details have been updated successfully',
-      });
-      setEditingEvent(null);
-      setIsModalOpen(false);
+      try {
+        await updateEvent(editingEvent.id, eventData);
+        toast({
+          title: 'Event updated!',
+          description: 'Event details have been updated successfully',
+        });
+        setEditingEvent(null);
+        setIsModalOpen(false);
+      } catch (err) {
+        // Error already handled in context
+      }
     }
   };
 
-  const handleDeleteEvent = (eventId: number, eventTitle: string) => {
+  const handleDeleteEvent = async (eventId: string, eventTitle: string) => {
     const confirmed = window.confirm(`Are you sure you want to delete "${eventTitle}"? This action cannot be undone.`);
     if (confirmed) {
-      deleteEvent(eventId);
-      toast({
-        title: 'Event deleted',
-        description: 'The event has been removed',
-      });
+      setActionLoading(eventId);
+      try {
+        await deleteEvent(eventId);
+        toast({
+          title: 'Event deleted',
+          description: 'The event has been removed',
+        });
+      } catch (err) {
+        // Error already handled in context
+      } finally {
+        setActionLoading(null);
+      }
     }
   };
 
-  const handleRegister = (eventId: number, eventTitle: string) => {
-    registerForEvent(eventId);
-    toast({
-      title: 'Registered!',
-      description: `You're registered for ${eventTitle}`,
-    });
+  const handleRegister = async (eventId: string, eventTitle: string) => {
+    setActionLoading(eventId);
+    try {
+      await registerForEvent(eventId);
+      toast({
+        title: 'Registered!',
+        description: `You're registered for ${eventTitle}`,
+      });
+    } catch (err) {
+      // Error already handled in context
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleUnregister = (eventId: number, eventTitle: string) => {
+  const handleUnregister = async (eventId: string, eventTitle: string) => {
     const confirmed = window.confirm(`Are you sure you want to unregister from "${eventTitle}"?`);
     if (confirmed) {
-      unregisterFromEvent(eventId);
-      toast({
-        title: 'Unregistered',
-        description: `You've been removed from ${eventTitle}`,
-      });
+      setActionLoading(eventId);
+      try {
+        await unregisterFromEvent(eventId);
+        toast({
+          title: 'Unregistered',
+          description: `You've been removed from ${eventTitle}`,
+        });
+      } catch (err) {
+        // Error already handled in context
+      } finally {
+        setActionLoading(null);
+      }
     }
   };
 
@@ -123,10 +156,21 @@ const Events = () => {
                 <p className="text-xs sm:text-sm text-muted-foreground">Discover and join alumni events</p>
               </div>
             </div>
-            <Button className="gap-2 h-9 sm:h-10 text-sm w-full sm:w-auto" onClick={() => setIsModalOpen(true)}>
-              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span>Create Event</span>
-            </Button>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={refreshEvents}
+                disabled={isLoading}
+                className="h-9 w-9"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button className="gap-2 h-9 sm:h-10 text-sm flex-1 sm:flex-none" onClick={() => setIsModalOpen(true)}>
+                <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span>Create Event</span>
+              </Button>
+            </div>
           </div>
 
           {/* Search & Filter */}
@@ -155,148 +199,168 @@ const Events = () => {
             </Tabs>
           </div>
 
+          {/* Loading State */}
+          {isLoading && events.length === 0 && (
+            <LoadingState message="Loading events..." />
+          )}
+
+          {/* Error State */}
+          {error && !isLoading && (
+            <ErrorState 
+              message={error} 
+              onRetry={refreshEvents}
+            />
+          )}
+
           {/* Empty State */}
-          {filteredEvents.length === 0 && (
-            <Card className="p-12 text-center">
-              <Calendar className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="text-lg font-semibold mb-2">No events found</h3>
-              <p className="text-muted-foreground mb-4">
-                {searchQuery 
+          {!isLoading && !error && filteredEvents.length === 0 && (
+            <EmptyState 
+              icon={Calendar}
+              title="No events found"
+              description={
+                searchQuery 
                   ? "Try adjusting your search terms" 
                   : filter === 'registered'
                     ? "You haven't registered for any events yet"
-                    : "Be the first to create an event!"}
-              </p>
-              {!searchQuery && filter === 'all' && (
-                <Button onClick={() => setIsModalOpen(true)} className="gap-2">
-                  <Plus className="w-5 h-5" />
-                  Create Your First Event
-                </Button>
-              )}
-            </Card>
+                    : "Be the first to create an event!"
+              }
+              action={!searchQuery && filter === 'all' ? {
+                label: 'Create Your First Event',
+                onClick: () => setIsModalOpen(true)
+              } : undefined}
+            />
           )}
 
           {/* Events Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
-            {filteredEvents.map((event) => {
-              const isOwner = event.organizer === 'You';
-              
-              return (
-                <Card key={event.id} className="overflow-hidden hover:shadow-lg transition-all duration-200 flex flex-col">
-                  {/* Event Image */}
-                  <div className="relative bg-muted">
-                    <img
-                      src={event.image}
-                      alt={event.title}
-                      onError={handleImageError}
-                      className="w-full h-48 object-cover"
-                      loading="lazy"
-                    />
-                    {event.isVirtual && (
-                      <Badge className="absolute top-3 left-3 gap-1 bg-accent shadow-md">
-                        <Video className="w-3 h-3" />
-                        Virtual
-                      </Badge>
-                    )}
-                    {isOwner && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button 
-                            variant="secondary" 
-                            size="icon" 
-                            className="absolute top-3 right-3 h-8 w-8 shadow-md"
-                          >
-                            <Settings className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuItem onClick={() => handleEditEvent(event)} className="gap-2">
-                            <Edit className="w-4 h-4" />
-                            Edit Event
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleDeleteEvent(event.id, event.title)}
-                            className="gap-2 text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Delete Event
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </div>
-
-                  {/* Event Details */}
-                  <div className="p-4 sm:p-5 space-y-3 flex-1 flex flex-col">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-semibold text-base sm:text-lg line-clamp-2 flex-1">{event.title}</h3>
-                      <Badge variant="secondary" className="text-xs flex-shrink-0">
-                        {event.category}
-                      </Badge>
-                    </div>
-                    
-                    <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
-                      {event.description}
-                    </p>
-
-                    <div className="space-y-2 text-sm text-muted-foreground flex-1">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 flex-shrink-0" />
-                        <span className="truncate">{event.date} at {event.time}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 flex-shrink-0" />
-                        <span className="truncate">{event.location}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Users className="w-4 h-4 flex-shrink-0" />
-                        <span>{event.attendees} attending</span>
-                      </div>
+          {!isLoading && filteredEvents.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
+              {filteredEvents.map((event) => {
+                const isOwner = event.organizer === 'You';
+                const isActionLoading = actionLoading === event.id;
+                
+                return (
+                  <Card key={event.id} className="overflow-hidden hover:shadow-lg transition-all duration-200 flex flex-col">
+                    {/* Event Image */}
+                    <div className="relative bg-muted">
+                      <img
+                        src={event.image}
+                        alt={event.title}
+                        onError={handleImageError}
+                        className="w-full h-48 object-cover"
+                        loading="lazy"
+                      />
+                      {event.isVirtual && (
+                        <Badge className="absolute top-3 left-3 gap-1 bg-accent shadow-md">
+                          <Video className="w-3 h-3" />
+                          Virtual
+                        </Badge>
+                      )}
+                      {isOwner && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              variant="secondary" 
+                              size="icon" 
+                              className="absolute top-3 right-3 h-8 w-8 shadow-md"
+                            >
+                              <Settings className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={() => handleEditEvent(event)} className="gap-2">
+                              <Edit className="w-4 h-4" />
+                              Edit Event
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleDeleteEvent(event.id, event.title)}
+                              className="gap-2 text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Delete Event
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </div>
 
-                    {/* Meeting Link for Virtual Events */}
-                    {event.isVirtual && event.meetingLink && event.isRegistered && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full gap-2"
-                        onClick={() => window.open(event.meetingLink, '_blank')}
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        Join Meeting
-                      </Button>
-                    )}
+                    {/* Event Details */}
+                    <div className="p-4 sm:p-5 space-y-3 flex-1 flex flex-col">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="font-semibold text-base sm:text-lg line-clamp-2 flex-1">{event.title}</h3>
+                        <Badge variant="secondary" className="text-xs flex-shrink-0">
+                          {event.category}
+                        </Badge>
+                      </div>
+                      
+                      <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
+                        {event.description}
+                      </p>
 
-                    {/* Register/Unregister Button */}
-                    {event.isRegistered ? (
-                      <div className="flex gap-2">
-                        <Button className="flex-1 gap-2" variant="outline">
-                          <Check className="w-4 h-4" />
-                          Registered
-                        </Button>
+                      <div className="space-y-2 text-sm text-muted-foreground flex-1">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 flex-shrink-0" />
+                          <span className="truncate">{event.date} at {event.time}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4 flex-shrink-0" />
+                          <span className="truncate">{event.location}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4 flex-shrink-0" />
+                          <span>{event.attendees} attending</span>
+                        </div>
+                      </div>
+
+                      {/* Meeting Link for Virtual Events */}
+                      {event.isVirtual && event.meetingLink && event.isRegistered && (
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
-                          onClick={() => handleUnregister(event.id, event.title)}
-                          className="text-destructive hover:text-destructive"
+                          className="w-full gap-2"
+                          onClick={() => window.open(event.meetingLink, '_blank')}
                         >
-                          Leave
+                          <ExternalLink className="w-4 h-4" />
+                          Join Meeting
                         </Button>
-                      </div>
-                    ) : (
-                      <Button 
-                        className="w-full gap-2"
-                        onClick={() => handleRegister(event.id, event.title)}
-                      >
-                        <Plus className="w-4 h-4" />
-                        Register
-                      </Button>
-                    )}
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
+                      )}
+
+                      {/* Register/Unregister Button */}
+                      {event.isRegistered ? (
+                        <div className="flex gap-2">
+                          <Button className="flex-1 gap-2" variant="outline" disabled={isActionLoading}>
+                            <Check className="w-4 h-4" />
+                            Registered
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleUnregister(event.id, event.title)}
+                            className="text-destructive hover:text-destructive"
+                            disabled={isActionLoading}
+                          >
+                            Leave
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button 
+                          className="w-full gap-2"
+                          onClick={() => handleRegister(event.id, event.title)}
+                          disabled={isActionLoading}
+                        >
+                          {isActionLoading ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Plus className="w-4 h-4" />
+                          )}
+                          Register
+                        </Button>
+                      )}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
       </main>
 

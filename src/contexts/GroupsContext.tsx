@@ -1,7 +1,11 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { groupsApi } from '@/api/groups';
+import { handleApiError } from '@/api/client';
+import { useAuth } from './AuthContext';
+import type { GroupResponse } from '@/api/types';
 
 export interface Group {
-  id: number;
+  id: string;
   name: string;
   members: number;
   description: string;
@@ -17,129 +21,152 @@ export interface Group {
 interface GroupsContextType {
   groups: Group[];
   joinedGroups: Group[];
-  createGroup: (group: Omit<Group, 'id' | 'members' | 'isJoined'>) => void;
-  updateGroup: (id: number, updates: Partial<Group>) => void;
-  deleteGroup: (id: number) => void;
-  joinGroup: (id: number) => void;
-  leaveGroup: (id: number) => void;
+  isLoading: boolean;
+  error: string | null;
+  createGroup: (group: Omit<Group, 'id' | 'members' | 'isJoined'>) => Promise<void>;
+  updateGroup: (id: string, updates: Partial<Group>) => Promise<void>;
+  deleteGroup: (id: string) => Promise<void>;
+  joinGroup: (id: string) => Promise<void>;
+  leaveGroup: (id: string) => Promise<void>;
+  refreshGroups: () => Promise<void>;
 }
 
 const GroupsContext = createContext<GroupsContextType | undefined>(undefined);
 
-const initialGroups: Group[] = [
-  {
-    id: 1,
-    name: 'Tech Alumni',
-    members: 1243,
-    description: 'Connect with fellow alumni in the tech industry',
-    isPrivate: false,
-    category: 'Technology',
-    avatar: 'https://api.dicebear.com/7.x/shapes/svg?seed=tech',
-    isJoined: true,
-    lastMessage: 'Anyone attending the tech meetup?',
-    lastMessageTime: '2h ago',
-    unreadCount: 3,
-  },
-  {
-    id: 2,
-    name: 'Bay Area Network',
-    members: 567,
-    description: 'Alumni living in the San Francisco Bay Area',
-    isPrivate: false,
-    category: 'Location',
-    avatar: 'https://api.dicebear.com/7.x/shapes/svg?seed=bayarea',
-    isJoined: false,
-  },
-  {
-    id: 3,
-    name: 'Class of 2020',
-    members: 892,
-    description: 'Official group for 2020 graduates',
-    isPrivate: true,
-    category: 'Class Year',
-    avatar: 'https://api.dicebear.com/7.x/shapes/svg?seed=class2020',
-    isJoined: true,
-    lastMessage: 'Reunion plans are finalized!',
-    lastMessageTime: '1d ago',
-    unreadCount: 0,
-  },
-  {
-    id: 4,
-    name: 'Entrepreneurs Club',
-    members: 234,
-    description: 'For alumni who started their own ventures',
-    isPrivate: false,
-    category: 'Career',
-    avatar: 'https://api.dicebear.com/7.x/shapes/svg?seed=entrepreneurs',
-    isJoined: false,
-  },
-  {
-    id: 5,
-    name: 'Data Science Network',
-    members: 456,
-    description: 'AI, ML, and Data Science professionals',
-    isPrivate: false,
-    category: 'Technology',
-    avatar: 'https://api.dicebear.com/7.x/shapes/svg?seed=datascience',
-    isJoined: true,
-    lastMessage: 'Great article on neural networks',
-    lastMessageTime: '5h ago',
-    unreadCount: 5,
-  },
-];
+// Transform API response to frontend format
+const transformGroup = (apiGroup: GroupResponse): Group => ({
+  id: apiGroup.id,
+  name: apiGroup.name,
+  members: apiGroup.members,
+  description: apiGroup.description || '',
+  isPrivate: apiGroup.is_private,
+  category: apiGroup.category || 'General',
+  avatar: apiGroup.avatar || `https://api.dicebear.com/7.x/shapes/svg?seed=${apiGroup.name}`,
+  isJoined: apiGroup.is_joined,
+  lastMessage: apiGroup.last_message,
+  lastMessageTime: apiGroup.last_message_time,
+  unreadCount: apiGroup.unread_count,
+});
 
 export const GroupsProvider = ({ children }: { children: ReactNode }) => {
-  const [groups, setGroups] = useState<Group[]>(initialGroups);
-  const nextId = 1000;
+  const { user } = useAuth();
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refreshGroups = useCallback(async () => {
+    if (!user) return;
+    
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await groupsApi.getGroups({ page_size: 100 });
+      setGroups(response.groups.map(transformGroup));
+    } catch (err) {
+      console.error('Failed to fetch groups:', err);
+      setError('Failed to load groups');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  // Load groups when user is authenticated
+  useEffect(() => {
+    if (user) {
+      refreshGroups();
+    } else {
+      setGroups([]);
+    }
+  }, [user, refreshGroups]);
 
   const joinedGroups = groups.filter(g => g.isJoined);
 
-  const createGroup = (groupData: Omit<Group, 'id' | 'members' | 'isJoined'>) => {
-    const newGroup: Group = {
-      ...groupData,
-      id: Date.now(),
-      members: 1,
-      isJoined: true,
-      avatar: `https://api.dicebear.com/7.x/shapes/svg?seed=${groupData.name}`,
-    };
-    setGroups(prev => [newGroup, ...prev]);
+  const createGroup = async (groupData: Omit<Group, 'id' | 'members' | 'isJoined'>) => {
+    try {
+      const response = await groupsApi.createGroup({
+        name: groupData.name,
+        description: groupData.description,
+        category: groupData.category,
+        is_private: groupData.isPrivate,
+        avatar: groupData.avatar,
+      });
+      
+      setGroups(prev => [transformGroup(response), ...prev]);
+    } catch (err) {
+      handleApiError(err, 'Failed to create group');
+      throw err;
+    }
   };
 
-  const updateGroup = (id: number, updates: Partial<Group>) => {
-    setGroups(prev => prev.map(group => 
-      group.id === id ? { ...group, ...updates } : group
-    ));
+  const updateGroup = async (id: string, updates: Partial<Group>) => {
+    try {
+      const response = await groupsApi.updateGroup(id, {
+        name: updates.name,
+        description: updates.description,
+        category: updates.category,
+        is_private: updates.isPrivate,
+        avatar: updates.avatar,
+      });
+      
+      setGroups(prev => prev.map(group => 
+        group.id === id ? transformGroup(response) : group
+      ));
+    } catch (err) {
+      handleApiError(err, 'Failed to update group');
+      throw err;
+    }
   };
 
-  const deleteGroup = (id: number) => {
-    setGroups(prev => prev.filter(group => group.id !== id));
+  const deleteGroup = async (id: string) => {
+    try {
+      await groupsApi.deleteGroup(id);
+      setGroups(prev => prev.filter(group => group.id !== id));
+    } catch (err) {
+      handleApiError(err, 'Failed to delete group');
+      throw err;
+    }
   };
 
-  const joinGroup = (id: number) => {
-    setGroups(prev => prev.map(group => 
-      group.id === id 
-        ? { ...group, isJoined: true, members: group.members + 1 } 
-        : group
-    ));
+  const joinGroup = async (id: string) => {
+    try {
+      await groupsApi.joinGroup(id);
+      setGroups(prev => prev.map(group => 
+        group.id === id 
+          ? { ...group, isJoined: true, members: group.members + 1 } 
+          : group
+      ));
+    } catch (err) {
+      handleApiError(err, 'Failed to join group');
+      throw err;
+    }
   };
 
-  const leaveGroup = (id: number) => {
-    setGroups(prev => prev.map(group => 
-      group.id === id 
-        ? { ...group, isJoined: false, members: Math.max(0, group.members - 1) } 
-        : group
-    ));
+  const leaveGroup = async (id: string) => {
+    try {
+      await groupsApi.leaveGroup(id);
+      setGroups(prev => prev.map(group => 
+        group.id === id 
+          ? { ...group, isJoined: false, members: Math.max(0, group.members - 1) } 
+          : group
+      ));
+    } catch (err) {
+      handleApiError(err, 'Failed to leave group');
+      throw err;
+    }
   };
 
   return (
     <GroupsContext.Provider value={{
       groups,
       joinedGroups,
+      isLoading,
+      error,
       createGroup,
       updateGroup,
       deleteGroup,
       joinGroup,
       leaveGroup,
+      refreshGroups,
     }}>
       {children}
     </GroupsContext.Provider>
@@ -153,4 +180,3 @@ export const useGroups = () => {
   }
   return context;
 };
-

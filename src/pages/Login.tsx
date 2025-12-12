@@ -6,14 +6,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { GraduationCap, Shield, Crown } from 'lucide-react';
+import { GraduationCap, Shield, Crown, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUniversityBranding } from '@/hooks/use-university-branding';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, isAdmin } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { login, isLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -22,6 +23,17 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!email || !password) {
+      toast({
+        title: 'Missing credentials',
+        description: 'Please enter both email and password',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
       await login(email, password);
       
@@ -40,12 +52,20 @@ const Login = () => {
           navigate('/dashboard');
         }
       }
-    } catch (error) {
+      
+      toast({
+        title: 'Welcome back!',
+        description: `Signed in as ${storedUser.name}`,
+      });
+    } catch (error: any) {
+      const message = error?.detail || 'Please check your credentials and try again';
       toast({ 
         title: 'Login failed', 
-        description: 'Please check your credentials and try again',
+        description: message,
         variant: 'destructive' 
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -53,6 +73,8 @@ const Login = () => {
     setEmail(email);
     setPassword(password);
   };
+
+  const isDisabled = isSubmitting || isLoading;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-secondary/5 flex items-center justify-center p-4">
@@ -79,6 +101,7 @@ const Login = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   className="h-11"
                   required
+                  disabled={isDisabled}
                 />
               </div>
 
@@ -92,11 +115,23 @@ const Login = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   className="h-11"
                   required
+                  disabled={isDisabled}
                 />
               </div>
 
-              <Button type="submit" className="w-full h-11 text-base font-medium">
-                Sign In
+              <Button 
+                type="submit" 
+                className="w-full h-11 text-base font-medium"
+                disabled={isDisabled}
+              >
+                {isDisabled ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  'Sign In'
+                )}
               </Button>
             </form>
 
@@ -108,8 +143,12 @@ const Login = () => {
           </div>
         </div>
 
-        {/* Credentials Sidebar */}
+        {/* Credentials Sidebar - Demo Credentials for Testing */}
         <div className="space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="text-center mb-2">
+            <Badge variant="outline" className="text-xs">Demo Credentials</Badge>
+          </div>
+
           {/* Super Admin Credentials */}
           <Card className="p-6 bg-gradient-to-br from-primary/10 to-secondary/10 border-primary/20">
             <div className="flex items-center gap-2 mb-4">
