@@ -145,6 +145,60 @@ async def create_event(
     )
 
 
+@router.get("/registered/me", response_model=EventListResponse)
+async def get_registered_events(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get events the current user is registered for.
+    """
+    registrations = db.query(EventRegistration).filter(
+        EventRegistration.user_id == current_user.id
+    ).all()
+    
+    event_ids = [r.event_id for r in registrations]
+    
+    query = db.query(Event).filter(
+        Event.id.in_(event_ids),
+        Event.is_active == True
+    ).order_by(Event.event_date.asc())
+    
+    total = query.count()
+    events = query.offset((page - 1) * page_size).limit(page_size).all()
+    
+    event_responses = []
+    for event in events:
+        organizer = db.query(User).filter(User.id == event.organizer_id).first()
+        organizer_name = organizer.name if organizer else "Unknown"
+        
+        event_responses.append(EventResponse(
+            id=event.id,
+            title=event.title,
+            date=event.event_date,
+            time=event.event_time,
+            location=event.location,
+            attendees=event.attendees_count,
+            image=event.image,
+            description=event.description,
+            is_virtual=event.is_virtual,
+            meeting_link=event.meeting_link,
+            organizer=organizer_name,
+            category=event.category,
+            is_registered=True,
+            created_at=event.created_at
+        ))
+    
+    return EventListResponse(
+        events=event_responses,
+        total=total,
+        page=page,
+        page_size=page_size
+    )
+
+
 @router.get("/{event_id}", response_model=EventResponse)
 async def get_event(
     event_id: str,
@@ -373,58 +427,4 @@ async def unregister_from_event(
         "success": True,
         "attendees": event.attendees_count
     }
-
-
-@router.get("/registered/me", response_model=EventListResponse)
-async def get_registered_events(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Get events the current user is registered for.
-    """
-    registrations = db.query(EventRegistration).filter(
-        EventRegistration.user_id == current_user.id
-    ).all()
-    
-    event_ids = [r.event_id for r in registrations]
-    
-    query = db.query(Event).filter(
-        Event.id.in_(event_ids),
-        Event.is_active == True
-    ).order_by(Event.event_date.asc())
-    
-    total = query.count()
-    events = query.offset((page - 1) * page_size).limit(page_size).all()
-    
-    event_responses = []
-    for event in events:
-        organizer = db.query(User).filter(User.id == event.organizer_id).first()
-        organizer_name = organizer.name if organizer else "Unknown"
-        
-        event_responses.append(EventResponse(
-            id=event.id,
-            title=event.title,
-            date=event.event_date,
-            time=event.event_time,
-            location=event.location,
-            attendees=event.attendees_count,
-            image=event.image,
-            description=event.description,
-            is_virtual=event.is_virtual,
-            meeting_link=event.meeting_link,
-            organizer=organizer_name,
-            category=event.category,
-            is_registered=True,
-            created_at=event.created_at
-        ))
-    
-    return EventListResponse(
-        events=event_responses,
-        total=total,
-        page=page,
-        page_size=page_size
-    )
 

@@ -8,8 +8,10 @@ from app.models.user import User, UserProfile, UserRole
 from app.models.university import University
 from app.schemas.user import (
     UserUpdate, UserProfileUpdate, UserResponse,
-    UserProfileResponse, UserWithProfileResponse
+    UserProfileResponse, UserWithProfileResponse,
+    UniversityBrandingResponse, UniversityBrandingColors, UniversityBrandingTheme
 )
+import json
 
 router = APIRouter()
 
@@ -40,10 +42,29 @@ async def update_current_user(
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
     
     university_name = None
+    university_branding = None
     if current_user.university_id:
         university = db.query(University).filter(University.id == current_user.university_id).first()
         if university:
             university_name = university.name
+            # Build university branding
+            colors = None
+            if university.colors:
+                try:
+                    colors_data = json.loads(university.colors)
+                    colors = UniversityBrandingTheme(
+                        light=UniversityBrandingColors(**colors_data.get("light", {"primary": "#000000", "secondary": "#666666", "accent": "#0066cc"})),
+                        dark=UniversityBrandingColors(**colors_data.get("dark", {"primary": "#ffffff", "secondary": "#cccccc", "accent": "#66b3ff"}))
+                    )
+                except (json.JSONDecodeError, KeyError):
+                    pass
+            university_branding = UniversityBrandingResponse(
+                id=university.id,
+                name=university.name,
+                logo=university.logo,
+                colors=colors,
+                is_enabled=university.is_enabled
+            )
     
     profile_response = None
     if profile:
@@ -77,7 +98,8 @@ async def update_current_user(
         is_active=current_user.is_active,
         created_at=current_user.created_at,
         profile=profile_response,
-        university_name=university_name
+        university_name=university_name,
+        university=university_branding
     )
 
 
@@ -158,10 +180,29 @@ async def get_user(
     profile = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
     
     university_name = None
+    university_branding = None
     if user.university_id:
         university = db.query(University).filter(University.id == user.university_id).first()
         if university:
             university_name = university.name
+            # Build university branding
+            colors = None
+            if university.colors:
+                try:
+                    colors_data = json.loads(university.colors)
+                    colors = UniversityBrandingTheme(
+                        light=UniversityBrandingColors(**colors_data.get("light", {"primary": "#000000", "secondary": "#666666", "accent": "#0066cc"})),
+                        dark=UniversityBrandingColors(**colors_data.get("dark", {"primary": "#ffffff", "secondary": "#cccccc", "accent": "#66b3ff"}))
+                    )
+                except (json.JSONDecodeError, KeyError):
+                    pass
+            university_branding = UniversityBrandingResponse(
+                id=university.id,
+                name=university.name,
+                logo=university.logo,
+                colors=colors,
+                is_enabled=university.is_enabled
+            )
     
     profile_response = None
     if profile:
@@ -195,7 +236,8 @@ async def get_user(
         is_active=user.is_active,
         created_at=user.created_at,
         profile=profile_response,
-        university_name=university_name
+        university_name=university_name,
+        university=university_branding
     )
 
 
