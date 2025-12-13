@@ -1,7 +1,7 @@
 """
 Authentication endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_async_session
 from app.services.auth_service import AuthService
@@ -96,7 +96,7 @@ async def get_university_template(
 
 @router.put("/template", response_model=dict)
 async def update_university_template(
-    template: str,
+    template: str = Query(..., description="Template name (e.g., 'classic-red')"),
     current_user: User = Depends(get_current_active_user),
     session: AsyncSession = Depends(get_async_session)
 ):
