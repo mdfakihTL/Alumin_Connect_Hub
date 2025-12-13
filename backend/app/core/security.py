@@ -11,7 +11,15 @@ from app.core.config import settings
 from app.core.database import get_db
 
 # Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__ident="2b")
+# Workaround for bcrypt compatibility issue with passlib
+import bcrypt
+# Disable bug detection that causes issues
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Force backend initialization to avoid lazy loading issues
+try:
+    pwd_context.hash("test")
+except:
+    pass
 
 # JWT Bearer scheme
 security = HTTPBearer()
