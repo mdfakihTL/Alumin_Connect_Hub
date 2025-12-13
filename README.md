@@ -1,73 +1,237 @@
-# Welcome to your Lovable project
+# Alumni Portal Backend
 
-## Project info
+A production-ready FastAPI backend for an Alumni Portal with AI-powered features including vector search, document Q&A, and intelligent networking.
 
-**URL**: https://lovable.dev/projects/5e850344-ab68-4ecd-8f6c-82e743533e97
+## Architecture Overview
 
-## How can I edit this code?
+### System Architecture
 
-There are several ways of editing your application.
+```
+┌─────────────┐
+│   Frontend  │
+│  (React/Vue)│
+└──────┬──────┘
+       │ HTTPS
+       ▼
+┌─────────────────────────────────────┐
+│         API Gateway                 │
+│      (FastAPI Router)               │
+└──────┬──────────────────┬───────────┘
+       │                  │
+       ▼                  ▼
+┌─────────────┐   ┌──────────────┐
+│   Auth      │   │   Business   │
+│   Service   │   │   Services   │
+└─────────────┘   └──────┬───────┘
+                         │
+       ┌─────────────────┼─────────────────┐
+       ▼                 ▼                 ▼
+┌─────────────┐  ┌──────────────┐  ┌─────────────┐
+│ PostgreSQL  │  │   Vector DB  │  │    Redis    │
+│  (Primary)  │  │   (Chroma)   │  │   (Cache)   │
+└─────────────┘  └──────────────┘  └─────────────┘
+       │
+       ▼
+┌─────────────┐
+│   Celery    │
+│  (Workers)  │
+└─────────────┘
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/5e850344-ab68-4ecd-8f6c-82e743533e97) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
 ```
 
-**Edit a file directly in GitHub**
+### Request-Response Flow
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+1. **Client Request** → API Gateway (FastAPI)
+2. **Authentication** → JWT validation middleware
+3. **Authorization** → Role-based access control
+4. **Business Logic** → Service layer
+5. **Data Access** → Repository layer
+6. **Database** → PostgreSQL / Vector DB
+7. **Response** → JSON with proper status codes
 
-**Use GitHub Codespaces**
+### Authentication & Authorization Flow
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```
+User Login → Credentials Validation → JWT Token Generation
+    ↓
+Token stored in HTTP-only cookie / Authorization header
+    ↓
+Protected Routes → JWT Validation → Role Check → Access Granted/Denied
 
-## What technologies are used for this project?
+```
 
-This project is built with:
+**Roles:**
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+* `super_admin`: Full system access (platform administrators)
+* `university_admin`: University-level administration
+* `alumni`: Standard alumni user
+* `guest`: Limited read-only access (unauthenticated)
 
-## How can I deploy this project?
+## Tech Stack
 
-Simply open [Lovable](https://lovable.dev/projects/5e850344-ab68-4ecd-8f6c-82e743533e97) and click on Share -> Publish.
+* **Framework**: FastAPI 0.104+
+* **Database**: PostgreSQL 15+
+* **Vector DB**: Chroma (local) / Pinecone (cloud option)
+* **Cache**: Redis 7+
+* **Task Queue**: Celery with Redis broker
+* **ORM**: SQLAlchemy 2.0+
+* **Migrations**: Alembic
+* **Authentication**: JWT (python-jose)
+* **Validation**: Pydantic v2
+* **AI**: OpenAI API / Google Gemini
 
-## Can I connect a custom domain to my Lovable project?
+## Project Structure
 
-Yes, you can!
+```
+/app
+├── api/                    # API routes and endpoints
+│   ├── v1/
+│   │   ├── auth.py
+│   │   ├── users.py
+│   │   ├── alumni.py
+│   │   ├── events.py
+│   │   ├── jobs.py
+│   │   ├── documents.py
+│   │   ├── chat.py
+│   │   └── search.py
+│   └── dependencies.py
+├── core/                   # Core configuration
+│   ├── config.py
+│   ├── security.py
+│   └── logging.py
+├── db/                     # Database setup
+│   ├── base.py
+│   ├── session.py
+│   └── init_db.py
+├── models/                 # SQLAlchemy models
+│   ├── user.py
+│   ├── alumni.py
+│   ├── event.py
+│   ├── job.py
+│   ├── document.py
+│   └── chat.py
+├── schemas/                # Pydantic schemas
+│   ├── user.py
+│   ├── alumni.py
+│   ├── event.py
+│   ├── job.py
+│   ├── document.py
+│   └── chat.py
+├── services/               # Business logic
+│   ├── auth_service.py
+│   ├── user_service.py
+│   ├── alumni_service.py
+│   ├── event_service.py
+│   ├── job_service.py
+│   ├── document_service.py
+│   ├── chat_service.py
+│   └── vector_service.py
+├── repositories/           # Data access layer
+│   ├── user_repository.py
+│   ├── alumni_repository.py
+│   ├── event_repository.py
+│   ├── job_repository.py
+│   └── document_repository.py
+├── utils/                  # Utilities
+│   ├── embeddings.py
+│   ├── file_upload.py
+│   └── email.py
+├── workers/                # Celery tasks
+│   ├── celery_app.py
+│   └── tasks.py
+├── tests/                  # Test suite
+│   ├── unit/
+│   ├── integration/
+│   └── conftest.py
+├── alembic/                # Database migrations
+│   └── versions/
+├── main.py                 # FastAPI application entry
+├── requirements.txt
+├── .env.example
+├── Dockerfile
+└── docker-compose.yml
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## Quick Start
+
+### Prerequisites
+
+* Python 3.11+
+* PostgreSQL 15+ (or use free cloud hosting - see below)
+* Redis 7+
+* Docker & Docker Compose (optional)
+
+> 💡 **Free Database Hosting**: Use Neon.tech for 10GB free PostgreSQL hosting. See `CLOUD_DATABASE_SETUP.md` for setup instructions.
+
+### Installation
+
+1. **Clone and setup:**
+
+cd almuni-portal
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+1. **Environment setup:**
+
+cp .env.example .env
+# Edit .env with your configuration
+
+1. **Database setup:**
+
+**Option A: Free Cloud Database (Recommended)**
+
+# 1. Sign up at neon.tech (free 10GB PostgreSQL)
+# 2. Create project and get connection string
+# 3. Update .env with your cloud database URL:
+#    DATABASE_URL=postgresql+asyncpg://user:pass@host/db?sslmode=require
+#    DATABASE_URL_SYNC=postgresql://user:pass@host/db?sslmode=require
+# 4. Run migrations
+alembic upgrade head
+# 5. Seed initial data
+python -m app.db.init_db
+
+**Option B: Local PostgreSQL**
+
+# Start PostgreSQL and Redis
+docker-compose up -d postgres redis
+
+# Run migrations
+alembic upgrade head
+
+# Seed initial data
+python -m app.db.init_db
+
+See `CLOUD_DATABASE_SETUP.md` for detailed cloud database setup.
+
+1. **Start the server:**
+
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+1. **Start Celery worker (optional):**
+
+celery -A app.workers.celery_app worker --loglevel=info
+
+## API Documentation
+
+Once the server is running:
+
+* **Swagger UI**: <http://localhost:8000/docs>
+* **ReDoc**: <http://localhost:8000/redoc>
+
+## Testing
+
+# Run all tests
+pytest
+
+# With coverage
+pytest --cov=app --cov-report=html
+
+## Deployment
+
+See `DEPLOYMENT.md` for detailed deployment instructions.
+
+## License
+
+MIT

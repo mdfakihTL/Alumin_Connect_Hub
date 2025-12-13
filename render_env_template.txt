@@ -1,0 +1,43 @@
+# Render Environment Variables Template
+# Copy these to Render dashboard → Environment Variables
+
+# ============================================
+# REQUIRED VARIABLES
+# ============================================
+
+# Database (from Neon - replace with your actual connection strings)
+DATABASE_URL=postgresql+asyncpg://user:password@host.neon.tech:5432/dbname?sslmode=require
+DATABASE_URL_SYNC=postgresql://user:password@host.neon.tech:5432/dbname?sslmode=require
+
+# Security (generated - use the one from RENDER_CHECKLIST.md)
+SECRET_KEY=krkjPsyovqWDpHi1Epqx3Cg7zbJE0Zuh58pQYx9s-Vg
+
+# Environment
+DEBUG=False
+ENVIRONMENT=production
+PORT=8000
+
+# ============================================
+# OPTIONAL VARIABLES
+# ============================================
+
+# CORS (add your frontend URL)
+# CORS_ORIGINS=https://your-frontend.com,http://localhost:3000
+
+# OpenAI (if using AI features)
+# OPENAI_API_KEY=sk-your-openai-api-key
+
+# Redis (if using cloud Redis like Upstash)
+# REDIS_URL=redis://your-redis-url:6379/0
+# CELERY_BROKER_URL=redis://your-redis-url:6379/1
+# CELERY_RESULT_BACKEND=redis://your-redis-url:6379/2
+
+# ============================================
+# INSTRUCTIONS
+# ============================================
+# 1. Copy your Neon connection strings
+# 2. Replace DATABASE_URL and DATABASE_URL_SYNC above
+# 3. Go to Render dashboard → Your service → Environment
+# 4. Add each variable one by one
+# 5. Make sure to include ?sslmode=require in database URLs
+

@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alumni Portal API Documentation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1e40af;
+            --secondary: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-light: #64748b;
+            --border: #e2e8f0;
+            --code-bg: #1e293b;
+            --code-text: #f1f5f9;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 1rem;
+        }
+
+        .tab {
+            padding: 0.75rem 1.5rem;
+            background: white;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .tab:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .tab.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .filter-group label {
+            font-weight: 500;
+            color: var(--text-light);
+        }
+
+        select, input {
+            padding: 0.5rem 1rem;
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .endpoint-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: all 0.3s;
+        }
+
+        .endpoint-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+
+        .endpoint-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .method {
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+        }
+
+        .method.get { background: #dbeafe; color: #1e40af; }
+        .method.post { background: #dcfce7; color: #166534; }
+        .method.put { background: #fef3c7; color: #92400e; }
+        .method.delete { background: #fee2e2; color: #991b1b; }
+
+        .endpoint-path {
+            font-family: 'Courier New', monospace;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .roles {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-left: auto;
+        }
+
+        .role-badge {
+            padding: 0.3rem 0.7rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .role-badge.super-admin { background: #fef3c7; color: #92400e; }
+        .role-badge.university-admin { background: #dbeafe; color: #1e40af; }
+        .role-badge.alumni { background: #dcfce7; color: #166534; }
+        .role-badge.public { background: #e0e7ff; color: #3730a3; }
+
+        .endpoint-description {
+            color: var(--text-light);
+            margin-bottom: 1rem;
+        }
+
+        .endpoint-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .endpoint-details {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .detail-section {
+            background: var(--bg);
+            padding: 1rem;
+            border-radius: 8px;
+        }
+
+        .detail-section h4 {
+            margin-bottom: 0.75rem;
+            color: var(--primary);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        pre {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
+        code {
+            font-family: 'Courier New', monospace;
+        }
+
+        .test-section {
+            background: #f0fdf4;
+            border: 2px solid var(--secondary);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .test-section h4 {
+            color: var(--secondary);
+            margin-bottom: 0.75rem;
+        }
+
+        .test-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            font-family: 'Courier New', monospace;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.9rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-secondary {
+            background: var(--secondary);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #059669;
+        }
+
+        .response {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: var(--code-bg);
+            color: var(--code-text);
+            border-radius: 6px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .section-title {
+            font-size: 1.8rem;
+            margin: 2rem 0 1rem;
+            color: var(--text);
+            border-bottom: 3px solid var(--primary);
+            padding-bottom: 0.5rem;
+        }
+
+        .role-matrix {
+            overflow-x: auto;
+            margin: 2rem 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        th, td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: var(--bg);
+        }
+
+        .check {
+            color: var(--secondary);
+            font-weight: bold;
+        }
+
+        .base-url {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            font-family: 'Courier New', monospace;
+        }
+
+        .auth-info {
+            background: #fef3c7;
+            border-left: 4px solid var(--warning);
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 4px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            font-size: 2rem;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card p {
+            color: var(--text-light);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>🎓 Alumni Portal API Documentation</h1>
+            <p>Complete API Reference with Testing Interface</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Stats -->
+        <div class="stats">
+            <div class="stat-card">
+                <h3 id="totalEndpoints">0</h3>
+                <p>Total Endpoints</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="totalSections">0</h3>
+                <p>API Sections</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="baseUrl">http://localhost:8000</h3>
+                <p>Base URL</p>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('overview')">Overview</div>
+            <div class="tab" onclick="showTab('endpoints')">All Endpoints</div>
+            <div class="tab" onclick="showTab('roles')">Role Matrix</div>
+            <div class="tab" onclick="showTab('testing')">Testing Guide</div>
+        </div>
+
+        <!-- Overview Tab -->
+        <div id="overview" class="tab-content">
+            <h2 class="section-title">📋 Overview</h2>
+            
+            <div class="base-url">
+                <strong>Base URL:</strong> <span id="baseUrlText">http://localhost:8000</span>
+                <button class="btn btn-secondary" onclick="updateBaseUrl()" style="margin-left: 1rem; padding: 0.5rem 1rem;">Change</button>
+            </div>
+
+            <div class="auth-info">
+                <h3>🔐 Authentication</h3>
+                <p>Most endpoints require JWT authentication. Include the token in the Authorization header:</p>
+                <pre>Authorization: Bearer &lt;access_token&gt;</pre>
+                <p><strong>Token Flow:</strong></p>
+                <ol>
+                    <li>Login at <code>POST /api/v1/auth/login</code> to get access_token and refresh_token</li>
+                    <li>Use access_token for API requests (expires in 30 minutes)</li>
+                    <li>Use refresh_token at <code>POST /api/v1/auth/refresh</code> to get new tokens</li>
+                </ol>
+            </div>
+
+            <h3 class="section-title">👥 User Roles</h3>
+            <div class="role-matrix">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Role</th>
+                            <th>Description</th>
+                            <th>Default Credentials</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="role-badge super-admin">SUPER_ADMIN</span></td>
+                            <td>Full system access, can manage all users and admins</td>
+                            <td><code>superadmin / superadmin123</code></td>
+                        </tr>
+                        <tr>
+                            <td><span class="role-badge university-admin">UNIVERSITY_ADMIN</span></td>
+                            <td>Can manage alumni, create events/jobs, view all users</td>
+                            <td><code>university / university123</code></td>
+                        </tr>
+                        <tr>
+                            <td><span class="role-badge alumni">ALUMNI</span></td>
+                            <td>Can manage own profile, upload documents, use AI chat</td>
+                            <td><code>alumni / alumni123</code></td>
+                        </tr>
+                        <tr>
+                            <td><span class="role-badge public">PUBLIC</span></td>
+                            <td>Unauthenticated access to public content</td>
+                            <td>No login required</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3 class="section-title">📚 API Sections</h3>
+            <div id="sectionsList"></div>
+        </div>
+
+        <!-- Endpoints Tab -->
+        <div id="endpoints" class="tab-content hidden">
+            <div class="filter-bar">
+                <div class="filter-group">
+                    <label>Filter by Section:</label>
+                    <select id="sectionFilter" onchange="filterEndpoints()">
+                        <option value="all">All Sections</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Filter by Role:</label>
+                    <select id="roleFilter" onchange="filterEndpoints()">
+                        <option value="all">All Roles</option>
+                        <option value="public">Public</option>
+                        <option value="alumni">Alumni</option>
+                        <option value="university-admin">University Admin</option>
+                        <option value="super-admin">Super Admin</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Filter by Method:</label>
+                    <select id="methodFilter" onchange="filterEndpoints()">
+                        <option value="all">All Methods</option>
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="DELETE">DELETE</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <input type="text" id="searchFilter" placeholder="Search endpoints..." onkeyup="filterEndpoints()" style="min-width: 200px;">
+                </div>
+            </div>
+
+            <div id="endpointsList"></div>
+        </div>
+
+        <!-- Role Matrix Tab -->
+        <div id="roles" class="tab-content hidden">
+            <h2 class="section-title">🔐 Role-Based Access Matrix</h2>
+            <div class="role-matrix">
+                <table id="roleMatrixTable"></table>
+            </div>
+        </div>
+
+        <!-- Testing Guide Tab -->
+        <div id="testing" class="tab-content hidden">
+            <h2 class="section-title">🧪 Testing Guide</h2>
+            
+            <h3>Quick Start</h3>
+            <ol>
+                <li>Start the server: <code>uvicorn app.main:app --reload</code></li>
+                <li>Open Swagger UI: <a href="http://localhost:8000/docs" target="_blank">http://localhost:8000/docs</a></li>
+                <li>Or use the interactive tester below</li>
+            </ol>
+
+            <h3>Testing Scenarios</h3>
+            <div id="testingScenarios"></div>
+
+            <h3>cURL Examples</h3>
+            <div id="curlExamples"></div>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:8000';
+        let currentBaseUrl = BASE_URL;
+
+        // API Endpoints Data
+        const endpoints = [
+            // Authentication
+            {
+                section: 'Authentication',
+                method: 'POST',
+                path: '/api/v1/auth/register',
+                description: 'Register a new user (creates ALUMNI role by default)',
+                roles: ['public'],
+                auth: false,
+                request: {
+                    body: {
+                        email: "user@example.com",
+                        username: "newuser",
+                        password: "password123",
+                        full_name: "New User"
+                    }
+                },
+                response: {
+                    user: {
+                        id: 1,
+                        email: "user@example.com",
+                        username: "newuser",
+                        full_name: "New User",
+                        is_active: true,
+                        is_verified: false,
+                        role: "alumni"
+                    },
+                    access_token: "eyJ...",
+                    refresh_token: "eyJ...",
+                    token_type: "bearer"
+                }
+            },
+            {
+                section: 'Authentication',
+                method: 'POST',
+                path: '/api/v1/auth/login',
+                description: 'Login and get access/refresh tokens',
+                roles: ['public'],
+                auth: false,
+                request: {
+                    body: {
+                        username: "alumni",
+                        password: "alumni123"
+                    }
+                },
+                response: {
+                    access_token: "eyJ...",
+                    refresh_token: "eyJ...",
+                    token_type: "bearer"
+                }
+            },
+            {
+                section: 'Authentication',
+                method: 'POST',
+                path: '/api/v1/auth/refresh',
+                description: 'Refresh access token using refresh token',
+                roles: ['alumni', 'university-admin', 'super-admin'],
+                auth: false,
+                request: {
+                    body: {
+                        refresh_token: "eyJ..."
+                    }
+                }
+            },
+            {
+                section: 'Authentication',
+                method: 'POST',
+                path: '/api/v1/auth/logout',
+                description: 'Logout current user',
+                roles: ['alumni', 'university-admin', 'super-admin'],
+                auth: true
+            },
+            {
+                section: 'Authentication',
+                method: 'GET',
+                path: '/api/v1/auth/me',
+                description: 'Get current authenticated user information',
+                roles: ['alumni', 'university-admin', 'super-admin'],
+                auth: true,
+                response: {
+                    id: 1,
+                    email: "alumni@example.com",
+                    username: "alumni",
+                    full_name: "Alumni User",
+                    is_active: true,
+                    is_verified: true,
+                    role: "alumni"
+                }
+            },
+            // Users
+            {
+                section: 'Users',
+                method: 'GET',
+                path: '/api/v1/users/me',
+                description: 'Get current user information',
+                roles: ['alumni', 'university-admin', 'super-admin'],
+                auth: true
+            },
+            {
+                section: 'Users',
+                method: 'PUT',
+                path: '/api/v1/users/me',
+                description: 'Update current user profile',
+                roles: ['alumni', 'university-admin', 'super-admin'],
+                auth: true,
+                request: {
+                    body: {
+                        full_name: "Updated Name",
+                        email: "newemail@example.com"
+                    }
+                }
+            },
+            {
+                section: 'Users',
+                method: 'GET',
+                path: '/api/v1/users',
+                description: 'List all users (pagination: skip, limit)',
+                roles: ['university-admin', 'super-admin'],
+                auth: true,
+                query: {
+                    skip: 0,
+                    limit: 100
+                }
+            },
+            {
+                section: 'Users',
+                method: 'GET',
+                path: '/api/v1/users/{user_id}',
+                description: 'Get user by ID',
+                roles: ['university-admin', 'super-admin'],
+                auth: true
+            },
+            // Documents
+            {
+                section: 'Documents',
+                method: 'POST',
+                path: '/api/v1/documents/upload',
+                description: 'Upload a document (PDF, DOCX, TXT) for AI processing',
+                roles: ['alumni', 'university-admin', 'super-admin'],
+                auth: true,
+                request: {
+                    formData: {
+                        file: "<file>",
+                        title: "Document Title",
+                        description: "Document description",
+                        is_public: false
+                    }
+                }
+            },
+            {
+                section: 'Documents',
+                method: 'POST',
+                path: '/api/v1/documents/search',
+                description: 'Vector similarity search in documents using AI',
+                roles: ['alumni', 'university-admin', 'super-admin', 'public'],
+                auth: false,
+                request: {
+                    body: {
+                        query: "What is machine learning?",
+                        limit: 10,
+                        filter_metadata: null
+                    }
+                }
+            },
+            {
+                section: 'Documents',
+                method: 'GET',
+                path: '/api/v1/documents',
+                description: 'List documents (public or user\'s own)',
+                roles: ['alumni', 'university-admin', 'super-admin', 'public'],
+                auth: false,
+                query: {
+                    skip: 0,
+                    limit: 100
+                }
+            },
+            {
+                section: 'Documents',
+                method: 'GET',
+                path: '/api/v1/documents/{document_id}',
+                description: 'Get document by ID',
+                roles: ['alumni', 'university-admin', 'super-admin', 'public'],
+                auth: false
+            },
+            {
+                section: 'Documents',
+                method: 'PUT',
+                path: '/api/v1/documents/{document_id}',
+                description: 'Update document (owner only)',
+                roles: ['alumni', 'university-admin', 'super-admin'],
+                auth: true,
+                request: {
+                    body: {
+                        title: "Updated Title",
+                        description: "Updated description",
+                        is_public: true
+                    }
+                }
+            },
+            {
+                section: 'Documents',
+                method: 'DELETE',
+                path: '/api/v1/documents/{document_id}',
+                description: 'Delete document (owner only)',
+                roles: ['alumni', 'university-admin', 'super-admin'],
+                auth: true
+            },
+            // Chat
+            {
+                section: 'Chat',
+                method: 'POST',
+                path: '/api/v1/chat/message',
+                description: 'Send message to AI assistant with RAG (Retrieval Augmented Generation)',
+                roles: ['alumni', 'university-admin', 'super-admin'],
+                auth: true,
+                request: {
+                    body: {
+                        content: "What is the alumni network?",
+                        session_id: null
+                    }
+                },
+                response: {
+                    message: {
+                        id: 1,
+                        content: "The alumni network is...",
+                        role: "assistant"
+                    },
+                    session: {
+                        id: 1,
+                        title: "Chat Session"
+                    },
+                    sources: []
+                }
+            },
+            {
+                section: 'Chat',
+                method: 'GET',
+                path: '/api/v1/chat/sessions',
+                description: 'List user\'s chat sessions',
+                roles: ['alumni', 'university-admin', 'super-admin'],
+                auth: true,
+                query: {
+                    skip: 0,
+                    limit: 50
+                }
+            },
+            {
+                section: 'Chat',
+                method: 'GET',
+                path: '/api/v1/chat/sessions/{session_id}',
+                description: 'Get chat session with all messages',
+                roles: ['alumni', 'university-admin', 'super-admin'],
+                auth: true
+            },
+            // Events
+            {
+                section: 'Events',
+                method: 'POST',
+                path: '/api/v1/events',
+                description: 'Create a new event',
+                roles: ['university-admin', 'super-admin'],
+                auth: true,
+                request: {
+                    body: {
+                        title: "Alumni Networking Event",
+                        description: "Annual networking event",
+                        event_type: "networking",
+                        start_date: "2024-06-01T18:00:00",
+                        end_date: "2024-06-01T22:00:00",
+                        location: "Main Campus",
+                        max_attendees: 100
+                    }
+                }
+            },
+            {
+                section: 'Events',
+                method: 'GET',
+                path: '/api/v1/events',
+                description: 'List all events (public)',
+                roles: ['public'],
+                auth: false,
+                query: {
+                    skip: 0,
+                    limit: 100
+                }
+            },
+            {
+                section: 'Events',
+                method: 'GET',
+                path: '/api/v1/events/{event_id}',
+                description: 'Get event by ID (public)',
+                roles: ['public'],
+                auth: false
+            },
+            {
+                section: 'Events',
+                method: 'POST',
+                path: '/api/v1/events/{event_id}/register',
+                description: 'Register for an event',
+                roles: ['alumni', 'university-admin', 'super-admin'],
+                auth: true,
+                request: {
+                    body: {
+                        notes: "Looking forward to attending"
+                    }
+                }
+            },
+            // Jobs
+            {
+                section: 'Jobs',
+                method: 'POST',
+                path: '/api/v1/jobs',
+                description: 'Create a new job posting',
+                roles: ['university-admin', 'super-admin'],
+                auth: true,
+                request: {
+                    body: {
+                        title: "Software Engineer",
+                        company: "Tech Corp",
+                        description: "We are looking for...",
+                        job_type: "full_time",
+                        location: "Remote",
+                        salary_min: 80000,
+                        salary_max: 120000
+                    }
+                }
+            },
+            {
+                section: 'Jobs',
+                method: 'GET',
+                path: '/api/v1/jobs',
+                description: 'List all active job postings (public)',
+                roles: ['public'],
+                auth: false,
+                query: {
+                    skip: 0,
+                    limit: 100
+                }
+            },
+            {
+                section: 'Jobs',
+                method: 'GET',
+                path: '/api/v1/jobs/{job_id}',
+                description: 'Get job posting by ID (public)',
+                roles: ['public'],
+                auth: false
+            },
+            {
+                section: 'Jobs',
+                method: 'POST',
+                path: '/api/v1/jobs/{job_id}/apply',
+                description: 'Apply for a job',
+                roles: ['alumni', 'university-admin', 'super-admin'],
+                auth: true,
+                request: {
+                    body: {
+                        cover_letter: "I am interested in...",
+                        resume_url: "https://..."
+                    }
+                }
+            },
+            // Alumni
+            {
+                section: 'Alumni',
+                method: 'POST',
+                path: '/api/v1/alumni',
+                description: 'Create alumni profile',
+                roles: ['alumni', 'university-admin', 'super-admin'],
+                auth: true,
+                request: {
+                    body: {
+                        graduation_year: 2020,
+                        degree: "Bachelor of Science",
+                        major: "Computer Science",
+                        current_position: "Software Engineer",
+                        company: "Tech Corp",
+                        location: "San Francisco, CA",
+                        bio: "I am a software engineer...",
+                        skills: ["Python", "JavaScript", "React"],
+                        interests: ["AI", "Web Development"]
+                    }
+                }
+            },
+            {
+                section: 'Alumni',
+                method: 'GET',
+                path: '/api/v1/alumni',
+                description: 'List all alumni profiles (public)',
+                roles: ['public'],
+                auth: false,
+                query: {
+                    skip: 0,
+                    limit: 100
+                }
+            },
+            {
+                section: 'Alumni',
+                method: 'GET',
+                path: '/api/v1/alumni/me',
+                description: 'Get current user\'s alumni profile',
+                roles: ['alumni', 'university-admin', 'super-admin'],
+                auth: true
+            },
+            {
+                section: 'Alumni',
+                method: 'PUT',
+                path: '/api/v1/alumni/me',
+                description: 'Update current user\'s alumni profile',
+                roles: ['alumni', 'university-admin', 'super-admin'],
+                auth: true,
+                request: {
+                    body: {
+                        current_position: "Senior Software Engineer",
+                        company: "New Company"
+                    }
+                }
+            },
+            {
+                section: 'Alumni',
+                method: 'GET',
+                path: '/api/v1/alumni/{profile_id}',
+                description: 'Get alumni profile by ID (public)',
+                roles: ['public'],
+                auth: false
+            }
+        ];
+
+        // Initialize
+        function init() {
+            updateStats();
+            renderEndpoints();
+            renderSections();
+            renderRoleMatrix();
+            renderTestingGuide();
+            populateFilters();
+        }
+
+        function updateStats() {
+            document.getElementById('totalEndpoints').textContent = endpoints.length;
+            const sections = [...new Set(endpoints.map(e => e.section))];
+            document.getElementById('totalSections').textContent = sections.length;
+            document.getElementById('baseUrl').textContent = currentBaseUrl;
+            document.getElementById('baseUrlText').textContent = currentBaseUrl;
+        }
+
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.add('hidden');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName).classList.remove('hidden');
+            event.target.classList.add('active');
+        }
+
+        function renderSections() {
+            const sections = [...new Set(endpoints.map(e => e.section))];
+            const html = sections.map(section => {
+                const count = endpoints.filter(e => e.section === section).length;
+                return `
+                    <div class="endpoint-card">
+                        <h3>${section}</h3>
+                        <p>${count} endpoint(s)</p>
+                        <p>${endpoints.filter(e => e.section === section).map(e => e.method).join(', ')}</p>
+                    </div>
+                `;
+            }).join('');
+            document.getElementById('sectionsList').innerHTML = html;
+        }
+
+        function renderEndpoints() {
+            const filtered = getFilteredEndpoints();
+            const html = filtered.map(endpoint => {
+                const rolesHtml = endpoint.roles.map(role => {
+                    const roleClass = role.replace('_', '-').toLowerCase();
+                    return `<span class="role-badge ${roleClass}">${role.replace('_', ' ')}</span>`;
+                }).join('');
+
+                let requestHtml = '';
+                if (endpoint.request) {
+                    if (endpoint.request.body) {
+                        requestHtml = `<pre><code>${JSON.stringify(endpoint.request.body, null, 2)}</code></pre>`;
+                    } else if (endpoint.request.formData) {
+                        requestHtml = `<pre><code>${JSON.stringify(endpoint.request.formData, null, 2)}</code></pre>`;
+                    }
+                }
+
+                let responseHtml = '';
+                if (endpoint.response) {
+                    responseHtml = `<pre><code>${JSON.stringify(endpoint.response, null, 2)}</code></pre>`;
+                }
+
+                let queryHtml = '';
+                if (endpoint.query) {
+                    queryHtml = `<p><strong>Query Parameters:</strong> ${Object.keys(endpoint.query).join(', ')}</p>`;
+                }
+
+                return `
+                    <div class="endpoint-card" data-section="${endpoint.section}" data-method="${endpoint.method}" data-roles="${endpoint.roles.join(',')}">
+                        <div class="endpoint-header">
+                            <span class="method ${endpoint.method.toLowerCase()}">${endpoint.method}</span>
+                            <span class="endpoint-path">${endpoint.path}</span>
+                            <div class="roles">${rolesHtml}</div>
+                        </div>
+                        <p class="endpoint-description">${endpoint.description}</p>
+                        ${endpoint.auth ? '<p><strong>🔒 Requires Authentication</strong></p>' : '<p><strong>🌐 Public Access</strong></p>'}
+                        ${queryHtml}
+                        <div class="endpoint-details">
+                            ${requestHtml ? `<div class="detail-section"><h4>Request</h4>${requestHtml}</div>` : ''}
+                            ${responseHtml ? `<div class="detail-section"><h4>Response</h4>${responseHtml}</div>` : ''}
+                        </div>
+                        <div class="test-section">
+                            <h4>🧪 Test This Endpoint</h4>
+                            <input type="text" class="test-input" id="token-${endpoints.indexOf(endpoint)}" placeholder="Access Token (if required)">
+                            <button class="btn btn-primary" onclick="testEndpoint(${endpoints.indexOf(endpoint)})">Test Request</button>
+                            <div id="response-${endpoints.indexOf(endpoint)}" class="response hidden"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            document.getElementById('endpointsList').innerHTML = html;
+        }
+
+        function getFilteredEndpoints() {
+            const sectionFilter = document.getElementById('sectionFilter').value;
+            const roleFilter = document.getElementById('roleFilter').value;
+            const methodFilter = document.getElementById('methodFilter').value;
+            const searchFilter = document.getElementById('searchFilter').value.toLowerCase();
+
+            return endpoints.filter(endpoint => {
+                if (sectionFilter !== 'all' && endpoint.section !== sectionFilter) return false;
+                if (methodFilter !== 'all' && endpoint.method !== methodFilter) return false;
+                if (searchFilter && !endpoint.path.toLowerCase().includes(searchFilter) && 
+                    !endpoint.description.toLowerCase().includes(searchFilter)) return false;
+                if (roleFilter !== 'all') {
+                    const roleMap = {
+                        'public': 'public',
+                        'alumni': 'alumni',
+                        'university-admin': 'university_admin',
+                        'super-admin': 'super_admin'
+                    };
+                    if (!endpoint.roles.includes(roleMap[roleFilter])) return false;
+                }
+                return true;
+            });
+        }
+
+        function filterEndpoints() {
+            renderEndpoints();
+        }
+
+        function populateFilters() {
+            const sections = [...new Set(endpoints.map(e => e.section))];
+            const sectionSelect = document.getElementById('sectionFilter');
+            sections.forEach(section => {
+                const option = document.createElement('option');
+                option.value = section;
+                option.textContent = section;
+                sectionSelect.appendChild(option);
+            });
+        }
+
+        function renderRoleMatrix() {
+            const sections = [...new Set(endpoints.map(e => e.section))];
+            let html = '<thead><tr><th>Endpoint</th><th>Method</th><th>Public</th><th>Alumni</th><th>University Admin</th><th>Super Admin</th></tr></thead><tbody>';
+            
+            endpoints.forEach(endpoint => {
+                const hasPublic = endpoint.roles.includes('public');
+                const hasAlumni = endpoint.roles.includes('alumni');
+                const hasUniAdmin = endpoint.roles.includes('university_admin');
+                const hasSuperAdmin = endpoint.roles.includes('super_admin');
+                
+                html += `
+                    <tr>
+                        <td><code>${endpoint.path}</code></td>
+                        <td><span class="method ${endpoint.method.toLowerCase()}">${endpoint.method}</span></td>
+                        <td>${hasPublic ? '<span class="check">✓</span>' : ''}</td>
+                        <td>${hasAlumni ? '<span class="check">✓</span>' : ''}</td>
+                        <td>${hasUniAdmin ? '<span class="check">✓</span>' : ''}</td>
+                        <td>${hasSuperAdmin ? '<span class="check">✓</span>' : ''}</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody>';
+            document.getElementById('roleMatrixTable').innerHTML = html;
+        }
+
+        function renderTestingGuide() {
+            const scenarios = [
+                {
+                    title: "Scenario 1: Alumni Registration & Profile Setup",
+                    steps: [
+                        "POST /api/v1/auth/register - Register new alumni",
+                        "POST /api/v1/auth/login - Login to get tokens",
+                        "POST /api/v1/alumni - Create alumni profile",
+                        "GET /api/v1/alumni/me - View own profile"
+                    ]
+                },
+                {
+                    title: "Scenario 2: Document Upload & AI Search",
+                    steps: [
+                        "POST /api/v1/auth/login - Login as alumni",
+                        "POST /api/v1/documents/upload - Upload a PDF document",
+                        "POST /api/v1/documents/search - Search documents using AI",
+                        "GET /api/v1/documents - List all documents"
+                    ]
+                },
+                {
+                    title: "Scenario 3: AI Chat with RAG",
+                    steps: [
+                        "POST /api/v1/auth/login - Login as alumni",
+                        "POST /api/v1/chat/message - Send message to AI",
+                        "GET /api/v1/chat/sessions - List chat sessions",
+                        "GET /api/v1/chat/sessions/{id} - View session history"
+                    ]
+                },
+                {
+                    title: "Scenario 4: Admin Creates Event",
+                    steps: [
+                        "POST /api/v1/auth/login - Login as university admin",
+                        "POST /api/v1/events - Create new event",
+                        "GET /api/v1/events - List all events",
+                        "POST /api/v1/events/{id}/register - Register for event (as alumni)"
+                    ]
+                },
+                {
+                    title: "Scenario 5: Job Posting & Application",
+                    steps: [
+                        "POST /api/v1/auth/login - Login as university admin",
+                        "POST /api/v1/jobs - Create job posting",
+                        "GET /api/v1/jobs - List jobs (public)",
+                        "POST /api/v1/jobs/{id}/apply - Apply for job (as alumni)"
+                    ]
+                },
+                {
+                    title: "Scenario 6: User Management (Admin)",
+                    steps: [
+                        "POST /api/v1/auth/login - Login as university admin",
+                        "GET /api/v1/users - List all users",
+                        "GET /api/v1/users/{id} - View user details"
+                    ]
+                }
+            ];
+
+            let scenariosHtml = scenarios.map((scenario, idx) => `
+                <div class="endpoint-card">
+                    <h3>${scenario.title}</h3>
+                    <ol>
+                        ${scenario.steps.map(step => `<li><code>${step}</code></li>`).join('')}
+                    </ol>
+                </div>
+            `).join('');
+
+            document.getElementById('testingScenarios').innerHTML = scenariosHtml;
+
+            // cURL Examples
+            const curlExamples = `
+                <div class="endpoint-card">
+                    <h3>Login</h3>
+                    <pre><code>curl -X POST ${currentBaseUrl}/api/v1/auth/login \\
+  -H "Content-Type: application/json" \\
+  -d '{"username": "alumni", "password": "alumni123"}'</code></pre>
+                </div>
+                <div class="endpoint-card">
+                    <h3>Get Current User (with token)</h3>
+                    <pre><code>curl -X GET ${currentBaseUrl}/api/v1/auth/me \\
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"</code></pre>
+                </div>
+                <div class="endpoint-card">
+                    <h3>Upload Document</h3>
+                    <pre><code>curl -X POST ${currentBaseUrl}/api/v1/documents/upload \\
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \\
+  -F "file=@document.pdf" \\
+  -F "title=My Document" \\
+  -F "description=Document description" \\
+  -F "is_public=false"</code></pre>
+                </div>
+                <div class="endpoint-card">
+                    <h3>Search Documents</h3>
+                    <pre><code>curl -X POST ${currentBaseUrl}/api/v1/documents/search \\
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"query": "What is machine learning?", "limit": 10}'</code></pre>
+                </div>
+                <div class="endpoint-card">
+                    <h3>Send Chat Message</h3>
+                    <pre><code>curl -X POST ${currentBaseUrl}/api/v1/chat/message \\
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"content": "What is the alumni network?"}'</code></pre>
+                </div>
+            `;
+            document.getElementById('curlExamples').innerHTML = curlExamples;
+        }
+
+        async function testEndpoint(index) {
+            const endpoint = endpoints[index];
+            const tokenInput = document.getElementById(`token-${index}`);
+            const responseDiv = document.getElementById(`response-${index}`);
+            
+            responseDiv.classList.remove('hidden');
+            responseDiv.textContent = 'Testing...';
+
+            try {
+                const url = currentBaseUrl + endpoint.path.replace('{document_id}', '1').replace('{event_id}', '1').replace('{job_id}', '1').replace('{user_id}', '1').replace('{profile_id}', '1').replace('{session_id}', '1');
+                
+                const options = {
+                    method: endpoint.method,
+                    headers: {}
+                };
+
+                if (endpoint.auth && tokenInput.value) {
+                    options.headers['Authorization'] = `Bearer ${tokenInput.value}`;
+                }
+
+                if (endpoint.request && endpoint.request.body) {
+                    options.headers['Content-Type'] = 'application/json';
+                    options.body = JSON.stringify(endpoint.request.body);
+                }
+
+                const response = await fetch(url, options);
+                const data = await response.json();
+                
+                responseDiv.innerHTML = `
+                    <strong>Status: ${response.status} ${response.statusText}</strong>
+                    <pre><code>${JSON.stringify(data, null, 2)}</code></pre>
+                `;
+            } catch (error) {
+                responseDiv.innerHTML = `
+                    <strong style="color: var(--danger);">Error:</strong>
+                    <pre><code>${error.message}</code></pre>
+                `;
+            }
+        }
+
+        function updateBaseUrl() {
+            const newUrl = prompt('Enter new base URL:', currentBaseUrl);
+            if (newUrl) {
+                currentBaseUrl = newUrl;
+                updateStats();
+                renderTestingGuide();
+            }
+        }
+
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,81 @@
+version: '3.8'
+
+# Docker Compose for Cloud Database Setup
+# Use this when hosting database on Neon, Supabase, or other cloud services
+# Usage: docker-compose -f docker-compose.cloud.yml up
+
+services:
+  # Redis (still local, or use cloud Redis like Upstash)
+  redis:
+    image: redis:7-alpine
+    container_name: alumni_portal_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    container_name: alumni_portal_api
+    ports:
+      - "8000:8000"
+    environment:
+      # Use cloud database URLs from .env file
+      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL_SYNC=${DATABASE_URL_SYNC}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - SECRET_KEY=${SECRET_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DEBUG=${DEBUG:-False}
+    env_file:
+      - .env
+    volumes:
+      - ./uploads:/app/uploads
+      - ./chroma_db:/app/chroma_db
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  celery_worker:
+    build: .
+    container_name: alumni_portal_celery
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL_SYNC=${DATABASE_URL_SYNC}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - SECRET_KEY=${SECRET_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    env_file:
+      - .env
+    volumes:
+      - ./uploads:/app/uploads
+      - ./chroma_db:/app/chroma_db
+    depends_on:
+      - redis
+    command: celery -A app.workers.celery_app worker --loglevel=info
+
+  flower:
+    build: .
+    container_name: alumni_portal_flower
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    depends_on:
+      - redis
+    command: celery -A app.workers.celery_app flower --port=5555
+
+volumes:
+  redis_data:
+
