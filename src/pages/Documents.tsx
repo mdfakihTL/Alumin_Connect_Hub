@@ -98,15 +98,15 @@ const Documents = () => {
 
     try {
       const backendType = documentTypeMap[documentType] || documentType;
+      console.log('Creating document request:', { document_type: backendType, reason });
       const newRequest = await apiClient.createDocumentRequest({
         document_type: backendType,
         reason: reason,
       });
+      console.log('Document request created:', newRequest);
 
-      setRequests([{
-        ...newRequest,
-        status: newRequest.status as DocumentRequest['status']
-      }, ...requests]);
+      // Refresh the list to show the new request
+      await fetchRequests();
       setDocumentType("");
       setReason("");
 
@@ -115,6 +115,7 @@ const Documents = () => {
         description: "Your document request has been submitted successfully",
       });
     } catch (error: any) {
+      console.error('Error creating document request:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to submit document request",

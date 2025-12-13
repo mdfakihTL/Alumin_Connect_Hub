@@ -4,7 +4,7 @@ import { apiClient } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileText, CheckCircle, XCircle, Clock, Download, Eye } from 'lucide-react';
+import { FileText, CheckCircle, XCircle, Clock, Download, Eye, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface DocumentRequest {
@@ -30,16 +30,32 @@ const AdminDocuments = () => {
     try {
       setLoading(true);
       const statusFilter = filter === 'all' ? undefined : filter;
+      console.log('Fetching document requests with filter:', statusFilter);
       const response = await apiClient.getAdminDocumentRequests(statusFilter, 1, 100);
+      console.log('Fetched document requests:', response);
+      console.log('Total requests:', response.total);
+      console.log('Requests array:', response.requests);
       // Cast status to proper type
       setRequests(response.requests.map(req => ({
         ...req,
         status: req.status as DocumentRequest['status']
       })));
+      if (response.total === 0) {
+        console.warn('No document requests found. Check if:');
+        console.warn('1. Alumni and admin are from the same university');
+        console.warn('2. Document requests were actually created');
+        console.warn('3. University ID matches between admin and requests');
+      }
     } catch (error: any) {
+      console.error('Error fetching document requests:', error);
+      console.error('Error details:', {
+        message: error.message,
+        status: error.status,
+        response: error.response
+      });
       toast({
         title: 'Error',
-        description: error.message || 'Failed to fetch document requests',
+        description: error.message || 'Failed to fetch document requests. Check console for details.',
         variant: 'destructive',
       });
     } finally {
@@ -136,6 +152,16 @@ const AdminDocuments = () => {
               Review and approve document requests from alumni
             </p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchRequests}
+            disabled={loading}
+            className="gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
 
         {/* Statistics */}
