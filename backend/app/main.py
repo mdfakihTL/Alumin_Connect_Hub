@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -14,6 +15,34 @@ async def lifespan(app: FastAPI):
     print("Starting up Alumni Connect Hub API...")
     create_tables()
     print("Database tables created/verified.")
+    
+    # Auto-seed database if enabled and empty
+    if os.getenv("AUTO_SEED", "false").lower() == "true":
+        try:
+            from app.core.database import SessionLocal
+            from app.models.user import User
+            db = SessionLocal()
+            try:
+                # Check if database is empty (no users)
+                user_count = db.query(User).count()
+                if user_count == 0:
+                    print("Database is empty. Auto-seeding...")
+                    # Import and run seed functions directly
+                    import sys
+                    import os as os_module
+                    backend_dir = os_module.path.dirname(os_module.path.dirname(os_module.path.abspath(__file__)))
+                    sys.path.insert(0, backend_dir)
+                    from seed_data import main as seed_main
+                    seed_main()
+                    print("✓ Database seeded successfully")
+                else:
+                    print(f"Database already has {user_count} users. Skipping seed.")
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"⚠ Could not auto-seed database: {e}")
+            print("You may need to run 'python seed_data.py' manually")
+    
     yield
     # Shutdown
     print("Shutting down...")
