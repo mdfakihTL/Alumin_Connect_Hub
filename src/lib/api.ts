@@ -79,6 +79,58 @@ export interface UserWithProfileResponse extends UserResponse {
   university?: UniversityBrandingResponse;
 }
 
+// Event types matching backend schemas
+export interface EventResponse {
+  id: string;
+  title: string;
+  date: string;
+  time?: string;
+  location?: string;
+  attendees: number;
+  image?: string;
+  description?: string;
+  is_virtual: boolean;
+  meeting_link?: string;
+  organizer: string;
+  category?: string;
+  is_registered: boolean;
+  created_at: string;
+}
+
+export interface EventListResponse {
+  events: EventResponse[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface EventCreate {
+  title: string;
+  description?: string;
+  image?: string;
+  event_date: string;
+  event_time?: string;
+  location?: string;
+  is_virtual: boolean;
+  meeting_link?: string;
+  category?: string;
+  max_attendees?: number;
+}
+
+export interface EventUpdate {
+  title?: string;
+  description?: string;
+  image?: string;
+  event_date?: string;
+  event_time?: string;
+  location?: string;
+  is_virtual?: boolean;
+  meeting_link?: string;
+  category?: string;
+  max_attendees?: number;
+  is_active?: boolean;
+}
+
 // API Client
 class ApiClient {
   private baseURL: string;
@@ -163,6 +215,69 @@ class ApiClient {
 
   async logout() {
     this.setToken(null);
+  }
+
+  // Event endpoints
+  async getEvents(page: number = 1, pageSize: number = 20, filters?: {
+    university_id?: string;
+    category?: string;
+    is_virtual?: boolean;
+    search?: string;
+  }): Promise<EventListResponse> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      page_size: pageSize.toString(),
+    });
+    if (filters?.university_id) params.append('university_id', filters.university_id);
+    if (filters?.category) params.append('category', filters.category);
+    if (filters?.is_virtual !== undefined) params.append('is_virtual', filters.is_virtual.toString());
+    if (filters?.search) params.append('search', filters.search);
+    
+    return this.request<EventListResponse>(`/events?${params.toString()}`);
+  }
+
+  async getEvent(eventId: string): Promise<EventResponse> {
+    return this.request<EventResponse>(`/events/${eventId}`);
+  }
+
+  async createEvent(data: EventCreate): Promise<EventResponse> {
+    return this.request<EventResponse>('/events', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateEvent(eventId: string, data: EventUpdate): Promise<EventResponse> {
+    return this.request<EventResponse>(`/events/${eventId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteEvent(eventId: string): Promise<{ message: string; success: boolean }> {
+    return this.request<{ message: string; success: boolean }>(`/events/${eventId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async registerForEvent(eventId: string): Promise<{ message: string; success: boolean; attendees: number }> {
+    return this.request<{ message: string; success: boolean; attendees: number }>(`/events/${eventId}/register`, {
+      method: 'POST',
+    });
+  }
+
+  async unregisterFromEvent(eventId: string): Promise<{ message: string; success: boolean; attendees: number }> {
+    return this.request<{ message: string; success: boolean; attendees: number }>(`/events/${eventId}/register`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getRegisteredEvents(page: number = 1, pageSize: number = 20): Promise<EventListResponse> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      page_size: pageSize.toString(),
+    });
+    return this.request<EventListResponse>(`/events/registered/me?${params.toString()}`);
   }
 }
 

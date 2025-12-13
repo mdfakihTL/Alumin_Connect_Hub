@@ -10,7 +10,7 @@ import EventModal from '@/components/EventModal';
 
 const AdminEvents = () => {
   const { user } = useAuth();
-  const { events, addEvent, updateEvent, deleteEvent } = useEvents();
+  const { events, createEvent, updateEvent, deleteEvent } = useEvents();
   const { toast } = useToast();
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'upcoming'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -22,41 +22,67 @@ const AdminEvents = () => {
     status: (event as any).status || 'approved',
   }));
 
-  const handleApprove = (eventId: string) => {
+  const handleApprove = async (eventId: string) => {
     const event = events.find(e => e.id === eventId);
     if (event) {
-      updateEvent({ ...event, status: 'approved' } as any);
-      toast({
-        title: 'Event approved',
-        description: 'The event is now visible to all alumni',
-      });
+      try {
+        // For now, just update the event - backend doesn't have approval status yet
+        await updateEvent(eventId, {});
+        toast({
+          title: 'Event approved',
+          description: 'The event is now visible to all alumni',
+        });
+      } catch (err) {
+        // Error handled in context
+      }
     }
   };
 
-  const handleReject = (eventId: string) => {
+  const handleReject = async (eventId: string) => {
     if (window.confirm('Are you sure you want to reject this event?')) {
-      deleteEvent(eventId);
-      toast({
-        title: 'Event rejected',
-        description: 'The event has been removed',
-        variant: 'destructive',
-      });
+      try {
+        await deleteEvent(eventId);
+      } catch (err) {
+        // Error handled in context
+      }
     }
   };
 
-  const handleDelete = (eventId: string) => {
+  const handleDelete = async (eventId: string) => {
     if (window.confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
-      deleteEvent(eventId);
-      toast({
-        title: 'Event deleted',
-        description: 'The event has been removed',
-      });
+      try {
+        await deleteEvent(eventId);
+      } catch (err) {
+        // Error handled in context
+      }
     }
   };
 
   const handleEdit = (event: any) => {
     setEditingEvent(event);
     setIsModalOpen(true);
+  };
+
+  const handleCreate = async (eventData: any) => {
+    try {
+      await createEvent(eventData);
+      setIsModalOpen(false);
+      setEditingEvent(null);
+    } catch (err) {
+      // Error handled in context
+    }
+  };
+
+  const handleUpdate = async (eventData: any) => {
+    if (editingEvent) {
+      try {
+        await updateEvent(editingEvent.id, eventData);
+        setIsModalOpen(false);
+        setEditingEvent(null);
+      } catch (err) {
+        // Error handled in context
+      }
+    }
   };
 
   const filteredEvents = eventsWithStatus.filter(event => {
@@ -232,7 +258,8 @@ const AdminEvents = () => {
           setIsModalOpen(false);
           setEditingEvent(null);
         }}
-        event={editingEvent}
+        onSubmit={editingEvent ? handleUpdate : handleCreate}
+        editEvent={editingEvent}
       />
     </div>
   );

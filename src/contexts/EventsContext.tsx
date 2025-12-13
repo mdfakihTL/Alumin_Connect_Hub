@@ -1,7 +1,9 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { apiClient, EventResponse as BackendEventResponse } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
 
 export interface Event {
-  id: number;
+  id: string;
   title: string;
   date: string;
   time: string;
@@ -19,127 +21,221 @@ export interface Event {
 interface EventsContextType {
   events: Event[];
   registeredEvents: Event[];
-  createEvent: (event: Omit<Event, 'id' | 'attendees' | 'isRegistered' | 'organizer'>) => void;
-  updateEvent: (id: number, updates: Partial<Event>) => void;
-  deleteEvent: (id: number) => void;
-  registerForEvent: (id: number) => void;
-  unregisterFromEvent: (id: number) => void;
+  loading: boolean;
+  error: string | null;
+  createEvent: (event: Omit<Event, 'id' | 'attendees' | 'isRegistered' | 'organizer'>) => Promise<void>;
+  updateEvent: (id: string, updates: Partial<Event>) => Promise<void>;
+  deleteEvent: (id: string) => Promise<void>;
+  registerForEvent: (id: string) => Promise<void>;
+  unregisterFromEvent: (id: string) => Promise<void>;
+  refreshEvents: () => Promise<void>;
 }
 
 const EventsContext = createContext<EventsContextType | undefined>(undefined);
 
-const initialEvents: Event[] = [
-  {
-    id: 1,
-    title: 'Tech Networking Mixer',
-    date: 'Dec 15, 2024',
-    time: '6:00 PM',
-    location: 'San Francisco, CA',
-    attendees: 45,
-    image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&h=500&fit=crop',
-    description: 'Join us for an evening of networking with tech professionals from our alumni network.',
-    isVirtual: false,
-    organizer: 'Alumni Association',
-    category: 'Networking',
-    isRegistered: true,
-  },
-  {
-    id: 2,
-    title: 'Annual Alumni Reunion',
-    date: 'Dec 20, 2024',
-    time: '5:00 PM',
-    location: 'Campus Main Hall',
-    attendees: 234,
-    image: 'https://images.unsplash.com/photo-1523580494863-6f3031224c94?w=800&h=500&fit=crop',
-    description: 'Celebrate with your fellow alumni at our annual reunion event.',
-    isVirtual: false,
-    organizer: 'University Events',
-    category: 'Social',
-    isRegistered: false,
-  },
-  {
-    id: 3,
-    title: 'Career Development Workshop',
-    date: 'Dec 22, 2024',
-    time: '2:00 PM',
-    location: 'Virtual',
-    attendees: 89,
-    image: 'https://images.unsplash.com/photo-1591115765373-5207764f72e7?w=800&h=500&fit=crop',
-    description: 'Learn strategies for advancing your career with expert speakers.',
-    isVirtual: true,
-    meetingLink: 'https://zoom.us/j/example',
-    organizer: 'Career Services',
-    category: 'Professional',
-    isRegistered: true,
-  },
-  {
-    id: 4,
-    title: 'AI & Machine Learning Webinar',
-    date: 'Dec 28, 2024',
-    time: '10:00 AM',
-    location: 'Virtual',
-    attendees: 156,
-    image: 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=800&h=500&fit=crop',
-    description: 'Explore the latest trends in AI and ML with industry leaders.',
-    isVirtual: true,
-    meetingLink: 'https://meet.google.com/example',
-    organizer: 'Tech Alumni Group',
-    category: 'Technology',
-    isRegistered: false,
-  },
-];
+// Convert backend EventResponse to frontend Event format
+const convertBackendEvent = (backendEvent: BackendEventResponse): Event => {
+  return {
+    id: backendEvent.id,
+    title: backendEvent.title,
+    date: backendEvent.date,
+    time: backendEvent.time || '',
+    location: backendEvent.location || '',
+    attendees: backendEvent.attendees,
+    image: backendEvent.image || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&h=500&fit=crop',
+    description: backendEvent.description || '',
+    isVirtual: backendEvent.is_virtual,
+    meetingLink: backendEvent.meeting_link,
+    organizer: backendEvent.organizer,
+    category: backendEvent.category || '',
+    isRegistered: backendEvent.is_registered,
+  };
+};
 
 export const EventsProvider = ({ children }: { children: ReactNode }) => {
-  const [events, setEvents] = useState<Event[]>(initialEvents);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const fetchEvents = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await apiClient.getEvents(1, 100);
+      const convertedEvents = response.events.map(convertBackendEvent);
+      setEvents(convertedEvents);
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch events');
+      console.error('Error fetching events:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
 
   const registeredEvents = events.filter(e => e.isRegistered);
 
-  const createEvent = (eventData: Omit<Event, 'id' | 'attendees' | 'isRegistered' | 'organizer'>) => {
-    const newEvent: Event = {
-      ...eventData,
-      id: Date.now(),
-      attendees: 0,
-      isRegistered: true, // Auto-register creator
-      organizer: 'You',
-    };
-    setEvents(prev => [newEvent, ...prev]);
+  // Convert date from YYYY-MM-DD to "Dec 15, 2024" format
+  const formatDateForBackend = (dateStr: string): string => {
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      return dateStr; // Return as-is if parsing fails
+    }
   };
 
-  const updateEvent = (id: number, updates: Partial<Event>) => {
-    setEvents(prev => prev.map(event => 
-      event.id === id ? { ...event, ...updates } : event
-    ));
+  // Convert time from HH:MM (24-hour) to "6:00 PM" format
+  const formatTimeForBackend = (timeStr: string): string => {
+    try {
+      if (!timeStr) return '';
+      const [hours, minutes] = timeStr.split(':');
+      const hour24 = parseInt(hours);
+      const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+      const period = hour24 >= 12 ? 'PM' : 'AM';
+      return `${hour12}:${minutes || '00'} ${period}`;
+    } catch {
+      return timeStr; // Return as-is if parsing fails
+    }
   };
 
-  const deleteEvent = (id: number) => {
-    setEvents(prev => prev.filter(event => event.id !== id));
+  const createEvent = async (eventData: Omit<Event, 'id' | 'attendees' | 'isRegistered' | 'organizer'>) => {
+    try {
+      const backendEvent = await apiClient.createEvent({
+        title: eventData.title,
+        description: eventData.description,
+        image: eventData.image,
+        event_date: formatDateForBackend(eventData.date),
+        event_time: formatTimeForBackend(eventData.time),
+        location: eventData.location,
+        is_virtual: eventData.isVirtual,
+        meeting_link: eventData.meetingLink,
+        category: eventData.category,
+      });
+      const newEvent = convertBackendEvent(backendEvent);
+      setEvents(prev => [newEvent, ...prev]);
+      toast({
+        title: 'Event created!',
+        description: 'Your event has been created successfully',
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.message || 'Failed to create event',
+        variant: 'destructive',
+      });
+      throw err;
+    }
   };
 
-  const registerForEvent = (id: number) => {
-    setEvents(prev => prev.map(event => 
-      event.id === id 
-        ? { ...event, isRegistered: true, attendees: event.attendees + 1 } 
-        : event
-    ));
+  const updateEvent = async (id: string, updates: Partial<Event>) => {
+    try {
+      const updateData: any = {};
+      if (updates.title !== undefined) updateData.title = updates.title;
+      if (updates.description !== undefined) updateData.description = updates.description;
+      if (updates.image !== undefined) updateData.image = updates.image;
+      if (updates.date !== undefined) updateData.event_date = formatDateForBackend(updates.date);
+      if (updates.time !== undefined) updateData.event_time = formatTimeForBackend(updates.time);
+      if (updates.location !== undefined) updateData.location = updates.location;
+      if (updates.isVirtual !== undefined) updateData.is_virtual = updates.isVirtual;
+      if (updates.meetingLink !== undefined) updateData.meeting_link = updates.meetingLink;
+      if (updates.category !== undefined) updateData.category = updates.category;
+
+      const backendEvent = await apiClient.updateEvent(id, updateData);
+      const updatedEvent = convertBackendEvent(backendEvent);
+      setEvents(prev => prev.map(event => event.id === id ? updatedEvent : event));
+      toast({
+        title: 'Event updated!',
+        description: 'Event details have been updated successfully',
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.message || 'Failed to update event',
+        variant: 'destructive',
+      });
+      throw err;
+    }
   };
 
-  const unregisterFromEvent = (id: number) => {
-    setEvents(prev => prev.map(event => 
-      event.id === id 
-        ? { ...event, isRegistered: false, attendees: Math.max(0, event.attendees - 1) } 
-        : event
-    ));
+  const deleteEvent = async (id: string) => {
+    try {
+      await apiClient.deleteEvent(id);
+      setEvents(prev => prev.filter(event => event.id !== id));
+      toast({
+        title: 'Event deleted!',
+        description: 'Event has been deleted successfully',
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.message || 'Failed to delete event',
+        variant: 'destructive',
+      });
+      throw err;
+    }
+  };
+
+  const registerForEvent = async (id: string) => {
+    try {
+      const response = await apiClient.registerForEvent(id);
+      setEvents(prev => prev.map(event => 
+        event.id === id 
+          ? { ...event, isRegistered: true, attendees: response.attendees } 
+          : event
+      ));
+      toast({
+        title: 'Registered!',
+        description: 'You have successfully registered for this event',
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.message || 'Failed to register for event',
+        variant: 'destructive',
+      });
+      throw err;
+    }
+  };
+
+  const unregisterFromEvent = async (id: string) => {
+    try {
+      const response = await apiClient.unregisterFromEvent(id);
+      setEvents(prev => prev.map(event => 
+        event.id === id 
+          ? { ...event, isRegistered: false, attendees: response.attendees } 
+          : event
+      ));
+      toast({
+        title: 'Unregistered',
+        description: 'You have unregistered from this event',
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Error',
+        description: err.message || 'Failed to unregister from event',
+        variant: 'destructive',
+      });
+      throw err;
+    }
   };
 
   return (
     <EventsContext.Provider value={{
       events,
       registeredEvents,
+      loading,
+      error,
       createEvent,
       updateEvent,
       deleteEvent,
       registerForEvent,
       unregisterFromEvent,
+      refreshEvents: fetchEvents,
     }}>
       {children}
     </EventsContext.Provider>

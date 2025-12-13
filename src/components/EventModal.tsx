@@ -16,6 +16,33 @@ interface EventModalProps {
   editEvent?: Event | null;
 }
 
+// Helper functions to convert between formats
+const parseBackendDate = (dateStr: string): string => {
+  try {
+    // Backend format: "Dec 15, 2024" -> HTML input format: "2024-12-15"
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '';
+    return date.toISOString().split('T')[0];
+  } catch {
+    return dateStr; // Return as-is if parsing fails
+  }
+};
+
+const parseBackendTime = (timeStr: string): string => {
+  try {
+    // Backend format: "6:00 PM" -> HTML input format: "18:00"
+    if (!timeStr) return '';
+    const [time, period] = timeStr.split(' ');
+    const [hours, minutes] = time.split(':');
+    let hour24 = parseInt(hours);
+    if (period === 'PM' && hour24 !== 12) hour24 += 12;
+    if (period === 'AM' && hour24 === 12) hour24 = 0;
+    return `${hour24.toString().padStart(2, '0')}:${minutes || '00'}`;
+  } catch {
+    return timeStr; // Return as-is if parsing fails
+  }
+};
+
 const EventModal = ({ open, onClose, onSubmit, editEvent }: EventModalProps) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -31,9 +58,9 @@ const EventModal = ({ open, onClose, onSubmit, editEvent }: EventModalProps) => 
     if (editEvent) {
       setTitle(editEvent.title);
       setDescription(editEvent.description);
-      setDate(editEvent.date);
-      setTime(editEvent.time);
-      setLocation(editEvent.location);
+      setDate(parseBackendDate(editEvent.date));
+      setTime(parseBackendTime(editEvent.time));
+      setLocation(editEvent.location === 'Virtual' ? '' : editEvent.location);
       setCategory(editEvent.category);
       setIsVirtual(editEvent.isVirtual);
       setMeetingLink(editEvent.meetingLink || '');
