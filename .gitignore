@@ -65,7 +65,7 @@ build/
 *.egg-info/
 
 # Docker
-.dockerignore
+# Note: .dockerignore should be committed (like .gitignore)
 
 # OS
 .DS_Store
