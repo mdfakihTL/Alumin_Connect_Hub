@@ -4,11 +4,9 @@ services:
     env: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: bash backend/start_render.sh
+    startCommand: python start.py
     healthCheckPath: /health
     envVars:
-      - key: PYTHONPATH
-        value: /opt/render/project/src/backend
       - key: DATABASE_URL
         sync: false
       - key: SECRET_KEY
@@ -23,22 +21,5 @@ services:
         value: ios-developer-tledch
       - key: CORS_ORIGINS
         value: https://alumni-portal-git-main-bhanushri-chintas-projects.vercel.app
-      - key: AUTO_SEED
-        value: "true"
-    envVars:
-      - key: DATABASE_URL
-        sync: false
-      - key: SECRET_KEY
-        generateValue: true
-      - key: AWS_ACCESS_KEY_ID
-        sync: false
-      - key: AWS_SECRET_ACCESS_KEY
-        sync: false
-      - key: AWS_REGION
-        value: ap-south-1
-      - key: S3_BUCKET_NAME
-        value: ios-developer-tledch
-      - key: CORS_ORIGINS
-        value: https://your-vercel-app.vercel.app
       - key: AUTO_SEED
         value: "true"
