@@ -64,20 +64,25 @@ app = FastAPI(
 cors_origins_str = os.getenv("CORS_ORIGINS", settings.CORS_ORIGINS)
 origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()]
 
-# Also allow all Vercel preview deployments (for hackathon flexibility)
-# This allows any *.vercel.app domain
-import re
-def is_vercel_origin(origin: str) -> bool:
-    """Check if origin is a Vercel deployment."""
-    return bool(re.match(r'https://.*\.vercel\.app$', origin))
+# Add common Vercel patterns to origins list
+vercel_patterns = [
+    "https://*.vercel.app",
+    "https://alumni-portal-hazel-tau.vercel.app",
+    "https://alumni-portal-git-main-bhanushri-chintas-projects.vercel.app",
+]
 
+# Combine explicit origins with Vercel patterns
+all_origins = origins + [pattern for pattern in vercel_patterns if pattern not in origins]
+
+# Configure CORS - Allow all origins for hackathon submission
+# TODO: Restrict to specific domains in production
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https://.*\.vercel\.app",  # Allow all Vercel deployments
-    allow_origins=origins,  # Also allow explicitly configured origins
+    allow_origins=["*"],  # Allow all origins for hackathon
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
+    expose_headers=["*"],
 )
 
 # Include API router
