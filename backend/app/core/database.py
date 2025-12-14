@@ -6,10 +6,19 @@ from app.core.config import settings
 
 # Create engine
 # Neon (serverless PostgreSQL) compatible configuration
-# Convert postgres:// to postgresql:// if needed (for SQLAlchemy compatibility)
+# Normalize database URL for synchronous SQLAlchemy (use psycopg2, not asyncpg)
 database_url = settings.DATABASE_URL
+
+# Convert postgres:// to postgresql:// if needed (for SQLAlchemy compatibility)
 if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+# Remove +asyncpg if present (we use synchronous SQLAlchemy with psycopg2)
+if 'postgresql+asyncpg://' in database_url:
+    database_url = database_url.replace('postgresql+asyncpg://', 'postgresql://', 1)
+elif 'postgresql://' not in database_url and 'postgres://' not in database_url:
+    # If it's a Neon connection string with asyncpg, convert it
+    database_url = database_url.replace('postgresql+asyncpg://', 'postgresql://', 1)
 
 engine = create_engine(
     database_url,
