@@ -19,6 +19,30 @@ SMTP_FROM_EMAIL=noreply@yourdomain.com  # Optional: From email address
 
 ## Popular SMTP Providers
 
+### Brevo (Recommended)
+Brevo (formerly Sendinblue) is a reliable email service that works well with cloud platforms like Render.
+
+**Configuration:**
+```env
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_USER=your-brevo-login@smtp-brevo.com
+SMTP_PASSWORD=your-brevo-password
+SMTP_FROM_EMAIL=noreply@yourdomain.com
+```
+
+**Steps to get Brevo credentials:**
+1. Sign up at https://www.brevo.com
+2. Go to **Configuration** → **SMTP settings**
+3. Copy the SMTP server, port, login, and password
+4. Add them to Render environment variables
+
+**Advantages:**
+- ✅ Works reliably with cloud platforms (no network issues)
+- ✅ Better deliverability
+- ✅ Free tier available (300 emails/day)
+- ✅ Professional email service
+
 ### Gmail
 ```env
 SMTP_HOST=smtp.gmail.com
