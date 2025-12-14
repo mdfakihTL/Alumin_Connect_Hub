@@ -1,5 +1,22 @@
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+// Use environment variable if set, otherwise detect based on hostname
+const getApiBaseURL = () => {
+  // If explicitly set, use it
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  
+  // Auto-detect: if on Vercel/production, use Render backend
+  if (window.location.hostname.includes('vercel.app') || 
+      window.location.hostname.includes('alumni-portal')) {
+    return 'https://alumni-portal-yw7q.onrender.com/api/v1';
+  }
+  
+  // Default to localhost for development
+  return 'http://localhost:8000/api/v1';
+};
+
+const API_BASE_URL = getApiBaseURL();
 
 // Types matching backend schemas
 export interface UserResponse {
