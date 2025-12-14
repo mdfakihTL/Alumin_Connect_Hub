@@ -16,62 +16,6 @@ async def lifespan(app: FastAPI):
     create_tables()
     print("Database tables created/verified.")
     
-    # Fix events table schema if needed
-    try:
-        from app.core.database import engine, SessionLocal
-        from sqlalchemy import text, inspect
-        from app.models.event import Event
-        
-        db = SessionLocal()
-        try:
-            # Check if events table has old columns
-            inspector = inspect(engine)
-            if 'events' in inspector.get_table_names():
-                columns = [col['name'] for col in inspector.get_columns('events')]
-                old_columns = ['event_type', 'status', 'start_date', 'end_date']
-                has_old_columns = any(col in columns for col in old_columns)
-                
-                if has_old_columns:
-                    print("⚠ Detected old events table schema. Fixing...")
-                    with engine.connect() as conn:
-                        # Drop old columns if they exist
-                        for col in old_columns:
-                            if col in columns:
-                                try:
-                                    conn.execute(text(f"ALTER TABLE events DROP COLUMN IF EXISTS {col}"))
-                                    conn.commit()
-                                    print(f"✓ Removed old column: {col}")
-                                except Exception as e:
-                                    print(f"⚠ Could not remove {col}: {e}")
-                        
-                        # Ensure new columns exist
-                        new_columns_map = {
-                            'event_date': 'VARCHAR',
-                            'event_time': 'VARCHAR',
-                            'organizer_id': 'VARCHAR',
-                            'is_virtual': 'BOOLEAN DEFAULT FALSE',
-                            'meeting_link': 'VARCHAR',
-                            'category': 'VARCHAR',
-                            'attendees_count': 'INTEGER DEFAULT 0',
-                            'is_active': 'BOOLEAN DEFAULT TRUE'
-                        }
-                        
-                        for col, col_type in new_columns_map.items():
-                            if col not in columns:
-                                try:
-                                    conn.execute(text(f"ALTER TABLE events ADD COLUMN IF NOT EXISTS {col} {col_type}"))
-                                    conn.commit()
-                                    print(f"✓ Added column: {col}")
-                                except Exception as e:
-                                    print(f"⚠ Could not add {col}: {e}")
-                    
-                    print("✅ Events table schema fixed!")
-        finally:
-            db.close()
-    except Exception as e:
-        print(f"⚠ Could not fix events schema: {e}")
-        print("Events may not work correctly until schema is fixed.")
-    
     # Auto-seed database if enabled and empty
     if os.getenv("AUTO_SEED", "false").lower() == "true":
         try:
