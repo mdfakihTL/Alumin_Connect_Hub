@@ -49,8 +49,23 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event - bypass API calls, cache only static assets
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  
+  // Bypass service worker for all API calls to backend
+  if (url.pathname.startsWith('/api/') || 
+      url.hostname.includes('onrender.com') ||
+      url.hostname.includes('alumni-portal-yw7q') ||
+      event.request.method === 'POST' ||
+      event.request.method === 'PUT' ||
+      event.request.method === 'DELETE' ||
+      event.request.method === 'PATCH') {
+    // Let API requests go directly to network, don't intercept
+    return;
+  }
+  
+  // For static assets, try cache first, then network
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
@@ -66,13 +81,16 @@ self.addEventListener('fetch', (event) => {
               return response;
             }
 
-            // Clone the response
-            const responseToCache = response.clone();
+            // Only cache GET requests for static assets
+            if (event.request.method === 'GET') {
+              // Clone the response
+              const responseToCache = response.clone();
 
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(event.request, responseToCache);
-              });
+              caches.open(CACHE_NAME)
+                .then((cache) => {
+                  cache.put(event.request, responseToCache);
+                });
+            }
 
             return response;
           }
