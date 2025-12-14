@@ -8,8 +8,8 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
-COPY requirements.txt .
+# Copy requirements from backend directory
+COPY backend/requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
@@ -23,8 +23,9 @@ RUN mkdir -p uploads chroma_db
 # Expose port
 EXPOSE 8000
 
-# Run application
+# Run application using root-level app.py
+# app.py handles adding backend to Python path automatically
 # Use PORT environment variable if set, otherwise default to 8000
-CMD sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+CMD ["python", "app.py"]
 
 
