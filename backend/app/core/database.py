@@ -47,10 +47,32 @@ def get_db():
 
 def create_tables():
     """Create all tables in the database."""
-    # First, fix events table if it has old schema
     try:
         from sqlalchemy import text, inspect
         inspector = inspect(engine)
+        
+        # Fix universities table - add email columns if missing
+        if 'universities' in inspector.get_table_names():
+            columns = [col['name'] for col in inspector.get_columns('universities')]
+            new_columns = {
+                'email': 'VARCHAR',
+                'smtp_host': 'VARCHAR',
+                'smtp_port': 'INTEGER DEFAULT 587',
+                'smtp_user': 'VARCHAR',
+                'smtp_password': 'VARCHAR'
+            }
+            
+            for col, col_type in new_columns.items():
+                if col not in columns:
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(text(f"ALTER TABLE universities ADD COLUMN IF NOT EXISTS {col} {col_type}"))
+                            print(f"  ✓ Added universities.{col}")
+                    except Exception as e:
+                        print(f"  ⚠ Could not add universities.{col}: {e}")
+        
+        # First, fix events table if it has old schema
+        if 'events' in inspector.get_table_names():
         
         if 'events' in inspector.get_table_names():
             columns = [col['name'] for col in inspector.get_columns('events')]

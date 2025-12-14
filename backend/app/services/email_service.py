@@ -15,13 +15,34 @@ logger = logging.getLogger(__name__)
 class EmailService:
     """Service for sending emails via SMTP"""
     
-    def __init__(self):
-        self.smtp_host = getattr(settings, 'SMTP_HOST', None)
-        self.smtp_port = getattr(settings, 'SMTP_PORT', 587)
-        self.smtp_user = getattr(settings, 'SMTP_USER', None)
-        self.smtp_password = getattr(settings, 'SMTP_PASSWORD', None)
-        self.smtp_from_email = getattr(settings, 'SMTP_FROM_EMAIL', None) or self.smtp_user
+    def __init__(self, smtp_host=None, smtp_port=587, smtp_user=None, smtp_password=None, smtp_from_email=None):
+        """
+        Initialize email service with SMTP settings.
+        If no settings provided, uses global settings from config.
+        """
+        self.smtp_host = smtp_host or getattr(settings, 'SMTP_HOST', None)
+        self.smtp_port = smtp_port or getattr(settings, 'SMTP_PORT', 587)
+        self.smtp_user = smtp_user or getattr(settings, 'SMTP_USER', None)
+        self.smtp_password = smtp_password or getattr(settings, 'SMTP_PASSWORD', None)
+        self.smtp_from_email = smtp_from_email or getattr(settings, 'SMTP_FROM_EMAIL', None) or self.smtp_user
         self.enabled = all([self.smtp_host, self.smtp_user, self.smtp_password])
+    
+    @classmethod
+    def from_university(cls, university):
+        """
+        Create EmailService instance from University model.
+        Falls back to global settings if university doesn't have email configured.
+        """
+        if university and university.email and university.smtp_host:
+            return cls(
+                smtp_host=university.smtp_host,
+                smtp_port=university.smtp_port or 587,
+                smtp_user=university.smtp_user,
+                smtp_password=university.smtp_password,
+                smtp_from_email=university.email
+            )
+        # Fall back to global settings
+        return cls()
     
     def send_email(
         self,

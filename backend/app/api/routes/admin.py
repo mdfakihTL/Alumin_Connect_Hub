@@ -215,13 +215,16 @@ async def create_user(
         # Get profile for response
         profile = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
         
-        # Get university name for email
+        # Get university for email
         university = db.query(University).filter(University.id == current_user.university_id).first()
         university_name = university.name if university else None
         
-        # Send welcome email
+        # Send welcome email using university's email settings
         try:
-            email_service.send_welcome_email(
+            # Use university-specific email service if configured, otherwise use global
+            uni_email_service = EmailService.from_university(university) if university else EmailService()
+            
+            uni_email_service.send_welcome_email(
                 to_email=user.email,
                 user_name=user.name,
                 password=user_data.password,  # Send plain password for initial login

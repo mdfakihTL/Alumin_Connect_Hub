@@ -27,6 +27,11 @@ class UniversityCreate(BaseModel):
     name: str
     logo: Optional[str] = None
     colors: Optional[str] = None  # JSON string
+    email: Optional[EmailStr] = None  # University email for sending emails
+    smtp_host: Optional[str] = None  # SMTP server (e.g., smtp.gmail.com)
+    smtp_port: Optional[int] = 587  # SMTP port
+    smtp_user: Optional[str] = None  # SMTP username
+    smtp_password: Optional[str] = None  # SMTP password
 
 
 class UniversityUpdate(BaseModel):
@@ -34,6 +39,11 @@ class UniversityUpdate(BaseModel):
     logo: Optional[str] = None
     colors: Optional[str] = None
     is_enabled: Optional[bool] = None
+    email: Optional[EmailStr] = None
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None
 
 
 class UniversityResponse(BaseModel):
@@ -44,6 +54,11 @@ class UniversityResponse(BaseModel):
     is_enabled: bool = True
     alumni_count: int = 0
     admin_count: int = 0
+    email: Optional[str] = None
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_user: Optional[str] = None
+    # Note: smtp_password is not included in response for security
     created_at: datetime
 
     class Config:

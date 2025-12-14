@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, Text
+from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -15,6 +15,13 @@ class University(Base):
     logo = Column(String, default=None)
     colors = Column(Text, default=None)  # JSON string for theme colors
     is_enabled = Column(Boolean, default=True)
+    
+    # Email settings for this university
+    email = Column(String, default=None)  # University email address
+    smtp_host = Column(String, default=None)  # SMTP server hostname
+    smtp_port = Column(Integer, default=587)  # SMTP port
+    smtp_user = Column(String, default=None)  # SMTP username
+    smtp_password = Column(String, default=None)  # SMTP password (encrypted in production)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
