@@ -1,9 +1,9 @@
-const CACHE_NAME = 'alumnihub-v1';
+const CACHE_NAME = 'alumnihub-v2'; // Bumped version to clear old cache
 const urlsToCache = [
   '/',
-  '/login',
   '/index.html',
   '/manifest.json',
+  // DO NOT cache /login or any /api routes
 ];
 
 // Install event - cache essential resources
@@ -32,7 +32,7 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Activate event - clean up old caches
+// Activate event - clean up old caches (including v1 with /login)
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -44,68 +44,47 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
+    }).then(() => {
+      // Force claim to activate immediately
+      return self.clients.claim();
     })
   );
-  self.clients.claim();
 });
 
-// Fetch event - COMPLETELY BYPASS service worker for API calls
+// Fetch event - MINIMAL handler, bypass everything except static assets
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   const request = event.request;
   
-  // CRITICAL: Don't intercept API calls or non-GET requests AT ALL
-  // Simply don't call event.respondWith() - request goes directly to network
+  // CRITICAL RULES:
+  // ❌ Never cache /login, /auth, /api
+  // ❌ Never intercept POST/PUT/DELETE/PATCH
+  // ❌ Never intercept external API calls
+  // ✅ Only cache same-origin static assets (GET requests)
+  
+  // BYPASS service worker for:
   if (
-    // Any API endpoint
+    // API endpoints
     url.pathname.startsWith('/api/') ||
-    // Any backend server
-    url.hostname.includes('onrender.com') ||
-    url.hostname.includes('alumni-portal-yw7q') ||
-    url.hostname.includes('render.com') ||
-    // ANY non-GET request (POST, PUT, DELETE, PATCH, etc.)
+    url.pathname.startsWith('/auth/') ||
+    url.pathname === '/login' ||
+    // External backend
+    url.hostname !== self.location.hostname ||
+    // Non-GET methods
     request.method !== 'GET' ||
-    // Any request with credentials
+    // Credentials or auth headers
     request.credentials === 'include' ||
-    // Any request with Authorization header
     request.headers.get('Authorization')
   ) {
-    // DO NOTHING - let browser handle request normally
-    // Don't call event.respondWith() = service worker ignores this
+    // Don't intercept - let browser handle normally
     return;
   }
   
-  // Only handle GET requests for same-origin static assets
-  // Only cache if it's a GET request to our own domain
-  if (request.method === 'GET' && url.origin === self.location.origin) {
-    event.respondWith(
-      caches.match(request)
-        .then((cachedResponse) => {
-          // Return cached if available
-          if (cachedResponse) {
-            return cachedResponse;
-          }
-
-          // Fetch from network
-          return fetch(request).then((response) => {
-            // Only cache successful basic responses
-            if (response.status === 200 && response.type === 'basic') {
-              const responseToCache = response.clone();
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(request, responseToCache);
-              });
-            }
-            return response;
-          });
-        })
-        .catch(() => {
-          // Fallback to network if cache fails
-          return fetch(request);
-        })
-    );
-  } else {
-    // For any other request, don't intercept
-    return;
-  }
+  // Only cache same-origin GET requests for static assets
+  event.respondWith(
+    caches.match(request)
+      .then((cached) => cached || fetch(request))
+      .catch(() => fetch(request))
+  );
 });
 
