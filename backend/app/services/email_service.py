@@ -74,13 +74,22 @@ class EmailService:
                 msg.attach(MIMEText(html_body, 'html'))
 
             # Send email
-            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+            # Use timeout to prevent hanging
+            with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=10) as server:
                 server.starttls()
                 server.login(self.smtp_user, self.smtp_password)
                 server.send_message(msg)
 
             logger.info(f"Email sent successfully to {to_email}")
             return True
+        except smtplib.SMTPException as e:
+            logger.error(f"SMTP error sending email to {to_email}: {str(e)}")
+            return False
+        except (ConnectionError, OSError) as e:
+            logger.error(f"Network error sending email to {to_email}: {str(e)}")
+            logger.error(f"SMTP Host: {self.smtp_host}, Port: {self.smtp_port}")
+            logger.error("This might be a firewall/network issue. Check if Render allows outbound SMTP connections.")
+            return False
         except Exception as e:
             logger.error(f"Error sending email to {to_email}: {str(e)}")
             return False
