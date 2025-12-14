@@ -172,13 +172,13 @@ const Login = () => {
             </div>
             
             <div className="space-y-2">
-              <Card className="p-3 hover:shadow-md transition-all cursor-pointer" onClick={() => fillCredentials('john.doe@mit.edu', 'mit123')}>
+              <Card className="p-3 hover:shadow-md transition-all cursor-pointer" onClick={() => fillCredentials('john.doe@alumni.mit.edu', 'password123')}>
                 <div className="flex items-center justify-between mb-1">
                   <h4 className="font-semibold text-xs">John Doe</h4>
                   <Badge variant="secondary" className="text-[10px]">Mentor</Badge>
                 </div>
                 <p className="text-[10px] text-muted-foreground mb-1">Computer Science '20</p>
-                <p className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded">john.doe@mit.edu / mit123</p>
+                <p className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded">john.doe@alumni.mit.edu / password123</p>
               </Card>
 
               <Card className="p-3 hover:shadow-md transition-all cursor-pointer" onClick={() => fillCredentials('sarah.chen@mit.edu', 'mit123')}>
