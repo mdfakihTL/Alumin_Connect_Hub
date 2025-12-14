@@ -593,7 +593,7 @@ const Dashboard = () => {
   };
 
   // Create or edit post
-  const handlePostSubmit = (
+  const handlePostSubmit = async (
     content: string,
     media: { type: 'image' | 'video'; url: string } | null,
     tag?: string,
