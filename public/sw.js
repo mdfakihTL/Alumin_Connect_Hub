@@ -49,52 +49,59 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch event - bypass API calls, cache only static assets
+// Fetch event - bypass API calls completely, cache only static assets
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
+  const request = event.request;
   
-  // Bypass service worker for all API calls to backend
-  if (url.pathname.startsWith('/api/') || 
-      url.hostname.includes('onrender.com') ||
-      url.hostname.includes('alumni-portal-yw7q') ||
-      event.request.method === 'POST' ||
-      event.request.method === 'PUT' ||
-      event.request.method === 'DELETE' ||
-      event.request.method === 'PATCH') {
-    // Let API requests go directly to network, don't intercept
+  // CRITICAL: Bypass service worker for ALL API calls and non-GET requests
+  // This prevents service worker from intercepting POST/PUT/DELETE requests
+  if (
+    // API endpoints
+    url.pathname.startsWith('/api/') ||
+    // Backend server
+    url.hostname.includes('onrender.com') ||
+    url.hostname.includes('alumni-portal-yw7q') ||
+    // All mutation methods (POST, PUT, DELETE, PATCH)
+    request.method !== 'GET' ||
+    // Any request with credentials
+    request.credentials === 'include'
+  ) {
+    // Don't intercept - let request go directly to network
+    // Returning undefined means service worker won't handle this request
     return;
   }
   
-  // For static assets, try cache first, then network
+  // Only handle GET requests for static assets (HTML, CSS, JS, images)
+  // Don't cache API responses or dynamic content
   event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Cache hit - return response
-        if (response) {
-          return response;
+    caches.match(request)
+      .then((cachedResponse) => {
+        // Return cached response if available
+        if (cachedResponse) {
+          return cachedResponse;
         }
 
-        return fetch(event.request).then(
-          (response) => {
-            // Check if valid response
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-
-            // Only cache GET requests for static assets
-            if (event.request.method === 'GET') {
-              // Clone the response
-              const responseToCache = response.clone();
-
-              caches.open(CACHE_NAME)
-                .then((cache) => {
-                  cache.put(event.request, responseToCache);
-                });
-            }
-
-            return response;
+        // Fetch from network for static assets only
+        return fetch(request).then((response) => {
+          // Only cache successful GET responses for static assets
+          if (request.method === 'GET' && 
+              response.status === 200 && 
+              response.type === 'basic') {
+            // Clone response before caching
+            const responseToCache = response.clone();
+            
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseToCache);
+            });
           }
-        );
+          
+          return response;
+        });
+      })
+      .catch(() => {
+        // If both cache and network fail, return network error
+        return fetch(request);
       })
   );
 });
