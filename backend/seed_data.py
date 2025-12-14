@@ -168,8 +168,12 @@ def seed_users(db: Session):
     for user_data in users_data:
         existing = db.query(User).filter(User.email == user_data["email"]).first()
         if not existing:
+            # Generate username from email for database compatibility
+            username = user_data["email"].split('@')[0] if user_data["email"] else None
+            
             user = User(
                 email=user_data["email"],
+                username=username,  # Set username for database compatibility
                 hashed_password=get_password_hash("password123"),
                 name=user_data["name"],
                 role=user_data["role"],
