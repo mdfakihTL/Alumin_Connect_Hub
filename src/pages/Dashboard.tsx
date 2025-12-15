@@ -651,13 +651,16 @@ const Dashboard = () => {
       };
       
       try {
-        await apiClient.createPost(postData);
+        const newPost = await apiClient.createPost(postData);
         toast({
           title: 'Post created!',
           description: 'Your post has been shared successfully',
         });
-        // Refresh posts
-        window.location.reload();
+        // Refresh posts without page reload
+        setPage(1);
+        await loadPosts(1, true);
+        setIsModalOpen(false);
+        setEditingPost(null);
       } catch (error: any) {
         toast({
           title: 'Error',
