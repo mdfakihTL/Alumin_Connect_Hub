@@ -27,3 +27,6 @@ httpx==0.26.0
 
 # AWS S3
 boto3==1.34.0
+
+# OpenAI (for Knowledge Base chat - optional, falls back to simple response)
+openai==1.12.0
