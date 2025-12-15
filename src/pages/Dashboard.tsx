@@ -454,6 +454,7 @@ const Dashboard = () => {
   const [displayedPosts, setDisplayedPosts] = useState<(Post | Ad)[]>([]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [postsLoaded, setPostsLoaded] = useState(false); // Track if posts have been loaded
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
@@ -854,77 +855,80 @@ const Dashboard = () => {
     setHasMore(true);
   };
 
-  // Initial load - fetch from API
+  // Initial load - fetch from API (always load on mount)
   useEffect(() => {
-    if (displayedPosts.length === 0 && page === 0) {
-      const loadInitialPosts = async () => {
-        try {
-          const postsResponse = await apiClient.getPosts(1, POSTS_PER_PAGE);
-          const apiPosts = postsResponse.posts || [];
-          
-          // Format API posts to match Post interface
-          const formatTime = (dateString: string) => {
-            const date = new Date(dateString);
-            const now = new Date();
-            const diff = now.getTime() - date.getTime();
-            const minutes = Math.floor(diff / 60000);
-            const hours = Math.floor(diff / 3600000);
-            const days = Math.floor(diff / 86400000);
-            
-            if (minutes < 1) return 'Just now';
-            if (minutes < 60) return `${minutes}m ago`;
-            if (hours < 24) return `${hours}h ago`;
-            if (days < 7) return `${days}d ago`;
-            return date.toLocaleDateString();
-          };
-          
-          const formattedPosts: Post[] = apiPosts.map((p: any) => ({
-            id: parseInt(p.id) || Date.now() + Math.random(),
-            type: p.type || 'text',
-            author: p.author?.name || 'Unknown',
-            avatar: p.author?.avatar || '',
-            university: p.author?.university || '',
-            year: p.author?.graduation_year?.toString() || '',
-            content: p.content || '',
-            media: p.media_url || undefined,  // Map media_url to media for display
-            videoUrl: p.video_url || undefined,
-            thumbnail: p.thumbnail_url || undefined,
-            likes: p.likes_count || 0,
-            comments: p.comments_count || 0,
-            time: formatTime(p.created_at || new Date().toISOString()),
-            tag: p.tag as Post['tag'],
-            jobTitle: p.job_title,
-            company: p.company,
-            location: p.location,
-          }));
-          
-          // Add ads every 8 posts
-          const postsWithAds: (Post | Ad)[] = [];
-          formattedPosts.forEach((post, idx) => {
-            postsWithAds.push(post);
-            if ((idx + 1) % 8 === 0) {
-              const adIndex = Math.floor(idx / 8) % mockAds.length;
-              postsWithAds.push(mockAds[adIndex]);
-            }
-          });
-          
-          setDisplayedPosts(postsWithAds);
-          setPage(1);
-          setHasMore(postsResponse.total > POSTS_PER_PAGE);
-        } catch (error) {
-          console.error('Failed to load posts from API:', error);
-          // Only fallback to mock data if we truly have no posts
-          // Don't clear existing posts if API call fails
-          if (displayedPosts.length === 0) {
-            loadMorePosts();
-          }
-        }
-      };
+    // Always load posts when component mounts (component remounts on navigation)
+    const loadInitialPosts = async () => {
+      // Reset loaded flag when filters change to force reload
+      if (postsLoaded && Object.keys(filters).length === 0) {
+        return; // Skip if already loaded and no filters
+      }
       
-      loadInitialPosts();
-    }
+      try {
+        const postsResponse = await apiClient.getPosts(1, POSTS_PER_PAGE);
+        const apiPosts = postsResponse.posts || [];
+        
+        // Format API posts to match Post interface
+        const formatTime = (dateString: string) => {
+          const date = new Date(dateString);
+          const now = new Date();
+          const diff = now.getTime() - date.getTime();
+          const minutes = Math.floor(diff / 60000);
+          const hours = Math.floor(diff / 3600000);
+          const days = Math.floor(diff / 86400000);
+          
+          if (minutes < 1) return 'Just now';
+          if (minutes < 60) return `${minutes}m ago`;
+          if (hours < 24) return `${hours}h ago`;
+          if (days < 7) return `${days}d ago`;
+          return date.toLocaleDateString();
+        };
+        
+        const formattedPosts: Post[] = apiPosts.map((p: any) => ({
+          id: parseInt(p.id) || Date.now() + Math.random(),
+          type: p.type || 'text',
+          author: p.author?.name || 'Unknown',
+          avatar: p.author?.avatar || '',
+          university: p.author?.university || '',
+          year: p.author?.graduation_year?.toString() || '',
+          content: p.content || '',
+          media: p.media_url || undefined,  // Map media_url to media for display
+          videoUrl: p.video_url || undefined,
+          thumbnail: p.thumbnail_url || undefined,
+          likes: p.likes_count || 0,
+          comments: p.comments_count || 0,
+          time: formatTime(p.created_at || new Date().toISOString()),
+          tag: p.tag as Post['tag'],
+          jobTitle: p.job_title,
+          company: p.company,
+          location: p.location,
+        }));
+        
+        // Add ads every 8 posts
+        const postsWithAds: (Post | Ad)[] = [];
+        formattedPosts.forEach((post, idx) => {
+          postsWithAds.push(post);
+          if ((idx + 1) % 8 === 0) {
+            const adIndex = Math.floor(idx / 8) % mockAds.length;
+            postsWithAds.push(mockAds[adIndex]);
+          }
+        });
+        
+        setDisplayedPosts(postsWithAds);
+        setPage(1);
+        setHasMore(postsResponse.total > POSTS_PER_PAGE);
+        setPostsLoaded(true); // Mark as loaded
+      } catch (error) {
+        console.error('Failed to load posts from API:', error);
+        // Fallback to mock data if API fails
+        loadMorePosts();
+        setPostsLoaded(true); // Mark as loaded even if using mock data
+      }
+    };
+    
+    loadInitialPosts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]); // Only reload when filters change, not when userPosts changes
+  }, [filters]); // Run on mount and when filters change
 
   // Infinite scroll observer
   useEffect(() => {
