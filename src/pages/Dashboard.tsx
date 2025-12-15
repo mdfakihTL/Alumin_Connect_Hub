@@ -728,14 +728,6 @@ const Dashboard = () => {
             variant: 'destructive',
           });
         }
-        } catch (error: any) {
-          console.error('Error creating post:', error);
-          toast({
-            title: 'Error',
-            description: error.message || 'Failed to create post',
-            variant: 'destructive',
-          });
-        }
       }
     } catch (error: any) {
       // Catch any unexpected errors to prevent page refresh
