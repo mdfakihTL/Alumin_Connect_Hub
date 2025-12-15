@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { MessageCircle, Send, Sparkles, X } from 'lucide-react';
+import { Send, Sparkles, X, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface Message {
@@ -11,24 +11,42 @@ interface Message {
   text: string;
   sender: 'user' | 'bot';
   timestamp: Date;
+  sources?: string[];
+  isError?: boolean;
 }
 
+// Example prompts for MIT Knowledge Base
 const examplePrompts = [
   "What are the admission requirements?",
   "Tell me about scholarship opportunities",
-  "What clubs and organizations are available?",
-  "How do I access the career center?",
+  "What programs does MIT offer?",
+  "How do I access alumni benefits?",
   "What are the housing options?",
 ];
 
-const dummyResponses: { [key: string]: string } = {
-  "admission": "Our university has a holistic admission process. We typically look for a GPA of 3.5+, strong test scores, extracurricular activities, and compelling essays. The application deadline for Fall admission is January 15th.",
-  "scholarship": "We offer several scholarship opportunities including Merit Scholarships (up to $20,000/year), Need-based Financial Aid, and Alumni Legacy Scholarships. Visit our Financial Aid office or check the student portal for applications.",
-  "clubs": "We have over 200+ student organizations including cultural clubs, professional societies, sports clubs, and special interest groups. Popular ones include Tech Club, Debate Society, and Student Government. Check out the Student Activities Center!",
-  "career": "The Career Center offers resume reviews, mock interviews, job fairs, and networking events. You can book appointments through the student portal. We also have an alumni mentorship program connecting students with industry professionals.",
-  "housing": "We offer on-campus residence halls for freshmen and apartments for upperclassmen. Off-campus housing resources are available through our Housing Office. All freshmen are required to live on campus for their first year.",
-  "default": "I'm here to help! I can answer questions about admissions, scholarships, campus life, academic programs, career services, and more. Feel free to ask me anything about the university!",
+// API configuration - uses same base URL as main API
+const getApiBaseURL = () => {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  if (window.location.hostname.includes('vercel.app') || 
+      window.location.hostname.includes('alumni-portal')) {
+    return 'https://alumni-portal-yw7q.onrender.com/api/v1';
+  }
+  return 'http://localhost:8000/api/v1';
 };
+
+const API_BASE_URL = getApiBaseURL();
+
+// Interface for Knowledge Base API response
+interface ChatQueryResponse {
+  answer: string;
+  sources: string[];
+  university_id: string;
+  university_name: string;
+  context_used: string;
+  is_dummy: boolean;
+}
 
 const UniversityChatbot = () => {
   const { user } = useAuth();
@@ -36,7 +54,7 @@ const UniversityChatbot = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: `Hi ${user?.name || 'there'}! 👋 I'm your University AI Assistant. I can help answer questions about admissions, scholarships, campus life, and more. Try asking me something or click on an example below!`,
+      text: `Hi ${user?.name || 'there'}! 👋 I'm your MIT AI Assistant powered by the Knowledge Base. I can answer questions about admissions, academics, campus life, alumni benefits, and more. Ask me anything!`,
       sender: 'bot',
       timestamp: new Date(),
     },
@@ -58,25 +76,34 @@ const UniversityChatbot = () => {
     scrollToBottom();
   }, [messages]);
 
-  const generateResponse = (userMessage: string): string => {
-    const lowerMessage = userMessage.toLowerCase();
-    
-    if (lowerMessage.includes('admission') || lowerMessage.includes('apply') || lowerMessage.includes('requirement')) {
-      return dummyResponses.admission;
-    } else if (lowerMessage.includes('scholarship') || lowerMessage.includes('financial') || lowerMessage.includes('aid')) {
-      return dummyResponses.scholarship;
-    } else if (lowerMessage.includes('club') || lowerMessage.includes('organization') || lowerMessage.includes('activity')) {
-      return dummyResponses.clubs;
-    } else if (lowerMessage.includes('career') || lowerMessage.includes('job') || lowerMessage.includes('internship')) {
-      return dummyResponses.career;
-    } else if (lowerMessage.includes('housing') || lowerMessage.includes('dorm') || lowerMessage.includes('residence')) {
-      return dummyResponses.housing;
-    } else {
-      return dummyResponses.default;
+  // Call the actual Knowledge Base API
+  const fetchKnowledgeBaseAnswer = async (question: string): Promise<{ answer: string; sources: string[] }> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/chat/query`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ question }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `API error: ${response.status}`);
+      }
+
+      const data: ChatQueryResponse = await response.json();
+      return {
+        answer: data.answer,
+        sources: data.sources,
+      };
+    } catch (error) {
+      console.error('Knowledge Base API error:', error);
+      throw error;
     }
   };
 
-  const handleSendMessage = (messageText?: string) => {
+  const handleSendMessage = async (messageText?: string) => {
     const textToSend = messageText || inputValue.trim();
     if (!textToSend) return;
 
@@ -91,17 +118,33 @@ const UniversityChatbot = () => {
     setInputValue('');
     setIsTyping(true);
 
-    // Simulate bot response delay
-    setTimeout(() => {
+    try {
+      // Call the actual Knowledge Base API
+      const { answer, sources } = await fetchKnowledgeBaseAnswer(textToSend);
+      
       const botResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: generateResponse(textToSend),
+        text: answer,
         sender: 'bot',
         timestamp: new Date(),
+        sources: sources.length > 0 ? sources : undefined,
       };
       setMessages(prev => [...prev, botResponse]);
+    } catch (error) {
+      // Handle error - show error message to user
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: error instanceof Error 
+          ? `Sorry, I couldn't get an answer: ${error.message}. Please try again later.`
+          : "Sorry, something went wrong. Please try again later.",
+        sender: 'bot',
+        timestamp: new Date(),
+        isError: true,
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsTyping(false);
-    }, 1000);
+    }
   };
 
   const handleExampleClick = (prompt: string) => {
@@ -121,10 +164,10 @@ const UniversityChatbot = () => {
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-bold text-sm sm:text-base flex items-center gap-2">
-                <span className="truncate">University AI Assistant</span>
-                <Badge className="bg-primary text-xs flex-shrink-0">New</Badge>
+                <span className="truncate">MIT Knowledge Assistant</span>
+                <Badge className="bg-primary text-xs flex-shrink-0">AI</Badge>
               </h3>
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">Ask me anything about campus!</p>
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">Ask me anything about MIT!</p>
             </div>
           </div>
         </div>
@@ -141,8 +184,8 @@ const UniversityChatbot = () => {
             <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-sm sm:text-base truncate">AI Assistant</h3>
-            <p className="text-xs text-muted-foreground truncate">Always here to help</p>
+            <h3 className="font-bold text-sm sm:text-base truncate">MIT AI Assistant</h3>
+            <p className="text-xs text-muted-foreground truncate">Powered by Knowledge Base</p>
           </div>
         </div>
         <Button
@@ -172,10 +215,25 @@ const UniversityChatbot = () => {
               className={`max-w-[85%] rounded-lg p-3 ${
                 message.sender === 'user'
                   ? 'bg-primary text-primary-foreground'
+                  : message.isError
+                  ? 'bg-destructive/10 border border-destructive/30'
                   : 'bg-card border border-border'
               }`}
             >
-              <p className="text-sm leading-relaxed">{message.text}</p>
+              {message.isError && (
+                <div className="flex items-center gap-1 mb-1 text-destructive">
+                  <AlertCircle className="w-3 h-3" />
+                  <span className="text-xs font-medium">Error</span>
+                </div>
+              )}
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
+              {message.sources && message.sources.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-border/50">
+                  <p className="text-xs text-muted-foreground">
+                    📚 Sources: {message.sources.join(', ')}
+                  </p>
+                </div>
+              )}
               <span className="text-xs opacity-70 mt-1 block">
                 {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
@@ -223,14 +281,15 @@ const UniversityChatbot = () => {
           <Input
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+            onKeyDown={(e) => e.key === 'Enter' && !isTyping && handleSendMessage()}
             placeholder="Ask a question..."
             className="flex-1 h-8 sm:h-9 text-xs sm:text-sm"
+            disabled={isTyping}
           />
           <Button
             size="sm"
             onClick={() => handleSendMessage()}
-            disabled={!inputValue.trim()}
+            disabled={!inputValue.trim() || isTyping}
             className="h-8 sm:h-9 px-2 sm:px-3"
           >
             <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -242,4 +301,3 @@ const UniversityChatbot = () => {
 };
 
 export default UniversityChatbot;
-
