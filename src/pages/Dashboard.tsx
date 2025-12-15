@@ -913,14 +913,18 @@ const Dashboard = () => {
           setHasMore(postsResponse.total > POSTS_PER_PAGE);
         } catch (error) {
           console.error('Failed to load posts from API:', error);
-          // Fallback to mock data
-          loadMorePosts();
+          // Only fallback to mock data if we truly have no posts
+          // Don't clear existing posts if API call fails
+          if (displayedPosts.length === 0) {
+            loadMorePosts();
+          }
         }
       };
       
       loadInitialPosts();
     }
-  }, [userPosts, filters]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]); // Only reload when filters change, not when userPosts changes
 
   // Infinite scroll observer
   useEffect(() => {
