@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { FileText, Users, Calendar, UserPlus, Search as SearchIcon } from 'lucide-react';
 
 interface Post {
-  id: number;
+  id: string;
   author: string;
   avatar: string;
   content: string;

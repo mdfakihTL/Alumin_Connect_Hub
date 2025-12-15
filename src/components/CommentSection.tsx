@@ -1,9 +1,12 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, MoreVertical, Edit, Trash2, Check, X } from 'lucide-react';
+import { Send, MoreVertical, Edit, Trash2, Check, X, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { postsApi } from '@/api/posts';
+import { handleApiError } from '@/api/client';
+import type { CommentResponse } from '@/api/types';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +16,7 @@ import {
 
 interface Comment {
   id: string;
+  authorId: string;
   author: string;
   avatar: string;
   content: string;
@@ -20,14 +24,38 @@ interface Comment {
 }
 
 interface CommentSectionProps {
-  postId: number;
+  postId: string;
   initialComments?: Comment[];
   onCommentAdded: () => void;
 }
 
+// Helper to format time ago
+const formatTimeAgo = (dateString: string): string => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  
+  if (diffInSeconds < 60) return 'Just now';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+  return date.toLocaleDateString();
+};
+
+// Transform API comment to local format
+const transformComment = (apiComment: CommentResponse): Comment => ({
+  id: apiComment.id,
+  authorId: apiComment.author.id,
+  author: apiComment.author.name,
+  avatar: apiComment.author.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${apiComment.author.name}`,
+  content: apiComment.content,
+  time: formatTimeAgo(apiComment.created_at),
+});
+
 const mockComments: Comment[] = [
   {
     id: '1',
+    authorId: 'mock-1',
     author: 'Sarah Johnson',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah',
     content: 'This is amazing! Congratulations! 🎉',
@@ -35,6 +63,7 @@ const mockComments: Comment[] = [
   },
   {
     id: '2',
+    authorId: 'mock-2',
     author: 'Michael Chen',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Michael',
     content: 'Great work! Keep it up!',
@@ -42,6 +71,7 @@ const mockComments: Comment[] = [
   },
   {
     id: '3',
+    authorId: 'mock-3',
     author: 'Emily Rodriguez',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Emily',
     content: 'Inspiring! Thanks for sharing.',
@@ -49,6 +79,7 @@ const mockComments: Comment[] = [
   },
   {
     id: '4',
+    authorId: 'mock-4',
     author: 'David Kim',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=David',
     content: 'This is exactly what I needed to see today. Thank you!',
@@ -56,6 +87,7 @@ const mockComments: Comment[] = [
   },
   {
     id: '5',
+    authorId: 'mock-5',
     author: 'Lisa Thompson',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Lisa',
     content: 'Would love to hear more about this. Can we connect?',
@@ -63,6 +95,7 @@ const mockComments: Comment[] = [
   },
   {
     id: '6',
+    authorId: 'mock-6',
     author: 'James Wilson',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=James',
     content: 'Absolutely brilliant! Keep sharing such valuable content.',
@@ -70,6 +103,7 @@ const mockComments: Comment[] = [
   },
   {
     id: '7',
+    authorId: 'mock-7',
     author: 'Sophie Brown',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sophie',
     content: 'This resonates with me so much. Great insights!',
@@ -77,6 +111,7 @@ const mockComments: Comment[] = [
   },
   {
     id: '8',
+    authorId: 'mock-8',
     author: 'Ryan Martinez',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Ryan',
     content: 'Fantastic post! Looking forward to more content like this.',
@@ -84,6 +119,7 @@ const mockComments: Comment[] = [
   },
   {
     id: '9',
+    authorId: 'mock-9',
     author: 'Amanda Lee',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Amanda',
     content: 'Very informative and well articulated. Thanks for sharing!',
@@ -91,6 +127,7 @@ const mockComments: Comment[] = [
   },
   {
     id: '10',
+    authorId: 'mock-10',
     author: 'Chris Anderson',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Chris',
     content: 'I completely agree with your perspective on this topic.',
@@ -100,26 +137,69 @@ const mockComments: Comment[] = [
 
 const CommentSection = ({ postId, initialComments, onCommentAdded }: CommentSectionProps) => {
   const { user } = useAuth();
-  const [comments, setComments] = useState<Comment[]>(initialComments || mockComments);
+  const [comments, setComments] = useState<Comment[]>(initialComments || []);
   const [newComment, setNewComment] = useState('');
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const handleAddComment = () => {
+  // Fetch comments from API
+  const fetchComments = useCallback(async () => {
+    if (!postId) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await postsApi.getComments(postId);
+      if (response.comments) {
+        setComments(response.comments.map(transformComment));
+      }
+    } catch (err) {
+      console.error('Failed to fetch comments:', err);
+      // Keep existing comments or fallback to mock
+      if (comments.length === 0) {
+        setComments(mockComments);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [postId]);
+
+  // Load comments on mount
+  useEffect(() => {
+    if (!initialComments) {
+      fetchComments();
+    }
+  }, [fetchComments, initialComments]);
+
+  const handleAddComment = async () => {
     if (!newComment.trim()) return;
 
-    const comment: Comment = {
-      id: Date.now().toString(),
-      author: user?.name || 'You',
-      avatar: user?.avatar || '',
-      content: newComment.trim(),
-      time: 'Just now',
-    };
-
-    setComments(prev => [comment, ...prev]);
-    setNewComment('');
-    onCommentAdded();
+    setIsSubmitting(true);
+    try {
+      const response = await postsApi.addComment(postId, newComment.trim());
+      const comment = transformComment(response);
+      setComments(prev => [comment, ...prev]);
+      setNewComment('');
+      onCommentAdded();
+    } catch (err) {
+      handleApiError(err, 'Failed to add comment');
+      // Fallback to local addition if API fails
+      const comment: Comment = {
+        id: Date.now().toString(),
+        authorId: user?.id || '',
+        author: user?.name || 'You',
+        avatar: user?.avatar || '',
+        content: newComment.trim(),
+        time: 'Just now',
+      };
+      setComments(prev => [comment, ...prev]);
+      setNewComment('');
+      onCommentAdded();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -154,16 +234,22 @@ const CommentSection = ({ postId, initialComments, onCommentAdded }: CommentSect
     setEditContent('');
   };
 
-  const handleDeleteComment = (commentId: string) => {
+  const handleDeleteComment = async (commentId: string) => {
     const confirmed = window.confirm('Are you sure you want to delete this comment?');
     if (confirmed) {
-      setComments(prev => prev.filter(c => c.id !== commentId));
-      // Note: Would decrease comment count in parent, but keeping simple for now
+      try {
+        await postsApi.deleteComment(postId, commentId);
+        setComments(prev => prev.filter(c => c.id !== commentId));
+      } catch (err) {
+        handleApiError(err, 'Failed to delete comment');
+        // Fallback to local deletion
+        setComments(prev => prev.filter(c => c.id !== commentId));
+      }
     }
   };
 
-  const isUserComment = (author: string) => {
-    return author === user?.name || author === 'You';
+  const isUserComment = (authorId: string, author: string) => {
+    return authorId === user?.id || author === user?.name || author === 'You';
   };
 
   return (
@@ -173,7 +259,7 @@ const CommentSection = ({ postId, initialComments, onCommentAdded }: CommentSect
         <div className="p-4 space-y-4">
           {comments.slice(0, 5).map((comment) => {
             const isEditing = editingCommentId === comment.id;
-            const isOwn = isUserComment(comment.author);
+            const isOwn = isUserComment(comment.authorId, comment.author);
 
             return (
               <div key={comment.id} className="flex gap-3 group">
@@ -371,10 +457,10 @@ const CommentSection = ({ postId, initialComments, onCommentAdded }: CommentSect
             <Button
               size="icon"
               onClick={handleAddComment}
-              disabled={!newComment.trim()}
+              disabled={!newComment.trim() || isSubmitting}
               className="h-9 w-9 sm:h-10 sm:w-10 flex-shrink-0"
             >
-              <Send className="w-4 h-4" />
+              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </Button>
           </div>
         </div>

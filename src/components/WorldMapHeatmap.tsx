@@ -11,6 +11,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MapPin, Users, Briefcase, GraduationCap, Loader2 } from 'lucide-react';
 import { AlumniLocation, getAlumniByLocation } from '@/data/alumniLocations';
+import { usersApi } from '@/api/users';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -131,16 +132,59 @@ const WorldMapHeatmap = ({
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAlumni, setSelectedAlumni] = useState<{ alumni: AlumniLocation[]; location: string } | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [apiLocationData, setApiLocationData] = useState<LocationData[] | null>(null);
 
-  // Memoize location map to prevent recreation on every render
-  const locationMap = useMemo(() => getAlumniByLocation(universityId), [universityId]);
+  // Fetch location data from API
+  useEffect(() => {
+    const fetchLocations = async () => {
+      try {
+        const response = await usersApi.getAlumniLocations();
+        if (response.locations && response.locations.length > 0) {
+          const transformedData: LocationData[] = response.locations.map(loc => ({
+            lng: loc.lng,
+            lat: loc.lat,
+            alumni: loc.alumni.map(a => ({
+              id: a.id,
+              name: a.name,
+              city: loc.location.split(',')[0] || loc.location,
+              country: loc.location.split(',')[1]?.trim() || '',
+              coordinates: { lat: loc.lat, lng: loc.lng },
+              universityId: universityId,
+              graduationYear: 2020, // Default as API doesn't have this yet
+              major: 'Alumni',
+              currentPosition: a.job_title,
+              company: a.company,
+            })),
+            count: loc.count,
+            city: loc.location.split(',')[0] || loc.location,
+            country: loc.location.split(',')[1]?.trim() || '',
+          }));
+          setApiLocationData(transformedData);
+        }
+      } catch (error) {
+        console.error('Failed to fetch alumni locations from API, using local data:', error);
+        // Will fall back to local data
+      }
+    };
+    
+    fetchLocations();
+  }, [universityId]);
 
-  // Process location data
+  // Memoize location map to prevent recreation on every render (fallback)
+  const localLocationMap = useMemo(() => getAlumniByLocation(universityId), [universityId]);
+
+  // Process location data - prefer API data, fall back to local
   const locationData: LocationData[] = useMemo(() => {
-    if (!locationMap || locationMap.size === 0) {
+    // Use API data if available
+    if (apiLocationData && apiLocationData.length > 0) {
+      return apiLocationData;
+    }
+    
+    // Fallback to local data
+    if (!localLocationMap || localLocationMap.size === 0) {
       return [];
     }
-    return Array.from(locationMap.entries()).map(([key, alumni]) => {
+    return Array.from(localLocationMap.entries()).map(([key, alumni]) => {
       const [lat, lng] = key.split(',').map(Number);
       return {
         lng,
@@ -151,7 +195,7 @@ const WorldMapHeatmap = ({
         country: alumni[0]?.country || 'Unknown',
       };
     });
-  }, [locationMap]);
+  }, [apiLocationData, localLocationMap]);
 
   const maxCount = useMemo(() => 
     Math.max(...locationData.map(d => d.count), 1), 

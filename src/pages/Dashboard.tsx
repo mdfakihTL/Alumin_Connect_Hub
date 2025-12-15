@@ -1,10 +1,15 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useNavigate } from 'react-router-dom';
 import { useEvents } from '@/contexts/EventsContext';
 import { useConnections } from '@/contexts/ConnectionsContext';
+import { postsApi } from '@/api/posts';
+import { connectionsApi } from '@/api/connections';
+import { universitiesApi } from '@/api/universities';
+import { handleApiError } from '@/api/client';
+import type { PostResponse, AdResponse, ConnectionResponse } from '@/api/types';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
 import PostModal from '@/components/PostModal';
@@ -14,6 +19,7 @@ import GlobalSearchDropdown from '@/components/GlobalSearchDropdown';
 import UniversityChatbot from '@/components/UniversityChatbot';
 import PostFilter, { FilterOptions } from '@/components/PostFilter';
 import WorldMapHeatmap from '@/components/WorldMapHeatmap';
+import VideoPlayer from '@/components/VideoPlayer';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -44,6 +50,7 @@ import {
   UserPlus2,
   Users2,
   X,
+  Loader2,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -56,10 +63,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 interface Post {
-  id: number;
+  id: string;
   type: 'text' | 'image' | 'video' | 'job' | 'announcement';
   author: string;
+  authorId: string;
   avatar: string;
+  authorTitle?: string;
+  authorCompany?: string;
   university: string;
   year: string;
   content: string;
@@ -69,6 +79,7 @@ interface Post {
   likes: number;
   comments: number;
   time: string;
+  isLiked: boolean;
   jobTitle?: string;
   company?: string;
   location?: string;
@@ -88,236 +99,63 @@ interface Ad {
   link: string;
 }
 
-// Comprehensive dummy data
-const allMockPosts: Post[] = [
-  {
-    id: 1,
-    type: 'text',
-    author: 'Sarah Johnson',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah',
-    university: 'MIT',
-    year: '2020',
-    content:
-      "After 5 years of hard work, I'm thrilled to announce that I've been promoted to VP of Engineering at TechCorp! This journey taught me that persistence and continuous learning are key. Thank you to everyone who supported me along the way! 🚀",
-    likes: 456,
-    comments: 78,
-    time: '1h ago',
-    tag: 'career-milestone',
-  },
-  {
-    id: 2,
-    type: 'image',
-    author: 'Michael Chen',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Michael',
-    university: 'Stanford',
-    year: '2019',
-    content:
-      "Incredibly proud to share that our startup just raised $10M in Series A funding! From a dorm room idea to a team of 50 - it's been an amazing journey. Thank you to our investors, team, and especially our early users who believed in our vision! 🎉",
-    media:
-      'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=800&h=600&fit=crop',
-    likes: 892,
-    comments: 124,
-    time: '3h ago',
-    tag: 'success-story',
-  },
-  {
-    id: 3,
-    type: 'text',
-    author: 'Emily Rodriguez',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Emily',
-    university: 'Harvard',
-    year: '2021',
-    content:
-      'Completed my Machine Learning specialization from Stanford Online! 6 months of late nights and weekend study sessions paid off. Key takeaway: never stop learning, and AI is transforming every industry. Already applying these skills in my current role! 📚💻',
-    likes: 234,
-    comments: 45,
-    time: '5h ago',
-    tag: 'learning',
-  },
-  {
-    id: 4,
-    type: 'image',
-    author: 'David Kim',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=David',
-    university: 'Berkeley',
-    year: '2018',
-    content:
-      'Spent an amazing weekend volunteering at the local food bank with other alumni! Together we packed 2,000 meals for families in need. Small actions create big impact. Who wants to join us next month? ❤️🤝',
-    media:
-      'https://images.unsplash.com/photo-1593113598332-cd288d649433?w=800&h=600&fit=crop',
-    likes: 567,
-    comments: 89,
-    time: '8h ago',
-    tag: 'volunteering',
-  },
-  {
-    id: 5,
-    type: 'text',
-    author: 'Jessica Martinez',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Jessica',
-    university: 'Yale',
-    year: '2022',
-    content:
-      'Thrilled to announce that I won the National Innovation Award for my research on sustainable energy! This recognition means the world to me. Grateful to my professors, lab mates, and family for their unwavering support. Science for a better tomorrow! ⭐🔬',
-    likes: 678,
-    comments: 92,
-    time: '10h ago',
-    tag: 'achievement',
-  },
-  {
-    id: 6,
-    type: 'job',
-    author: 'Robert Taylor',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Robert',
-    university: 'Princeton',
-    year: '2017',
-    content:
-      "We're expanding! Looking for talented Product Managers to join our fintech startup. Remote-friendly, competitive salary, and equity options.",
-    likes: 198,
-    comments: 41,
-    time: '12h ago',
-    jobTitle: 'Product Manager',
-    company: 'FinTech Innovations',
-    location: 'Remote / NYC',
-  },
-  {
-    id: 7,
-    type: 'video',
-    author: 'Amanda Lee',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Amanda',
-    university: 'Cornell',
-    year: '2020',
-    content:
-      'My TEDx talk on sustainable business practices is now live! Would love to hear your thoughts.',
-    thumbnail:
-      'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=800&h=450&fit=crop',
-    videoUrl: 'video2.mp4',
-    likes: 523,
-    comments: 67,
-    time: '14h ago',
-  },
-  {
-    id: 8,
-    type: 'image',
-    author: 'Lisa Chang',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=LisaChang',
-    university: 'Columbia',
-    year: '2020',
-    content:
-      'Officially certified as a Google Cloud Architect! The exam was tough, but totally worth it. Next up: AWS Solutions Architect. The cloud journey continues! ☁️💪',
-    media:
-      'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=800&h=600&fit=crop',
-    likes: 423,
-    comments: 67,
-    time: '16h ago',
-    tag: 'achievement',
-  },
-  {
-    id: 9,
-    type: 'text',
-    author: 'Chris Anderson',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Chris',
-    university: 'Columbia',
-    year: '2019',
-    content:
-      "Reflecting on 5 years since graduation. The connections I've made through our alumni network have been invaluable. Grateful for this community! 💙",
-    likes: 421,
-    comments: 54,
-    time: '18h ago',
-  },
-  {
-    id: 10,
-    type: 'text',
-    author: 'Maria Garcia',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Maria',
-    university: 'Duke',
-    year: '2021',
-    content:
-      "Just joined Habitat for Humanity's board of directors! Excited to contribute to building homes and hope in our community. If you're passionate about affordable housing, let's connect! 🏠",
-    likes: 387,
-    comments: 48,
-    time: '18h ago',
-    tag: 'volunteering',
-  },
-  {
-    id: 11,
-    type: 'image',
-    author: 'Alex Thompson',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=AlexThompson',
-    university: 'Northwestern',
-    year: '2019',
-    content:
-      'From Junior Developer to Engineering Manager in 3 years! The secret? Investing in people skills as much as technical skills. Leadership is a journey, not a destination. Grateful for amazing mentors! 🌟',
-    media:
-      'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=600&fit=crop',
-    likes: 512,
-    comments: 76,
-    time: '20h ago',
-    tag: 'career-milestone',
-  },
-  {
-    id: 12,
-    type: 'announcement',
-    author: 'Career Services',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Career',
-    university: 'University',
-    year: 'Official',
-    content:
-      '📢 Virtual Career Fair next month! Connect with 100+ top employers. All alumni welcome. Registration opens Monday!',
-    likes: 712,
-    comments: 103,
-    time: '1d ago',
-  },
-  {
-    id: 13,
-    type: 'image',
-    author: 'Sophie Brown',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sophie',
-    university: 'Penn',
-    year: '2023',
-    content:
-      'Just opened my dream coffee shop! Thank you to all the alumni who supported me on this journey. Come visit! ☕️',
-    media:
-      'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800&h=600&fit=crop',
-    likes: 445,
-    comments: 71,
-    time: '1d ago',
-  },
-  {
-    id: 14,
-    type: 'job',
-    author: 'Lisa Thompson',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Lisa',
-    university: 'Brown',
-    year: '2018',
-    content:
-      'Our healthcare startup is hiring! Looking for passionate engineers who want to make a difference. Great mission, amazing team.',
-    likes: 312,
-    comments: 52,
-    time: '1d ago',
-    jobTitle: 'Full Stack Engineer',
-    company: 'HealthTech Solutions',
-    location: 'Boston, MA',
-  },
-  {
-    id: 15,
-    type: 'video',
-    author: 'Ryan Martinez',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Ryan',
-    university: 'UCLA',
-    year: '2020',
-    content:
-      'Behind the scenes of our latest film project! So grateful for the creative community here.',
-    thumbnail:
-      'https://images.unsplash.com/photo-1492619375914-88005aa9e8fb?w=800&h=450&fit=crop',
-    videoUrl: 'video3.mp4',
-    likes: 589,
-    comments: 84,
-    time: '2d ago',
-  },
-];
+interface SuggestedConnection {
+  id: string;
+  name: string;
+  title?: string;
+  university: string;
+  year: string;
+  image: string;
+  mutualConnections: number;
+}
 
-const mockAds: Ad[] = [
+// Transform API post to local format
+const transformPost = (apiPost: PostResponse): Post => ({
+  id: apiPost.id,
+  type: apiPost.type,
+  author: apiPost.author.name,
+  authorId: apiPost.author.id,
+  avatar: apiPost.author.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${apiPost.author.name}`,
+  authorTitle: apiPost.author.title,
+  authorCompany: apiPost.author.company,
+  university: 'Alumni', // Will be filled from user data
+  year: new Date(apiPost.created_at).getFullYear().toString(),
+  content: apiPost.content,
+  media: apiPost.media_url,
+  videoUrl: apiPost.video_url,
+  thumbnail: apiPost.thumbnail_url,
+  likes: apiPost.likes_count,
+  comments: apiPost.comments_count,
+  time: apiPost.time,
+  isLiked: apiPost.is_liked,
+  jobTitle: apiPost.job_title,
+  company: apiPost.company,
+  location: apiPost.location,
+  tag: apiPost.tag as Post['tag'],
+});
+
+// Transform API ad to local format  
+const transformAd = (apiAd: AdResponse): Ad => ({
+  id: apiAd.id,
+  image: apiAd.image || 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=400&fit=crop',
+  title: apiAd.title,
+  description: apiAd.description || '',
+  link: apiAd.link || '#',
+});
+
+// Transform connection suggestion to local format
+const transformSuggestion = (conn: ConnectionResponse): SuggestedConnection => ({
+  id: conn.user.id,
+  name: conn.user.name,
+  title: conn.user.job_title ? `${conn.user.job_title}${conn.user.company ? ` at ${conn.user.company}` : ''}` : undefined,
+  university: conn.user.university || 'Alumni',
+  year: conn.user.year || '',
+  image: conn.user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${conn.user.name}`,
+  mutualConnections: Math.floor(Math.random() * 15) + 1, // API doesn't have this yet, mock it
+});
+
+// Fallback ads when API doesn't return any (kept as backup)
+const fallbackAds: Ad[] = [
   {
     id: 'ad1',
     image:
@@ -375,10 +213,10 @@ const successStories = [
   },
 ];
 
-// Suggested Connections Data
-const suggestedConnections = [
+// Fallback Suggested Connections Data (used when API doesn't return data)
+const fallbackSuggestedConnections: SuggestedConnection[] = [
   {
-    id: 1,
+    id: 'fallback-1',
     name: 'Alex Rivera',
     title: 'Product Manager at Microsoft',
     university: 'MIT',
@@ -387,7 +225,7 @@ const suggestedConnections = [
     mutualConnections: 12,
   },
   {
-    id: 2,
+    id: 'fallback-2',
     name: 'Samantha Lee',
     title: 'UX Designer at Adobe',
     university: 'Stanford',
@@ -396,7 +234,7 @@ const suggestedConnections = [
     mutualConnections: 8,
   },
   {
-    id: 3,
+    id: 'fallback-3',
     name: 'James Wilson',
     title: 'Data Scientist at Meta',
     university: 'Berkeley',
@@ -405,7 +243,7 @@ const suggestedConnections = [
     mutualConnections: 15,
   },
   {
-    id: 4,
+    id: 'fallback-4',
     name: 'Nina Patel',
     title: 'Marketing Lead at Spotify',
     university: 'Harvard',
@@ -444,22 +282,29 @@ const Dashboard = () => {
   const { connections } = useConnections();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<{
-    id: number;
+    id: string;
     content: string;
     media?: { type: 'image' | 'video'; url: string };
     tag?: string;
   } | null>(null);
-  const [userPosts, setUserPosts] = useState<Post[]>([]);
+  
+  // API-fetched data
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [ads, setAds] = useState<Ad[]>(fallbackAds);
+  const [suggestedConnections, setSuggestedConnections] = useState<SuggestedConnection[]>(fallbackSuggestedConnections);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+  const [postsError, setPostsError] = useState<string | null>(null);
+  
   const [displayedPosts, setDisplayedPosts] = useState<(Post | Ad)[]>([]);
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
+  const [totalPosts, setTotalPosts] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
-  const [expandedComments, setExpandedComments] = useState<Set<number>>(
+  const [expandedComments, setExpandedComments] = useState<Set<string>>(
     new Set(),
   );
-  const [copiedPostId, setCopiedPostId] = useState<number | null>(null);
+  const [copiedPostId, setCopiedPostId] = useState<string | null>(null);
   const [dismissedEventReminder, setDismissedEventReminder] = useState(false);
   const [filters, setFilters] = useState<FilterOptions>({
     postTypes: [],
@@ -470,39 +315,141 @@ const Dashboard = () => {
   });
   const observerTarget = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
-  const POSTS_PER_PAGE = 6;
-  const nextPostId = useRef(1000); // Start user posts at 1000 to avoid conflicts
+  const POSTS_PER_PAGE = 10;
 
-  // Combine user posts with mock posts and apply filters
-  const getAllPosts = () => {
-    let posts = [...userPosts, ...allMockPosts];
+  // Fetch posts from API
+  const fetchPosts = useCallback(async (pageNum: number, append = false) => {
+    if (!user) return;
+    
+    setIsLoadingPosts(true);
+    setPostsError(null);
+    
+    try {
+      const response = await postsApi.getFeed({
+        page: pageNum,
+        page_size: POSTS_PER_PAGE,
+        type: filters.postTypes.length === 1 ? filters.postTypes[0] : undefined,
+        tag: filters.tags.length === 1 ? filters.tags[0] : undefined,
+        search: filters.searchText || undefined,
+      });
+      
+      const transformedPosts = response.posts.map(transformPost);
+      
+      if (append) {
+        setPosts(prev => [...prev, ...transformedPosts]);
+      } else {
+        setPosts(transformedPosts);
+      }
+      
+      setTotalPosts(response.total);
+      setHasMore(transformedPosts.length === POSTS_PER_PAGE && pageNum * POSTS_PER_PAGE < response.total);
+    } catch (err) {
+      console.error('Failed to fetch posts:', err);
+      setPostsError('Failed to load posts');
+    } finally {
+      setIsLoadingPosts(false);
+    }
+  }, [user, filters]);
 
-    // Apply filters
+  // Fetch suggested connections from API
+  const fetchSuggestions = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      const response = await connectionsApi.getSuggestions({ limit: 10 });
+      if (response.connections && response.connections.length > 0) {
+        setSuggestedConnections(response.connections.map(transformSuggestion));
+      }
+      // Keep fallback if API returns empty
+    } catch (err) {
+      console.error('Failed to fetch suggestions:', err);
+      // Keep fallback suggestions on error
+    }
+  }, [user]);
+
+  // Fetch ads from API
+  const fetchAds = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      const response = await universitiesApi.getAds(user.universityId);
+      if (response && response.length > 0) {
+        setAds(response.map(transformAd));
+      }
+      // Keep fallback if API returns empty
+    } catch (err) {
+      console.error('Failed to fetch ads:', err);
+      // Keep fallback ads on error
+    }
+  }, [user]);
+
+  // Initial data fetch
+  useEffect(() => {
+    if (user) {
+      fetchPosts(1);
+      fetchSuggestions();
+      fetchAds();
+    }
+  }, [user, fetchPosts, fetchSuggestions, fetchAds]);
+
+  // Auto-refresh feed every 60 seconds
+  useEffect(() => {
+    if (!user) return;
+    
+    const refreshInterval = setInterval(() => {
+      // Only refresh if we're on the first page and not loading
+      if (page === 1 && !isLoadingPosts) {
+        fetchPosts(1);
+      }
+    }, 60000); // 60 seconds
+    
+    return () => clearInterval(refreshInterval);
+  }, [user, page, isLoadingPosts, fetchPosts]);
+
+  // Update displayed posts when posts change
+  useEffect(() => {
+    // Insert ads every 8 posts
+    const postsWithAds: (Post | Ad)[] = [];
+    posts.forEach((post, idx) => {
+      postsWithAds.push(post);
+      if ((idx + 1) % 8 === 0 && ads.length > 0) {
+        const adIndex = Math.floor(idx / 8) % ads.length;
+        postsWithAds.push(ads[adIndex]);
+      }
+    });
+    setDisplayedPosts(postsWithAds);
+  }, [posts, ads]);
+
+  // Apply local filters to posts
+  const getFilteredPosts = useCallback(() => {
+    let filteredPosts = [...posts];
+
+    // Apply local filters
     if (filters.postTypes.length > 0) {
-      posts = posts.filter((post) => filters.postTypes.includes(post.type));
+      filteredPosts = filteredPosts.filter((post) => filters.postTypes.includes(post.type));
     }
 
     if (filters.tags.length > 0) {
-      posts = posts.filter(
+      filteredPosts = filteredPosts.filter(
         (post) => post.tag && filters.tags.includes(post.tag),
       );
     }
 
     if (filters.companies.length > 0) {
-      posts = posts.filter(
+      filteredPosts = filteredPosts.filter(
         (post) => post.company && filters.companies.includes(post.company),
       );
     }
 
     if (filters.universities.length > 0) {
-      posts = posts.filter((post) =>
+      filteredPosts = filteredPosts.filter((post) =>
         filters.universities.includes(post.university),
       );
     }
 
     if (filters.searchText) {
       const searchLower = filters.searchText.toLowerCase();
-      posts = posts.filter(
+      filteredPosts = filteredPosts.filter(
         (post) =>
           post.content.toLowerCase().includes(searchLower) ||
           post.author.toLowerCase().includes(searchLower) ||
@@ -511,8 +458,8 @@ const Dashboard = () => {
       );
     }
 
-    return posts.sort((a, b) => b.id - a.id);
-  };
+    return filteredPosts;
+  }, [posts, filters]);
 
   // Handle search result selection
   const handleSearchResultSelect = (result: any) => {
@@ -564,113 +511,71 @@ const Dashboard = () => {
     setShowSearchDropdown(searchQuery.trim().length > 0);
   }, [searchQuery]);
 
-  // Load more posts
-  const loadMorePosts = () => {
-    const allPosts = getAllPosts();
-    const startIdx = page * POSTS_PER_PAGE;
-    const endIdx = startIdx + POSTS_PER_PAGE;
-    const newPosts = allPosts.slice(startIdx, endIdx);
+  // Load more posts from API
+  const loadMorePosts = useCallback(() => {
+    if (isLoadingPosts || !hasMore) return;
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchPosts(nextPage, true);
+  }, [isLoadingPosts, hasMore, page, fetchPosts]);
 
-    if (newPosts.length === 0) {
-      setHasMore(false);
-      return;
-    }
-
-    // Insert ads every 8 posts (less intrusive)
-    const postsWithAds: (Post | Ad)[] = [];
-    newPosts.forEach((post, idx) => {
-      postsWithAds.push(post);
-      // Add ad after every 8 posts (less intrusive)
-      if ((startIdx + idx + 1) % 8 === 0) {
-        const adIndex = Math.floor((startIdx + idx) / 8) % mockAds.length;
-        postsWithAds.push(mockAds[adIndex]);
-      }
-    });
-
-    setDisplayedPosts((prev) => [...prev, ...postsWithAds]);
-    setPage((prev) => prev + 1);
-  };
-
-  // Create or edit post
-  const handlePostSubmit = (
+  // Create or edit post via API
+  const handlePostSubmit = async (
     content: string,
     media: { type: 'image' | 'video'; url: string } | null,
     tag?: string,
   ) => {
-    if (editingPost) {
-      // Edit existing post
-      setUserPosts((prev) =>
-        prev.map((post) =>
-          post.id === editingPost.id
-            ? {
-                ...post,
-                content,
-                type: media?.type || 'text',
-                media: media?.type === 'image' ? media.url : undefined,
-                thumbnail: media?.type === 'video' ? media.url : undefined,
-                videoUrl: media?.type === 'video' ? media.url : undefined,
-                tag: tag as Post['tag'],
-              }
-            : post,
-        ),
-      );
+    try {
+      if (editingPost) {
+        // Edit existing post via API
+        const response = await postsApi.updatePost(editingPost.id, {
+          content,
+          media_url: media?.type === 'image' ? media.url : undefined,
+          video_url: media?.type === 'video' ? media.url : undefined,
+          thumbnail_url: media?.type === 'video' ? media.url : undefined,
+          tag,
+        });
 
-      // Also update in displayed posts
-      setDisplayedPosts((prev) =>
-        prev.map((item) => {
-          if ('id' in item && item.id === editingPost.id) {
-            return {
-              ...item,
-              content,
-              type: media?.type || 'text',
-              media: media?.type === 'image' ? media.url : undefined,
-              thumbnail: media?.type === 'video' ? media.url : undefined,
-              videoUrl: media?.type === 'video' ? media.url : undefined,
-              tag: tag as Post['tag'],
-            } as Post;
-          }
-          return item;
-        }),
-      );
+        // Update local state
+        const updatedPost = transformPost(response);
+        setPosts((prev) =>
+          prev.map((post) =>
+            post.id === editingPost.id ? updatedPost : post
+          ),
+        );
 
-      toast({
-        title: 'Post updated!',
-        description: 'Your post has been updated successfully',
-      });
-      setEditingPost(null);
-    } else {
-      // Create new post
-      const newPost: Post = {
-        id: nextPostId.current++,
-        type: media?.type || 'text',
-        author: user?.name || 'You',
-        avatar: user?.avatar || '',
-        university: user?.university || '',
-        year: new Date().getFullYear().toString(),
-        content,
-        media: media?.type === 'image' ? media.url : undefined,
-        thumbnail: media?.type === 'video' ? media.url : undefined,
-        videoUrl: media?.type === 'video' ? media.url : undefined,
-        likes: 0,
-        comments: 0,
-        time: 'Just now',
-        tag: tag as Post['tag'],
-      };
-      setUserPosts((prev) => [newPost, ...prev]);
-      toast({
-        title: 'Post created!',
-        description: 'Your post has been shared with the network',
-      });
+        toast({
+          title: 'Post updated!',
+          description: 'Your post has been updated successfully',
+        });
+        setEditingPost(null);
+      } else {
+        // Create new post via API
+        const response = await postsApi.createPost({
+          type: media?.type || 'text',
+          content,
+          media_url: media?.type === 'image' ? media.url : undefined,
+          video_url: media?.type === 'video' ? media.url : undefined,
+          thumbnail_url: media?.type === 'video' ? media.url : undefined,
+          tag,
+        });
 
-      // Reset displayed posts to show new post
-      setDisplayedPosts([]);
-      setPage(0);
-      setHasMore(true);
+        // Add new post to the beginning
+        const newPost = transformPost(response);
+        setPosts((prev) => [newPost, ...prev]);
+
+        toast({
+          title: 'Post created!',
+          description: 'Your post has been shared with the network',
+        });
+      }
+    } catch (err) {
+      handleApiError(err, editingPost ? 'Failed to update post' : 'Failed to create post');
     }
   };
 
-  // Delete post with confirmation
-  const handleDeletePost = (postId: number, e?: React.MouseEvent) => {
+  // Delete post with confirmation via API
+  const handleDeletePost = async (postId: string, e?: React.MouseEvent) => {
     if (e) {
       e.stopPropagation();
     }
@@ -681,19 +586,31 @@ const Dashboard = () => {
     );
 
     if (confirmed) {
-      setUserPosts((prev) => prev.filter((post) => post.id !== postId));
-      setDisplayedPosts((prev) =>
-        prev.filter((item) => !('id' in item && item.id === postId)),
-      );
-      toast({
-        title: 'Post deleted',
-        description: 'Your post has been removed',
-      });
+      try {
+        await postsApi.deletePost(postId);
+        setPosts((prev) => prev.filter((post) => post.id !== postId));
+        toast({
+          title: 'Post deleted',
+          description: 'Your post has been removed',
+        });
+      } catch (err) {
+        handleApiError(err, 'Failed to delete post');
+      }
     }
   };
 
-  // Edit post
+  // Edit post - check if user owns the post
   const handleEditPost = (post: Post) => {
+    // Only allow editing own posts
+    if (post.authorId !== user?.id) {
+      toast({
+        title: 'Cannot edit',
+        description: 'You can only edit your own posts',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     setEditingPost({
       id: post.id,
       content: post.content,
@@ -766,26 +683,26 @@ const Dashboard = () => {
     return result;
   };
 
-  // Handle filter changes - reset feed
+  // Handle filter changes - refetch posts
   const handleFilterChange = (newFilters: FilterOptions) => {
     setFilters(newFilters);
-    setDisplayedPosts([]);
-    setPage(0);
+    setPosts([]);
+    setPage(1);
     setHasMore(true);
   };
 
-  // Initial load
+  // Refetch when filters change
   useEffect(() => {
-    if (displayedPosts.length === 0 && page === 0) {
-      loadMorePosts();
+    if (user && page === 1) {
+      fetchPosts(1, false);
     }
-  }, [userPosts, filters]);
+  }, [filters, user]);
 
   // Infinite scroll observer
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore) {
+        if (entries[0].isIntersecting && hasMore && !isLoadingPosts) {
           loadMorePosts();
         }
       },
@@ -797,21 +714,34 @@ const Dashboard = () => {
     }
 
     return () => observer.disconnect();
-  }, [hasMore, page, userPosts, searchQuery]);
+  }, [hasMore, isLoadingPosts, loadMorePosts]);
 
-  const toggleLike = (postId: number) => {
-    setLikedPosts((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(postId)) {
-        newSet.delete(postId);
+  const toggleLike = async (postId: string, currentlyLiked: boolean) => {
+    try {
+      if (currentlyLiked) {
+        await postsApi.unlikePost(postId);
       } else {
-        newSet.add(postId);
+        await postsApi.likePost(postId);
       }
-      return newSet;
-    });
+      
+      // Update local state
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.id === postId
+            ? {
+                ...post,
+                isLiked: !currentlyLiked,
+                likes: currentlyLiked ? Math.max(0, post.likes - 1) : post.likes + 1,
+              }
+            : post,
+        ),
+      );
+    } catch (err) {
+      handleApiError(err, 'Failed to update like');
+    }
   };
 
-  const toggleComments = (postId: number) => {
+  const toggleComments = (postId: string) => {
     setExpandedComments((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(postId)) {
@@ -823,19 +753,9 @@ const Dashboard = () => {
     });
   };
 
-  const handleCommentAdded = (postId: number) => {
-    // Update comment count in displayed posts
-    setDisplayedPosts((prev) =>
-      prev.map((item) => {
-        if ('id' in item && item.id === postId && 'comments' in item) {
-          return { ...item, comments: item.comments + 1 } as Post;
-        }
-        return item;
-      }),
-    );
-
-    // Update in user posts if applicable
-    setUserPosts((prev) =>
+  const handleCommentAdded = (postId: string) => {
+    // Update comment count in posts
+    setPosts((prev) =>
       prev.map((post) =>
         post.id === postId ? { ...post, comments: post.comments + 1 } : post,
       ),
@@ -948,9 +868,9 @@ const Dashboard = () => {
   };
 
   const renderPost = (post: Post) => {
-    const isLiked = likedPosts.has(post.id);
-    const displayLikes = isLiked ? post.likes + 1 : post.likes;
-    const isUserPost = userPosts.some((p) => p.id === post.id);
+    const isLiked = post.isLiked;
+    const displayLikes = post.likes;
+    const isUserPost = post.authorId === user?.id;
     const showComments = expandedComments.has(post.id);
     const isCopied = copiedPostId === post.id;
     const tagInfo = getTagInfo(post.tag);
@@ -1099,20 +1019,31 @@ const Dashboard = () => {
           </div>
         )}
 
-        {post.type === 'video' && post.thumbnail && (
-          <div className="relative w-full group cursor-pointer bg-muted">
-            <img
-              src={post.thumbnail}
-              alt="Video thumbnail"
-              onError={handleImageError}
-              className="w-full object-cover max-h-[450px]"
-              loading="lazy"
-            />
-            <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/40 transition-colors">
-              <div className="w-20 h-20 rounded-full bg-white/95 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-                <Play className="w-10 h-10 text-primary ml-1" />
+        {post.type === 'video' && (post.videoUrl || post.thumbnail) && (
+          <div className="w-full bg-muted">
+            {post.videoUrl ? (
+              <VideoPlayer
+                src={post.videoUrl}
+                poster={post.thumbnail}
+                className="w-full max-h-[450px]"
+                muted={true}
+              />
+            ) : post.thumbnail && (
+              <div className="relative w-full group cursor-pointer">
+                <img
+                  src={post.thumbnail}
+                  alt="Video thumbnail"
+                  onError={handleImageError}
+                  className="w-full object-cover max-h-[450px]"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/40 transition-colors">
+                  <div className="w-20 h-20 rounded-full bg-white/95 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                    <Play className="w-10 h-10 text-primary ml-1" />
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -1132,7 +1063,7 @@ const Dashboard = () => {
               }`}
               onClick={(e) => {
                 e.stopPropagation();
-                toggleLike(post.id);
+                toggleLike(post.id, isLiked);
               }}
             >
               <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
@@ -1381,7 +1312,7 @@ const Dashboard = () => {
                 {showSearchDropdown && (
                   <GlobalSearchDropdown
                     query={searchQuery}
-                    posts={getAllPosts()}
+                    posts={getFilteredPosts()}
                     events={events}
                     connections={connections}
                     onSelect={handleSearchResultSelect}
@@ -1682,6 +1613,24 @@ const Dashboard = () => {
                 )}
 
                 {/* Posts Feed */}
+                {/* Initial Loading State */}
+                {isLoadingPosts && displayedPosts.length === 0 && (
+                  <Card className="p-8 text-center">
+                    <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+                    <p className="text-muted-foreground">Loading posts...</p>
+                  </Card>
+                )}
+
+                {/* Error State */}
+                {postsError && displayedPosts.length === 0 && (
+                  <Card className="p-6 text-center">
+                    <p className="text-destructive mb-4">{postsError}</p>
+                    <Button onClick={() => fetchPosts(1)} variant="outline">
+                      Try Again
+                    </Button>
+                  </Card>
+                )}
+
                 {/* Posts Feed with Ads */}
                 {displayedPosts.map((item) => {
                   if ('image' in item && 'title' in item) {
@@ -1690,14 +1639,29 @@ const Dashboard = () => {
                   return renderPost(item as Post);
                 })}
 
-                {/* Loading Indicator */}
+                {/* Loading More Indicator */}
                 {hasMore && displayedPosts.length > 0 && (
                   <div
                     ref={observerTarget}
                     className="py-6 sm:py-8 text-center"
                   >
-                    <div className="inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                    {isLoadingPosts ? (
+                      <div className="inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <p className="text-muted-foreground text-sm">Scroll for more</p>
+                    )}
                   </div>
+                )}
+
+                {/* Empty State */}
+                {!isLoadingPosts && !postsError && displayedPosts.length === 0 && (
+                  <Card className="p-6 text-center">
+                    <p className="text-muted-foreground">No posts to show yet. Be the first to share something!</p>
+                    <Button onClick={() => setIsModalOpen(true)} className="mt-4">
+                      <PlusCircle className="w-4 h-4 mr-2" />
+                      Create Post
+                    </Button>
+                  </Card>
                 )}
 
                 {/* End of Feed */}

@@ -1,15 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSidebar } from '@/contexts/SidebarContext';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useConnections } from '@/contexts/ConnectionsContext';
+import { usersApi } from '@/api/users';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
 import ProfileEditModal from '@/components/ProfileEditModal';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Briefcase, Calendar, Mail, Linkedin, Edit, MessageCircle, ArrowLeft, Plus, Phone, Globe, Camera, UserCheck, UserPlus, Clock, Menu, Award, TrendingUp } from 'lucide-react';
+import { MapPin, Briefcase, Calendar, Mail, Linkedin, Edit, MessageCircle, ArrowLeft, Plus, Phone, Globe, Camera, UserCheck, UserPlus, Clock, Menu, Award, TrendingUp, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
 
@@ -45,41 +46,88 @@ const Profile = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { isConnected, hasPendingRequest, sendConnectionRequest } = useConnections();
+  const { userId: paramUserId } = useParams();
   
   // Get user data from navigation state (when viewing other user's profile)
   const viewingUserData = location.state?.userData as UserData | undefined;
-  const isOwnProfile = !viewingUserData;
+  const isOwnProfile = !viewingUserData && !paramUserId;
   
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [profileCompletion, setProfileCompletion] = useState(0);
   const [additionalProfileData, setAdditionalProfileData] = useState<any>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   
   // Initialize profileData state first (before using it in useEffect)
   const [profileData, setProfileData] = useState<ProfileData>({
     name: user?.name || '',
-    bio: 'Passionate about technology and building meaningful connections. Always eager to help fellow alumni and students navigate their career paths.',
-    major: user?.major || 'Computer Science',
-    graduationYear: user?.graduationYear || '2020',
-    jobTitle: 'Software Engineer',
-    company: 'Tech Company',
-    location: 'San Francisco, CA',
-    linkedin: 'https://linkedin.com/in/yourprofile',
+    bio: '',
+    major: user?.major || '',
+    graduationYear: user?.graduationYear || '',
+    jobTitle: '',
+    company: '',
+    location: '',
+    linkedin: '',
     email: user?.email || '',
-    phone: '+1 (555) 000-0000',
-    website: 'https://yourwebsite.com',
+    phone: '',
+    website: '',
     avatar: user?.avatar || '',
     banner: '',
   });
 
+  // Fetch profile data from API
+  const fetchProfile = useCallback(async () => {
+    setIsLoadingProfile(true);
+    try {
+      let data;
+      if (isOwnProfile) {
+        data = await usersApi.getMyProfile();
+      } else if (paramUserId) {
+        data = await usersApi.getUser(paramUserId);
+      }
+      
+      if (data) {
+        setProfileData({
+          name: data.name || '',
+          bio: data.profile?.bio || '',
+          major: data.major || '',
+          graduationYear: data.graduation_year?.toString() || '',
+          jobTitle: data.profile?.job_title || '',
+          company: data.profile?.company || '',
+          location: data.profile?.location || '',
+          linkedin: data.profile?.linkedin || '',
+          email: data.email || '',
+          phone: data.profile?.phone || '',
+          website: data.profile?.website || '',
+          avatar: data.avatar || '',
+          banner: data.profile?.banner || '',
+        });
+        
+        // Store skills in additional data
+        if (data.profile?.skills) {
+          setAdditionalProfileData({
+            skills: data.profile.skills,
+            connectionsCount: data.profile.connections_count || 0,
+            postsCount: data.profile.posts_count || 0,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch profile:', error);
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  }, [isOwnProfile, paramUserId]);
+
+  useEffect(() => {
+    if (user && (isOwnProfile || paramUserId)) {
+      fetchProfile();
+    }
+  }, [user, isOwnProfile, paramUserId, fetchProfile]);
+
   // Calculate profile completion percentage
   useEffect(() => {
     if (isOwnProfile && user) {
-      const stored = localStorage.getItem(`profile_data_${user.id}`);
-      if (stored) {
-        setAdditionalProfileData(JSON.parse(stored));
-      }
-
-      // Calculate completion
+      // Calculate completion based on actual profile data
       let completed = 0;
       const total = 10;
 
@@ -92,32 +140,29 @@ const Profile = () => {
       if (profileData.jobTitle) completed++;
       if (profileData.company) completed++;
       if (profileData.location) completed++;
-      if (stored) {
-        const data = JSON.parse(stored);
-        if (data.skills && data.skills.length > 0) completed++;
-      }
+      if (additionalProfileData?.skills && additionalProfileData.skills.length > 0) completed++;
 
       setProfileCompletion(Math.round((completed / total) * 100));
     }
-  }, [user, isOwnProfile, profileData]);
+  }, [user, isOwnProfile, profileData, additionalProfileData]);
   
   // Check connection status
-  const connected = !isOwnProfile && isConnected(viewingUserData?.name || '');
-  const requestPending = !isOwnProfile && hasPendingRequest(viewingUserData?.name || '');
+  const connected = !isOwnProfile && isConnected(viewingUserData?.name || profileData.name || '');
+  const requestPending = !isOwnProfile && hasPendingRequest(viewingUserData?.name || profileData.name || '');
 
-  // Update profile data when user changes
+  // Update profile data when user changes (fallback for own profile if API not available)
   useEffect(() => {
-    if (user && isOwnProfile) {
+    if (user && isOwnProfile && !isLoadingProfile) {
       setProfileData(prev => ({
         ...prev,
-        name: user.name || prev.name,
-        email: user.email || prev.email,
-        avatar: user.avatar || prev.avatar,
-        major: user.major || prev.major,
-        graduationYear: user.graduationYear || prev.graduationYear,
+        name: prev.name || user.name || '',
+        email: prev.email || user.email || '',
+        avatar: prev.avatar || user.avatar || '',
+        major: prev.major || user.major || '',
+        graduationYear: prev.graduationYear || user.graduationYear || '',
       }));
     }
-  }, [user, isOwnProfile]);
+  }, [user, isOwnProfile, isLoadingProfile]);
   
   // Use either logged-in user data or the data passed from feed
   const displayUser = isOwnProfile ? profileData : {

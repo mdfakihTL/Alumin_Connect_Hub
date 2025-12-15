@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { usersApi } from '@/api/users';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,12 +45,22 @@ const Login = () => {
       } else if (storedUser.role === 'admin') {
         navigate('/admin');
       } else {
-        // Alumni - check if profile completion needed
-        const profileCompleted = localStorage.getItem(`profile_completion_${storedUser.id}`);
-        if (!profileCompleted) {
-          navigate('/profile-completion');
-        } else {
-          navigate('/dashboard');
+        // Alumni - check if first login (profile completion needed)
+        try {
+          const loginStatus = await usersApi.checkFirstLogin();
+          if (loginStatus.first_login && !loginStatus.is_profile_complete) {
+            navigate('/profile-completion');
+          } else {
+            navigate('/dashboard');
+          }
+        } catch {
+          // Fallback to localStorage check if API fails
+          const profileCompleted = localStorage.getItem(`profile_completion_${storedUser.id}`);
+          if (!profileCompleted) {
+            navigate('/profile-completion');
+          } else {
+            navigate('/dashboard');
+          }
         }
       }
       

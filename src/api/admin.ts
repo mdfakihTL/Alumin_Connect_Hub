@@ -173,5 +173,55 @@ export const adminApi = {
   }): Promise<MessageResponse> => {
     return apiClient.put<MessageResponse>('/admin/branding', data);
   },
+
+  // Create admin user
+  createAdmin: async (data: { email: string; password: string; name: string }): Promise<UserResponse> => {
+    return apiClient.post<UserResponse>('/admin/admins', data);
+  },
+
+  // Posts Management with advanced filters
+  getPosts: async (params?: {
+    page?: number;
+    page_size?: number;
+    type?: string;
+    tag?: string;
+    search?: string;
+    is_mentor?: boolean;
+    user_id?: string;
+    date_from?: string;
+    date_to?: string;
+  }): Promise<{
+    posts: Array<{
+      id: string;
+      author: {
+        id: string;
+        name: string;
+        avatar: string;
+        title?: string;
+        company?: string;
+        is_mentor: boolean;
+      };
+      type: string;
+      content: string;
+      media_url?: string;
+      video_url?: string;
+      thumbnail_url?: string;
+      tag?: string;
+      likes_count: number;
+      comments_count: number;
+      is_active: boolean;
+      created_at: string;
+    }>;
+    total: number;
+    page: number;
+    page_size: number;
+  }> => {
+    return apiClient.get('/admin/posts', params);
+  },
+
+  // Delete any post in university
+  deletePost: async (postId: string): Promise<MessageResponse> => {
+    return apiClient.delete<MessageResponse>(`/admin/posts/${postId}`);
+  },
 };
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { usersApi } from '@/api/users';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,39 +29,70 @@ const ProfileCompletion = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 3;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // Convert skills string to array
     const skillsArray = formData.skills.split(',').map(s => s.trim()).filter(s => s);
 
-    // Update profile with completion data
-    updateProfile({
-      bio: formData.bio,
-      isMentor: formData.isAvailableForMentorship,
-    });
+    try {
+      // Update profile in backend
+      await usersApi.updateMyProfile({
+        bio: formData.bio,
+        job_title: formData.currentPosition,
+        company: formData.company,
+        location: formData.location,
+      });
 
-    // Store additional profile data in localStorage
-    const profileData = {
-      currentPosition: formData.currentPosition,
-      company: formData.company,
-      location: formData.location,
-      skills: skillsArray,
-      isAvailableForMentorship: formData.isAvailableForMentorship,
-      profileCompleted: true,
-      completedDate: new Date().toISOString(),
-    };
+      // Update mentor status if applicable
+      if (formData.isAvailableForMentorship) {
+        await usersApi.toggleMentor();
+      }
 
-    localStorage.setItem(`profile_data_${user?.id}`, JSON.stringify(profileData));
-    localStorage.setItem(`profile_completion_${user?.id}`, 'true');
+      // Mark profile as complete in backend
+      await usersApi.completeProfile();
 
-    toast({
-      title: 'Profile completed!',
-      description: 'Welcome to AlumniHub! Your profile is now set up.',
-    });
+      // Update local auth state
+      updateProfile({
+        bio: formData.bio,
+        isMentor: formData.isAvailableForMentorship,
+      });
 
-    navigate('/dashboard');
+      // Store additional profile data in localStorage (for UI purposes)
+      const profileData = {
+        currentPosition: formData.currentPosition,
+        company: formData.company,
+        location: formData.location,
+        skills: skillsArray,
+        isAvailableForMentorship: formData.isAvailableForMentorship,
+        profileCompleted: true,
+        completedDate: new Date().toISOString(),
+      };
+
+      localStorage.setItem(`profile_data_${user?.id}`, JSON.stringify(profileData));
+      localStorage.setItem(`profile_completion_${user?.id}`, 'true');
+
+      toast({
+        title: 'Profile completed!',
+        description: 'Welcome to AlumniHub! Your profile is now set up.',
+      });
+
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Failed to complete profile:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save profile. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
+    try {
+      // Acknowledge first login so prompt doesn't show again
+      await usersApi.acknowledgeFirstLogin();
+    } catch (error) {
+      console.error('Failed to acknowledge first login:', error);
+    }
     localStorage.setItem(`profile_completion_${user?.id}`, 'skipped');
     navigate('/dashboard');
   };

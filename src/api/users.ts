@@ -69,5 +69,39 @@ export const usersApi = {
   updateAvatar: async (avatarUrl: string): Promise<UserResponse> => {
     return apiClient.put<UserResponse>('/users/me/avatar', { avatar: avatarUrl });
   },
+
+  // Update banner
+  updateBanner: async (bannerUrl: string): Promise<MessageResponse> => {
+    return apiClient.put<MessageResponse>('/users/me/banner', { banner: bannerUrl });
+  },
+
+  // Mark profile as complete
+  completeProfile: async (): Promise<MessageResponse> => {
+    return apiClient.post<MessageResponse>('/users/me/complete-profile');
+  },
+
+  // Check first login status
+  checkFirstLogin: async (): Promise<{ first_login: boolean; is_profile_complete: boolean }> => {
+    return apiClient.get('/users/me/first-login');
+  },
+
+  // Acknowledge first login (to not show prompt again)
+  acknowledgeFirstLogin: async (): Promise<MessageResponse> => {
+    return apiClient.post<MessageResponse>('/users/me/acknowledge-first-login');
+  },
+
+  // Get alumni locations for world map (university filtered)
+  getAlumniLocations: async (): Promise<{
+    locations: Array<{
+      location: string;
+      count: number;
+      lat: number;
+      lng: number;
+      alumni: Array<{ id: string; name: string; avatar: string; job_title?: string; company?: string }>;
+    }>;
+    total: number;
+  }> => {
+    return apiClient.get('/users/locations');
+  },
 };
 
