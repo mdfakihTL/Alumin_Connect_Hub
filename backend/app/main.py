@@ -59,105 +59,16 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS - CRITICAL: Must be BEFORE router registration
-# Build comprehensive list of allowed origins
-allowed_origins = [
-    "https://alumni-portal-hazel-tau.vercel.app",  # Your Vercel deployment
-    "https://alumni-portal-git-main-bhanushri-chintas-projects.vercel.app",  # Preview deployments
-    "http://localhost:5173",  # Local development (Vite default)
-    "http://localhost:3000",  # Local development (Create React App)
-    "http://localhost:8080",  # Local development (Vite custom port)
-    "http://127.0.0.1:8080",  # Local development (Vite custom port)
-    "http://127.0.0.1:5173",  # Local development
-    "http://localhost:5174",  # Alternative Vite port
-]
-
-# Also check environment variable for additional origins
-cors_origins_env = os.getenv("CORS_ORIGINS", "")
-if cors_origins_env:
-    env_origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
-    allowed_origins.extend(env_origins)
-
-# Remove duplicates
-allowed_origins = list(set(allowed_origins))
-
-# Custom CORS middleware to handle dynamic origins (Vercel previews, localhost variations)
-from starlette.middleware.cors import CORSMiddleware as StarletteCORSMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
-from starlette.types import ASGIApp, Receive, Send, Scope
-import re
-
-def is_origin_allowed(origin: str) -> bool:
-    """Check if origin is allowed, including wildcard patterns and dynamic matching."""
-    if not origin:
-        return False
-    
-    # Check exact matches first
-    if origin in allowed_origins:
-        return True
-    
-    # Allow all Vercel preview deployments (*.vercel.app)
-    if origin.endswith(".vercel.app"):
-        return True
-    
-    # Allow localhost with any port
-    if re.match(r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$", origin):
-        return True
-    
-    # Check wildcard patterns in allowed_origins
-    for allowed in allowed_origins:
-        if "*" in allowed:
-            pattern = allowed.replace(".", r"\.").replace("*", ".*")
-            if re.match(f"^{pattern}$", origin):
-                return True
-    
-    return False
-
-class FlexibleCORSMiddleware:
-    """Custom CORS middleware that handles dynamic origins including Vercel previews."""
-    
-    def __init__(self, app: ASGIApp):
-        self.app = app
-    
-    async def __call__(self, scope: Scope, receive: Receive, send: Send):
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-        
-        request = Request(scope, receive)
-        origin = request.headers.get("origin")
-        
-        # Handle preflight OPTIONS requests
-        if request.method == "OPTIONS":
-            response = Response()
-            if origin and is_origin_allowed(origin):
-                response.headers["Access-Control-Allow-Origin"] = origin
-                response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD"
-                response.headers["Access-Control-Allow-Headers"] = "*"
-                response.headers["Access-Control-Allow-Credentials"] = "true"
-                response.headers["Access-Control-Max-Age"] = "3600"
-                response.headers["Vary"] = "Origin"
-            response.status_code = 200
-            await response(scope, receive, send)
-            return
-        
-        # Handle regular requests - wrap send to add CORS headers
-        async def send_wrapper(message):
-            if message["type"] == "http.response.start":
-                headers = dict(message.get("headers", []))
-                if origin and is_origin_allowed(origin):
-                    headers[b"access-control-allow-origin"] = origin.encode()
-                    headers[b"access-control-allow-credentials"] = b"true"
-                    headers[b"access-control-expose-headers"] = b"*"
-                    headers[b"vary"] = b"Origin"
-                message["headers"] = list(headers.items())
-            await send(message)
-        
-        await self.app(scope, receive, send_wrapper)
-
-# Use the flexible CORS middleware
-app.add_middleware(FlexibleCORSMiddleware)
+# Configure CORS - Allow all origins for simplicity (can be restricted in production)
+# Using FastAPI's built-in CORSMiddleware which is well-tested and reliable
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins - simpler and more reliable
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
+    expose_headers=["*"],
+)
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
