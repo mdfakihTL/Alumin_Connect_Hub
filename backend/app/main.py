@@ -64,8 +64,10 @@ app = FastAPI(
 allowed_origins = [
     "https://alumni-portal-hazel-tau.vercel.app",  # Your Vercel deployment
     "https://alumni-portal-git-main-bhanushri-chintas-projects.vercel.app",  # Preview deployments
-    "http://localhost:5173",  # Local development
-    "http://localhost:3000",  # Local development
+    "http://localhost:5173",  # Local development (Vite default)
+    "http://localhost:3000",  # Local development (Create React App)
+    "http://localhost:8080",  # Local development (Vite custom port)
+    "http://127.0.0.1:8080",  # Local development (Vite custom port)
 ]
 
 # Also check environment variable for additional origins

@@ -19,6 +19,6 @@ services:
       - key: S3_BUCKET_NAME
         value: ios-developer-tledch
       - key: CORS_ORIGINS
-        value: https://alumni-portal-hazel-tau.vercel.app,https://alumni-portal-git-main-bhanushri-chintas-projects.vercel.app
+        value: https://alumni-portal-hazel-tau.vercel.app,https://alumni-portal-git-main-bhanushri-chintas-projects.vercel.app,http://localhost:8080,http://localhost:5173,http://localhost:3000
       - key: AUTO_SEED
         value: "true"
