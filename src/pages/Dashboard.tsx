@@ -859,9 +859,12 @@ const Dashboard = () => {
   useEffect(() => {
     // Always load posts when component mounts (component remounts on navigation)
     const loadInitialPosts = async () => {
-      // Reset loaded flag when filters change to force reload
-      if (postsLoaded && Object.keys(filters).length === 0) {
-        return; // Skip if already loaded and no filters
+      // Reset postsLoaded when filters change to force reload
+      if (Object.keys(filters).some(key => {
+        const filterValue = filters[key as keyof FilterOptions];
+        return Array.isArray(filterValue) ? filterValue.length > 0 : Boolean(filterValue);
+      })) {
+        setPostsLoaded(false); // Reset to force reload when filters change
       }
       
       try {
