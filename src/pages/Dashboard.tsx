@@ -651,16 +651,18 @@ const Dashboard = () => {
       };
       
       try {
-        const newPost = await apiClient.createPost(postData);
+        await apiClient.createPost(postData);
         toast({
           title: 'Post created!',
           description: 'Your post has been shared successfully',
         });
-        // Refresh posts without page reload
-        setPage(1);
-        await loadPosts(1, true);
+        // Close modal and refresh posts without page reload
         setIsModalOpen(false);
         setEditingPost(null);
+        // Reset to page 0 to trigger useEffect to reload posts
+        setPage(0);
+        setDisplayedPosts([]);
+        // The useEffect will automatically reload posts when displayedPosts is empty
       } catch (error: any) {
         toast({
           title: 'Error',
