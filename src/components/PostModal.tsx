@@ -259,6 +259,7 @@ const PostModal = ({ open, onClose, onSubmit, editPost }: PostModalProps) => {
           {/* Action Buttons */}
           <div className="flex gap-3 pt-3">
             <Button
+              type="button"
               variant="outline"
               onClick={handleClose}
               className="flex-1 h-11 font-medium"
@@ -266,6 +267,7 @@ const PostModal = ({ open, onClose, onSubmit, editPost }: PostModalProps) => {
               Cancel
             </Button>
             <Button
+              type="button"
               onClick={handleSubmit}
               disabled={(!content.trim() && !selectedMedia) || uploading}
               className="flex-1 h-11 font-medium"
