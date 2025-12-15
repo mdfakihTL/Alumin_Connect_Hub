@@ -308,15 +308,15 @@ async def list_admins(
     
     admin_responses = []
     for admin in admins:
-        university = db.query(University).filter(University.id == admin.university_id).first()
+        university = db.query(University).filter(University.id == admin.university_id).first() if admin.university_id else None
         admin_responses.append(AdminUserResponse(
             id=admin.id,
             name=admin.name,
             email=admin.email,
             avatar=admin.avatar,
             university_id=admin.university_id,
-            university_name=university.name if university else "Unknown",
-            is_active=admin.is_active,
+            university_name=university.name if university else "Unassigned",
+            is_active=admin.is_active if admin.is_active is not None else True,
             created_at=admin.created_at
         ))
     

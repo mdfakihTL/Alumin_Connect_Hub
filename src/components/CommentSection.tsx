@@ -2,8 +2,10 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, MoreVertical, Edit, Trash2, Check, X } from 'lucide-react';
+import { Send, MoreVertical, Edit, Trash2, Check, X, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { apiClient } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,112 +16,106 @@ import {
 interface Comment {
   id: string;
   author: string;
+  authorId?: string;
   avatar: string;
   content: string;
   time: string;
 }
 
 interface CommentSectionProps {
-  postId: number;
+  postId: string;
   initialComments?: Comment[];
   onCommentAdded: () => void;
 }
 
-const mockComments: Comment[] = [
-  {
-    id: '1',
-    author: 'Sarah Johnson',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah',
-    content: 'This is amazing! Congratulations! 🎉',
-    time: '2h ago',
-  },
-  {
-    id: '2',
-    author: 'Michael Chen',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Michael',
-    content: 'Great work! Keep it up!',
-    time: '3h ago',
-  },
-  {
-    id: '3',
-    author: 'Emily Rodriguez',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Emily',
-    content: 'Inspiring! Thanks for sharing.',
-    time: '5h ago',
-  },
-  {
-    id: '4',
-    author: 'David Kim',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=David',
-    content: 'This is exactly what I needed to see today. Thank you!',
-    time: '6h ago',
-  },
-  {
-    id: '5',
-    author: 'Lisa Thompson',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Lisa',
-    content: 'Would love to hear more about this. Can we connect?',
-    time: '8h ago',
-  },
-  {
-    id: '6',
-    author: 'James Wilson',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=James',
-    content: 'Absolutely brilliant! Keep sharing such valuable content.',
-    time: '10h ago',
-  },
-  {
-    id: '7',
-    author: 'Sophie Brown',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sophie',
-    content: 'This resonates with me so much. Great insights!',
-    time: '12h ago',
-  },
-  {
-    id: '8',
-    author: 'Ryan Martinez',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Ryan',
-    content: 'Fantastic post! Looking forward to more content like this.',
-    time: '14h ago',
-  },
-  {
-    id: '9',
-    author: 'Amanda Lee',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Amanda',
-    content: 'Very informative and well articulated. Thanks for sharing!',
-    time: '16h ago',
-  },
-  {
-    id: '10',
-    author: 'Chris Anderson',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Chris',
-    content: 'I completely agree with your perspective on this topic.',
-    time: '18h ago',
-  },
-];
-
 const CommentSection = ({ postId, initialComments, onCommentAdded }: CommentSectionProps) => {
   const { user } = useAuth();
-  const [comments, setComments] = useState<Comment[]>(initialComments || mockComments);
+  const { toast } = useToast();
+  const [comments, setComments] = useState<Comment[]>(initialComments || []);
   const [newComment, setNewComment] = useState('');
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const handleAddComment = () => {
-    if (!newComment.trim()) return;
-
-    const comment: Comment = {
-      id: Date.now().toString(),
-      author: user?.name || 'You',
-      avatar: user?.avatar || '',
-      content: newComment.trim(),
-      time: 'Just now',
+  // Fetch comments from API
+  useEffect(() => {
+    const fetchComments = async () => {
+      setIsLoading(true);
+      try {
+        const apiComments = await apiClient.getComments(postId.toString());
+        const formattedComments: Comment[] = apiComments.map((c: any) => ({
+          id: c.id,
+          author: c.author?.name || 'Unknown',
+          authorId: c.author?.id,
+          avatar: c.author?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.author?.name || 'user'}`,
+          content: c.content,
+          time: c.time || formatTime(c.created_at),
+        }));
+        setComments(formattedComments);
+      } catch (error) {
+        console.error('Failed to fetch comments:', error);
+        // Keep empty array if API fails
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    setComments(prev => [comment, ...prev]);
-    setNewComment('');
-    onCommentAdded();
+    fetchComments();
+  }, [postId]);
+
+  // Format time helper
+  const formatTime = (dateString: string) => {
+    if (!dateString) return 'Just now';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim() || isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
+      const apiComment = await apiClient.createComment(postId.toString(), newComment.trim());
+      
+      const comment: Comment = {
+        id: apiComment.id,
+        author: apiComment.author?.name || user?.name || 'You',
+        authorId: apiComment.author?.id || user?.id,
+        avatar: apiComment.author?.avatar || user?.avatar || '',
+        content: apiComment.content,
+        time: 'Just now',
+      };
+
+      setComments(prev => [comment, ...prev]);
+      setNewComment('');
+      onCommentAdded();
+      
+      toast({
+        title: 'Comment added',
+        description: 'Your comment has been posted',
+      });
+    } catch (error: any) {
+      console.error('Failed to add comment:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to add comment',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -154,16 +150,33 @@ const CommentSection = ({ postId, initialComments, onCommentAdded }: CommentSect
     setEditContent('');
   };
 
-  const handleDeleteComment = (commentId: string) => {
+  const handleDeleteComment = async (commentId: string) => {
     const confirmed = window.confirm('Are you sure you want to delete this comment?');
     if (confirmed) {
-      setComments(prev => prev.filter(c => c.id !== commentId));
-      // Note: Would decrease comment count in parent, but keeping simple for now
+      try {
+        await apiClient.deleteComment(postId.toString(), commentId);
+        setComments(prev => prev.filter(c => c.id !== commentId));
+        toast({
+          title: 'Comment deleted',
+          description: 'Your comment has been removed',
+        });
+      } catch (error: any) {
+        console.error('Failed to delete comment:', error);
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to delete comment',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
-  const isUserComment = (author: string) => {
-    return author === user?.name || author === 'You';
+  const isUserComment = (comment: Comment) => {
+    // Check by author ID if available, otherwise by name
+    if (comment.authorId && user?.id) {
+      return comment.authorId === user.id;
+    }
+    return comment.author === user?.name || comment.author === 'You';
   };
 
   return (
@@ -171,9 +184,18 @@ const CommentSection = ({ postId, initialComments, onCommentAdded }: CommentSect
       {/* Comments List */}
       <div className="max-h-[500px] overflow-y-auto">
         <div className="p-4 space-y-4">
-          {comments.slice(0, 5).map((comment) => {
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : comments.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">
+              No comments yet. Be the first to comment!
+            </div>
+          ) : null}
+          {!isLoading && comments.slice(0, 5).map((comment) => {
             const isEditing = editingCommentId === comment.id;
-            const isOwn = isUserComment(comment.author);
+            const isOwn = isUserComment(comment);
 
             return (
               <div key={comment.id} className="flex gap-3 group">
@@ -264,7 +286,7 @@ const CommentSection = ({ postId, initialComments, onCommentAdded }: CommentSect
               <div className="space-y-4 pr-3">
                 {comments.slice(5).map((comment) => {
                     const isEditing = editingCommentId === comment.id;
-                    const isOwn = isUserComment(comment.author);
+                    const isOwn = isUserComment(comment);
 
                     return (
                       <div key={comment.id} className="flex gap-3 group">
@@ -371,10 +393,14 @@ const CommentSection = ({ postId, initialComments, onCommentAdded }: CommentSect
             <Button
               size="icon"
               onClick={handleAddComment}
-              disabled={!newComment.trim()}
+              disabled={!newComment.trim() || isSubmitting}
               className="h-9 w-9 sm:h-10 sm:w-10 flex-shrink-0"
             >
-              <Send className="w-4 h-4" />
+              {isSubmitting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
             </Button>
           </div>
         </div>

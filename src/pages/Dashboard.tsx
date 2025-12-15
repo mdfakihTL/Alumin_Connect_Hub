@@ -57,7 +57,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 interface Post {
-  id: number;
+  id: string;
   type: 'text' | 'image' | 'video' | 'job' | 'announcement';
   author: string;
   avatar: string;
@@ -455,13 +455,13 @@ const Dashboard = () => {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [postsLoaded, setPostsLoaded] = useState(false); // Track if posts have been loaded
-  const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
-  const [expandedComments, setExpandedComments] = useState<Set<number>>(
+  const [expandedComments, setExpandedComments] = useState<Set<string>>(
     new Set(),
   );
-  const [copiedPostId, setCopiedPostId] = useState<number | null>(null);
+  const [copiedPostId, setCopiedPostId] = useState<string | null>(null);
   const [dismissedEventReminder, setDismissedEventReminder] = useState(false);
   const [filters, setFilters] = useState<FilterOptions>({
     postTypes: [],
@@ -602,46 +602,67 @@ const Dashboard = () => {
     // Prevent any potential page refresh by ensuring this is async and handled
     try {
       if (editingPost) {
-      // Edit existing post
-      setUserPosts((prev) =>
-        prev.map((post) =>
-          post.id === editingPost.id
-            ? {
-                ...post,
-                content,
-                type: media?.type || 'text',
-                media: media?.type === 'image' ? media.url : undefined,
-                thumbnail: media?.type === 'video' ? media.url : undefined,
-                videoUrl: media?.type === 'video' ? media.url : undefined,
-                tag: tag as Post['tag'],
+        // Edit existing post via API
+        try {
+          const updateData = {
+            content,
+            media_url: media?.type === 'image' ? media.url : undefined,
+            video_url: media?.type === 'video' ? media.url : undefined,
+            thumbnail_url: media?.type === 'video' ? media.url : undefined,
+            tag: tag,
+          };
+          
+          await apiClient.updatePost(editingPost.id.toString(), updateData);
+          
+          // Update local state
+          setUserPosts((prev) =>
+            prev.map((post) =>
+              post.id === editingPost.id
+                ? {
+                    ...post,
+                    content,
+                    type: media?.type || 'text',
+                    media: media?.type === 'image' ? media.url : undefined,
+                    thumbnail: media?.type === 'video' ? media.url : undefined,
+                    videoUrl: media?.type === 'video' ? media.url : undefined,
+                    tag: tag as Post['tag'],
+                  }
+                : post,
+            ),
+          );
+
+          // Also update in displayed posts
+          setDisplayedPosts((prev) =>
+            prev.map((item) => {
+              if ('id' in item && item.id === editingPost.id) {
+                return {
+                  ...item,
+                  content,
+                  type: media?.type || 'text',
+                  media: media?.type === 'image' ? media.url : undefined,
+                  thumbnail: media?.type === 'video' ? media.url : undefined,
+                  videoUrl: media?.type === 'video' ? media.url : undefined,
+                  tag: tag as Post['tag'],
+                } as Post;
               }
-            : post,
-        ),
-      );
+              return item;
+            }),
+          );
 
-      // Also update in displayed posts
-      setDisplayedPosts((prev) =>
-        prev.map((item) => {
-          if ('id' in item && item.id === editingPost.id) {
-            return {
-              ...item,
-              content,
-              type: media?.type || 'text',
-              media: media?.type === 'image' ? media.url : undefined,
-              thumbnail: media?.type === 'video' ? media.url : undefined,
-              videoUrl: media?.type === 'video' ? media.url : undefined,
-              tag: tag as Post['tag'],
-            } as Post;
-          }
-          return item;
-        }),
-      );
-
-      toast({
-        title: 'Post updated!',
-        description: 'Your post has been updated successfully',
-      });
-        setEditingPost(null);
+          toast({
+            title: 'Post updated!',
+            description: 'Your post has been updated successfully',
+          });
+          setIsModalOpen(false);
+          setEditingPost(null);
+        } catch (error: any) {
+          console.error('Error updating post:', error);
+          toast({
+            title: 'Error',
+            description: error.message || 'Failed to update post',
+            variant: 'destructive',
+          });
+        }
       } else {
         // Create new post via API
         const postData = {
@@ -681,7 +702,7 @@ const Dashboard = () => {
           
           // Create formatted post from API response
           const formattedNewPost: Post = {
-            id: parseInt(newPost.id) || Date.now(),
+            id: newPost.id,
             type: (newPost.type || 'text') as Post['type'],
             author: newPost.author?.name || user?.name || 'You',
             avatar: newPost.author?.avatar || user?.avatar || '',
@@ -758,7 +779,7 @@ const Dashboard = () => {
   };
 
   // Delete post with confirmation
-  const handleDeletePost = async (postId: number, e?: React.MouseEvent) => {
+  const handleDeletePost = async (postId: string, e?: React.MouseEvent) => {
     if (e) {
       e.stopPropagation();
     }
@@ -914,7 +935,7 @@ const Dashboard = () => {
         };
         
         const formattedPosts: Post[] = apiPosts.map((p: any) => ({
-          id: parseInt(p.id) || Date.now() + Math.random(),
+          id: p.id,
           type: p.type || 'text',
           author: p.author?.name || 'Unknown',
           avatar: p.author?.avatar || '',
@@ -932,6 +953,15 @@ const Dashboard = () => {
           company: p.company,
           location: p.location,
         }));
+        
+        // Set initial liked posts from API response
+        const likedPostIds = new Set<string>();
+        apiPosts.forEach((p: any) => {
+          if (p.is_liked) {
+            likedPostIds.add(p.id);
+          }
+        });
+        setLikedPosts(likedPostIds);
         
         // Add ads every 8 posts
         const postsWithAds: (Post | Ad)[] = [];
@@ -981,7 +1011,10 @@ const Dashboard = () => {
     return () => observer.disconnect();
   }, [hasMore, page, userPosts, searchQuery]);
 
-  const toggleLike = (postId: number) => {
+  const toggleLike = async (postId: string) => {
+    const isCurrentlyLiked = likedPosts.has(postId);
+    
+    // Optimistically update UI
     setLikedPosts((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(postId)) {
@@ -991,9 +1024,53 @@ const Dashboard = () => {
       }
       return newSet;
     });
+
+    try {
+      if (isCurrentlyLiked) {
+        const response = await apiClient.unlikePost(postId);
+        // Update the post's like count from server response
+        setDisplayedPosts((prev) =>
+          prev.map((item) => {
+            if ('id' in item && item.id === postId) {
+              return { ...item, likes: response.likes_count } as Post;
+            }
+            return item;
+          })
+        );
+      } else {
+        const response = await apiClient.likePost(postId);
+        // Update the post's like count from server response
+        setDisplayedPosts((prev) =>
+          prev.map((item) => {
+            if ('id' in item && item.id === postId) {
+              return { ...item, likes: response.likes_count } as Post;
+            }
+            return item;
+          })
+        );
+      }
+    } catch (error: any) {
+      // Revert optimistic update on error
+      setLikedPosts((prev) => {
+        const newSet = new Set(prev);
+        if (isCurrentlyLiked) {
+          newSet.add(postId); // Re-add if we were trying to unlike
+        } else {
+          newSet.delete(postId); // Remove if we were trying to like
+        }
+        return newSet;
+      });
+      
+      console.error('Failed to toggle like:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update like',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const toggleComments = (postId: number) => {
+  const toggleComments = (postId: string) => {
     setExpandedComments((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(postId)) {
@@ -1005,7 +1082,7 @@ const Dashboard = () => {
     });
   };
 
-  const handleCommentAdded = (postId: number) => {
+  const handleCommentAdded = (postId: string) => {
     // Update comment count in displayed posts
     setDisplayedPosts((prev) =>
       prev.map((item) => {
@@ -1130,8 +1207,10 @@ const Dashboard = () => {
   };
 
   const renderPost = (post: Post) => {
+    // Check if post was liked (either from local state or from API)
     const isLiked = likedPosts.has(post.id);
-    const displayLikes = isLiked ? post.likes + 1 : post.likes;
+    // Don't add 1 to likes - the API returns the actual count
+    const displayLikes = post.likes;
     const isUserPost = userPosts.some((p) => p.id === post.id);
     const showComments = expandedComments.has(post.id);
     const isCopied = copiedPostId === post.id;

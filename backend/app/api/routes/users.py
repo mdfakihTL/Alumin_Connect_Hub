@@ -242,8 +242,8 @@ async def search_users(
             graduation_year=user.graduation_year,
             major=user.major,
             role=user.role.value,
-            is_mentor=user.is_mentor,
-            is_active=user.is_active,
+            is_mentor=user.is_mentor if user.is_mentor is not None else False,
+            is_active=user.is_active if user.is_active is not None else True,
             created_at=user.created_at
         )
         for user in users

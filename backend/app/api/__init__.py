@@ -12,7 +12,7 @@ api_router = APIRouter()
 # Include all route modules
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 api_router.include_router(users.router, prefix="/users", tags=["Users"])
-api_router.include_router(posts.router, prefix="/posts", tags=["Posts"])
+api_router.include_router(posts.router, prefix="/feed/posts", tags=["Posts"])
 api_router.include_router(events.router, prefix="/events", tags=["Events"])
 api_router.include_router(groups.router, prefix="/groups", tags=["Groups"])
 api_router.include_router(connections.router, prefix="/connections", tags=["Connections"])

@@ -14,18 +14,60 @@ from app.schemas.post import (
     PostCreate, PostUpdate, PostResponse, PostListResponse,
     CommentCreate, CommentResponse, AuthorResponse
 )
-from app.services.s3_service import s3_service
 
 router = APIRouter()
+
+
+@router.get("/test")
+async def test_posts_endpoint():
+    """Test endpoint to verify router is working"""
+    return {"message": "Posts router is working!", "status": "ok"}
+
+
+@router.get("/test-db")
+async def test_posts_db(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Test endpoint with auth and db"""
+    try:
+        post_count = db.query(Post).count()
+        return {
+            "message": "Posts router with DB is working!",
+            "user_id": current_user.id,
+            "post_count": post_count
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
 
 
 def format_time(dt: datetime) -> str:
     """Format datetime as relative time."""
     if not dt:
         return ""
-    now = datetime.utcnow()
-    diff = now - dt
+    # Handle timezone-aware datetimes
+    from datetime import timezone
+    try:
+        if dt.tzinfo is not None:
+            # dt is timezone-aware, use timezone-aware now
+            now = datetime.now(timezone.utc)
+            # Ensure dt is also in UTC for comparison
+            if dt.tzinfo != timezone.utc:
+                dt = dt.astimezone(timezone.utc)
+        else:
+            # dt is timezone-naive, use naive now
+            now = datetime.utcnow()
+        diff = now - dt
+    except Exception:
+        # Fallback to simple string format if comparison fails
+        return dt.strftime("%b %d, %Y") if dt else ""
     
+    if diff.total_seconds() < 0:
+        return "Just now"
     if diff.total_seconds() < 60:
         return "Just now"
     elif diff.total_seconds() < 3600:
@@ -43,9 +85,11 @@ def format_time(dt: datetime) -> str:
 def get_author_response(user: User, db: Session) -> AuthorResponse:
     """Get author response from user."""
     profile = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
+    # Ensure name is not None (required field)
+    user_name = user.name if user.name is not None else "Unknown User"
     return AuthorResponse(
         id=user.id,
-        name=user.name,
+        name=user_name,
         avatar=user.avatar,
         title=profile.job_title if profile else None,
         company=profile.company if profile else None
@@ -66,70 +110,99 @@ async def list_posts(
     """
     List posts with pagination and filtering.
     """
-    query = db.query(Post).filter(Post.is_active == True)
-    
-    if university_id:
-        query = query.filter(Post.university_id == university_id)
-    else:
-        # By default, show posts from user's university
-        if current_user.university_id:
+    try:
+        # Start with base query
+        query = db.query(Post).filter(Post.is_active == True)
+        
+        # Apply university filter
+        if university_id:
+            # If university_id is explicitly provided, use it
+            query = query.filter(Post.university_id == university_id)
+        elif current_user.university_id:
+            # By default, show posts from user's university (only if user has university_id)
             query = query.filter(Post.university_id == current_user.university_id)
-    
-    if post_type:
-        try:
-            query = query.filter(Post.type == PostType(post_type))
-        except ValueError:
-            pass
-    
-    if tag:
-        query = query.filter(Post.tag == tag)
-    
-    if author_id:
-        query = query.filter(Post.author_id == author_id)
-    
-    query = query.order_by(Post.created_at.desc())
-    
-    total = query.count()
-    posts = query.offset((page - 1) * page_size).limit(page_size).all()
-    
-    post_responses = []
-    for post in posts:
-        author = db.query(User).filter(User.id == post.author_id).first()
-        if not author:
-            continue
+        # If user has no university_id and no university_id param, show all posts (no filter)
         
-        # Check if current user liked this post
-        is_liked = db.query(Like).filter(
-            Like.post_id == post.id,
-            Like.user_id == current_user.id
-        ).first() is not None
+        if post_type:
+            try:
+                query = query.filter(Post.type == PostType(post_type))
+            except ValueError:
+                pass
         
-        post_responses.append(PostResponse(
-            id=post.id,
-            author=get_author_response(author, db),
-            type=post.type.value,
-            content=post.content,
-            media_url=post.media_url,
-            video_url=post.video_url,
-            thumbnail_url=post.thumbnail_url,
-            tag=post.tag,
-            job_title=post.job_title,
-            company=post.company,
-            location=post.location,
-            likes_count=post.likes_count,
-            comments_count=post.comments_count,
-            shares_count=post.shares_count,
-            is_liked=is_liked,
-            time=format_time(post.created_at),
-            created_at=post.created_at
-        ))
-    
-    return PostListResponse(
-        posts=post_responses,
-        total=total,
-        page=page,
-        page_size=page_size
-    )
+        if tag:
+            query = query.filter(Post.tag == tag)
+        
+        if author_id:
+            query = query.filter(Post.author_id == author_id)
+        
+        query = query.order_by(Post.created_at.desc())
+        
+        total = query.count()
+        print(f"DEBUG: Total posts found: {total}")
+        posts = query.offset((page - 1) * page_size).limit(page_size).all()
+        print(f"DEBUG: Posts retrieved: {len(posts)}")
+        
+        post_responses = []
+        for post in posts:
+            print(f"DEBUG: Processing post {post.id}")
+            author = db.query(User).filter(User.id == post.author_id).first()
+            if not author:
+                continue
+            
+            # Check if current user liked this post
+            is_liked = db.query(Like).filter(
+                Like.post_id == post.id,
+                Like.user_id == current_user.id
+            ).first() is not None
+            
+            try:
+                # Get post type value safely
+                post_type_value = post.type.value if post.type else "text"
+                
+                # Ensure content is not None (required field)
+                post_content = post.content if post.content is not None else ""
+                
+                post_responses.append(PostResponse(
+                    id=post.id,
+                    author=get_author_response(author, db),
+                    type=post_type_value,
+                    content=post_content,
+                    media_url=post.media_url,
+                    video_url=post.video_url,
+                    thumbnail_url=post.thumbnail_url,
+                    tag=post.tag,
+                    job_title=post.job_title,
+                    company=post.company,
+                    location=post.location,
+                    likes_count=post.likes_count or 0,
+                    comments_count=post.comments_count or 0,
+                    shares_count=post.shares_count or 0,
+                    is_liked=is_liked,
+                    time=format_time(post.created_at),
+                    created_at=post.created_at
+                ))
+            except Exception as post_error:
+                print(f"DEBUG: Error creating PostResponse for post {post.id}: {post_error}")
+                import traceback
+                traceback.print_exc()
+                # Skip this post if we can't create response
+                continue
+        
+        return PostListResponse(
+            posts=post_responses,
+            total=total,
+            page=page,
+            page_size=page_size
+        )
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"ERROR in list_posts: {str(e)}")
+        print(error_details)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error listing posts: {str(e)}"
+        )
 
 
 @router.post("/", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
@@ -142,53 +215,71 @@ async def create_post(
     Create a new post.
     """
     try:
-        post_type = PostType(post_data.type)
-    except ValueError:
-        post_type = PostType.TEXT
-    
-    post = Post(
-        author_id=current_user.id,
-        university_id=current_user.university_id,
-        type=post_type,
-        content=post_data.content,
-        media_url=post_data.media_url,
-        video_url=post_data.video_url,
-        thumbnail_url=post_data.thumbnail_url,
-        tag=post_data.tag,
-        job_title=post_data.job_title,
-        company=post_data.company,
-        location=post_data.location
-    )
-    
-    db.add(post)
-    
-    # Update user's post count
-    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
-    if profile:
-        profile.posts_count += 1
-    
-    db.commit()
-    db.refresh(post)
-    
-    return PostResponse(
-        id=post.id,
-        author=get_author_response(current_user, db),
-        type=post.type.value,
-        content=post.content,
-        media_url=post.media_url,
-        video_url=post.video_url,
-        thumbnail_url=post.thumbnail_url,
-        tag=post.tag,
-        job_title=post.job_title,
-        company=post.company,
-        location=post.location,
-        likes_count=0,
-        comments_count=0,
-        shares_count=0,
-        is_liked=False,
-        time="Just now",
-        created_at=post.created_at
-    )
+        # Validate that user has a university_id
+        if not current_user.university_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User must be assigned to a university to create posts"
+            )
+        
+        try:
+            post_type = PostType(post_data.type)
+        except ValueError:
+            post_type = PostType.TEXT
+        
+        post = Post(
+            author_id=current_user.id,
+            university_id=current_user.university_id,
+            type=post_type,
+            content=post_data.content,
+            media_url=post_data.media_url,
+            video_url=post_data.video_url,
+            thumbnail_url=post_data.thumbnail_url,
+            tag=post_data.tag,
+            job_title=post_data.job_title,
+            company=post_data.company,
+            location=post_data.location
+        )
+        
+        db.add(post)
+        
+        # Update user's post count
+        profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+        if profile:
+            profile.posts_count += 1
+        
+        db.commit()
+        db.refresh(post)
+        
+        return PostResponse(
+            id=post.id,
+            author=get_author_response(current_user, db),
+            type=post.type.value,
+            content=post.content,
+            media_url=post.media_url,
+            video_url=post.video_url,
+            thumbnail_url=post.thumbnail_url,
+            tag=post.tag,
+            job_title=post.job_title,
+            company=post.company,
+            location=post.location,
+            likes_count=0,
+            comments_count=0,
+            shares_count=0,
+            is_liked=False,
+            time="Just now",
+            created_at=post.created_at
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.core.logging import logger
+        logger.error(f"Error creating post: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating post: {str(e)}"
+        )
 
 
 @router.post("/upload-media", response_model=dict)
@@ -388,6 +479,14 @@ async def update_post(
     db.commit()
     db.refresh(post)
     
+    # Get the post's author (not current_user, though they should be the same due to auth check)
+    author = db.query(User).filter(User.id == post.author_id).first()
+    if not author:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Post author not found"
+        )
+    
     is_liked = db.query(Like).filter(
         Like.post_id == post.id,
         Like.user_id == current_user.id
@@ -395,7 +494,7 @@ async def update_post(
     
     return PostResponse(
         id=post.id,
-        author=get_author_response(current_user, db),
+        author=get_author_response(author, db),
         type=post.type.value,
         content=post.content,
         media_url=post.media_url,

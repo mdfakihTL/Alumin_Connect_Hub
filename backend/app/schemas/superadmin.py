@@ -77,8 +77,8 @@ class AdminUserResponse(BaseModel):
     name: str
     email: str
     avatar: Optional[str] = None
-    university_id: str
-    university_name: str
+    university_id: Optional[str] = None
+    university_name: str = "Unassigned"
     is_active: bool = True
     created_at: datetime
 

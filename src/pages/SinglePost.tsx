@@ -1,5 +1,5 @@
-import { useLocation, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { useSidebar } from '@/contexts/SidebarContext';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
@@ -23,9 +23,11 @@ import {
   Copy,
   Check,
   Menu,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { apiClient } from '@/lib/api';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,18 +39,111 @@ import {
 const SinglePost = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { postId } = useParams();
   const { user } = useAuth();
   const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
   const { toast } = useToast();
 
-  const post = location.state?.post;
-
+  const [post, setPost] = useState<any>(location.state?.post || null);
+  const [isLoading, setIsLoading] = useState(!location.state?.post);
   const [isLiked, setIsLiked] = useState(false);
-  const [likes, setLikes] = useState(post?.likes || 0);
-  const [comments, setComments] = useState(post?.comments || 0);
+  const [likes, setLikes] = useState(0);
+  const [comments, setComments] = useState(0);
   const [copiedPostId, setCopiedPostId] = useState<number | null>(null);
-  // Always show comments in single post view
   const showComments = true;
+
+  // Fetch post from API if not passed through state
+  useEffect(() => {
+    const fetchPost = async () => {
+      if (post) {
+        // Post from state - initialize likes/comments
+        setLikes(post.likes || 0);
+        setComments(post.comments || 0);
+        return;
+      }
+      
+      if (!postId) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        const apiPost = await apiClient.getPost(postId);
+        
+        // Format the post
+        const formattedPost = {
+          id: apiPost.id,
+          type: apiPost.type || 'text',
+          author: apiPost.author?.name || 'Unknown',
+          avatar: apiPost.author?.avatar || '',
+          university: apiPost.author?.title || '',
+          year: '',
+          content: apiPost.content || '',
+          media: apiPost.media_url || undefined,
+          videoUrl: apiPost.video_url || undefined,
+          thumbnail: apiPost.thumbnail_url || undefined,
+          likes: apiPost.likes_count || 0,
+          comments: apiPost.comments_count || 0,
+          time: apiPost.time || '',
+          tag: apiPost.tag,
+          jobTitle: apiPost.job_title,
+          company: apiPost.company,
+          location: apiPost.location,
+        };
+        
+        setPost(formattedPost);
+        setLikes(formattedPost.likes);
+        setComments(formattedPost.comments);
+        setIsLiked(apiPost.is_liked || false);
+      } catch (error) {
+        console.error('Failed to fetch post:', error);
+        setPost(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPost();
+  }, [postId, location.state?.post]);
+
+  // Handle like toggle with API
+  const handleLikeToggle = async () => {
+    if (!post) return;
+    
+    const wasLiked = isLiked;
+    
+    // Optimistic update
+    setIsLiked(!isLiked);
+    setLikes(wasLiked ? likes - 1 : likes + 1);
+
+    try {
+      if (wasLiked) {
+        const response = await apiClient.unlikePost(post.id.toString());
+        setLikes(response.likes_count);
+      } else {
+        const response = await apiClient.likePost(post.id.toString());
+        setLikes(response.likes_count);
+      }
+    } catch (error: any) {
+      // Revert on error
+      setIsLiked(wasLiked);
+      setLikes(wasLiked ? likes : likes - 1);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update like',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (!post) {
     return (
@@ -331,10 +426,7 @@ const SinglePost = () => {
                         ? 'text-red-500 hover:text-red-600'
                         : 'hover:text-red-600 dark:hover:text-red-400'
                     }`}
-                    onClick={() => {
-                      setIsLiked(!isLiked);
-                      setLikes(isLiked ? likes - 1 : likes + 1);
-                    }}
+                    onClick={handleLikeToggle}
                   >
                     <Heart
                       className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`}

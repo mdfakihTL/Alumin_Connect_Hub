@@ -430,7 +430,7 @@ class ApiClient {
     });
   }
 
-  // Post endpoints
+  // Post endpoints - using /feed/posts path
   async getPosts(page: number = 1, pageSize: number = 20, filters?: {
     university_id?: string;
     post_type?: string;
@@ -469,7 +469,29 @@ class ApiClient {
     if (filters?.tag) params.append('tag', filters.tag);
     if (filters?.author_id) params.append('author_id', filters.author_id);
     
-    return this.request(`/posts/?${params.toString()}`);
+    return this.request(`/feed/posts?${params.toString()}`);
+  }
+
+  async getPost(postId: string): Promise<{
+    id: string;
+    author: { id: string; name: string; avatar?: string; title?: string; company?: string };
+    type: string;
+    content: string;
+    media_url?: string;
+    video_url?: string;
+    thumbnail_url?: string;
+    tag?: string;
+    job_title?: string;
+    company?: string;
+    location?: string;
+    likes_count: number;
+    comments_count: number;
+    shares_count: number;
+    is_liked: boolean;
+    time: string;
+    created_at: string;
+  }> {
+    return this.request(`/feed/posts/${postId}`);
   }
 
   async createPost(data: {
@@ -483,8 +505,24 @@ class ApiClient {
     company?: string;
     location?: string;
   }): Promise<any> {
-    return this.request('/posts', {
+    return this.request('/feed/posts', {
       method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updatePost(postId: string, data: {
+    content?: string;
+    media_url?: string;
+    video_url?: string;
+    thumbnail_url?: string;
+    tag?: string;
+    job_title?: string;
+    company?: string;
+    location?: string;
+  }): Promise<any> {
+    return this.request(`/feed/posts/${postId}`, {
+      method: 'PUT',
       body: JSON.stringify(data),
     });
   }
@@ -494,7 +532,7 @@ class ApiClient {
     formData.append('file', file);
     formData.append('media_type', mediaType);
 
-    const url = `${this.baseURL}/posts/upload-media`;
+    const url = `${this.baseURL}/feed/posts/upload-media`;
     const headers: HeadersInit = {};
     
     if (this.token) {
@@ -525,7 +563,50 @@ class ApiClient {
   }
 
   async deletePost(postId: string): Promise<{ message: string; success: boolean }> {
-    return this.request(`/posts/${postId}`, {
+    return this.request(`/feed/posts/${postId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Like/Unlike posts
+  async likePost(postId: string): Promise<{ likes_count: number; is_liked: boolean }> {
+    return this.request(`/feed/posts/${postId}/like`, {
+      method: 'POST',
+    });
+  }
+
+  async unlikePost(postId: string): Promise<{ likes_count: number; is_liked: boolean }> {
+    return this.request(`/feed/posts/${postId}/like`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Comment endpoints
+  async getComments(postId: string): Promise<Array<{
+    id: string;
+    content: string;
+    author: { id: string; name: string; avatar?: string };
+    created_at: string;
+    time: string;
+  }>> {
+    return this.request(`/feed/posts/${postId}/comments`);
+  }
+
+  async createComment(postId: string, content: string): Promise<{
+    id: string;
+    content: string;
+    author: { id: string; name: string; avatar?: string };
+    created_at: string;
+    time: string;
+  }> {
+    return this.request(`/feed/posts/${postId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  async deleteComment(postId: string, commentId: string): Promise<{ message: string }> {
+    return this.request(`/feed/posts/${postId}/comments/${commentId}`, {
       method: 'DELETE',
     });
   }

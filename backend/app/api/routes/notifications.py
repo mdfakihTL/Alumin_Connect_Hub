@@ -18,7 +18,12 @@ def format_time(dt: datetime) -> str:
     """Format datetime as relative time."""
     if not dt:
         return ""
-    now = datetime.utcnow()
+    # Handle timezone-aware datetimes
+    from datetime import timezone
+    if dt.tzinfo is not None:
+        now = datetime.now(timezone.utc)
+    else:
+        now = datetime.utcnow()
     diff = now - dt
     
     if diff.total_seconds() < 60:
