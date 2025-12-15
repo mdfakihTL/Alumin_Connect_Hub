@@ -457,7 +457,7 @@ class ApiClient {
     if (filters?.tag) params.append('tag', filters.tag);
     if (filters?.author_id) params.append('author_id', filters.author_id);
     
-    return this.request(`/posts?${params.toString()}`);
+    return this.request(`/posts/?${params.toString()}`);
   }
 
   async createPost(data: {

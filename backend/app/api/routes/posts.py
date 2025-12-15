@@ -42,13 +42,24 @@ def format_time(dt: datetime) -> str:
 
 def get_author_response(user: User, db: Session) -> AuthorResponse:
     """Get author response from user."""
+    from app.models.university import University
     profile = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
+    
+    # Get university name if user has university_id
+    university_name = None
+    if user.university_id:
+        university = db.query(University).filter(University.id == user.university_id).first()
+        if university:
+            university_name = university.name
+    
     return AuthorResponse(
         id=user.id,
         name=user.name,
         avatar=user.avatar,
         title=profile.job_title if profile else None,
-        company=profile.company if profile else None
+        company=profile.company if profile else None,
+        university=university_name,
+        graduation_year=user.graduation_year
     )
 
 
