@@ -1,12 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form, Response
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import datetime
+import os
+import base64
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.user import User, UserProfile
 from app.models.post import Post, Comment, Like, PostType
+from app.models.media import Media
 from app.schemas.post import (
     PostCreate, PostUpdate, PostResponse, PostListResponse,
     CommentCreate, CommentResponse, AuthorResponse
@@ -192,12 +195,15 @@ async def create_post(
 async def upload_media(
     file: UploadFile = File(...),
     media_type: str = Form(...),  # "image" or "video"
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
 ):
     """
-    Upload media file (image or video) to S3 and return URL.
+    Upload media file (image or video) - TEMPORARY: Stores in database instead of S3
     """
     from app.core.logging import logger
+    from app.models.media import Media
+    import base64
     
     if media_type not in ["image", "video"]:
         raise HTTPException(
@@ -212,55 +218,46 @@ async def upload_media(
             detail="File must have a filename"
         )
     
-    # Check file size (max 50MB for images, 500MB for videos)
-    # Read file to check size, then reset for S3 upload
+    # Read file content
     file_content = await file.read()
     file_size = len(file_content)
-    max_size = 50 * 1024 * 1024 if media_type == "image" else 500 * 1024 * 1024
+    
+    # Check file size (max 10MB for images, 50MB for videos when storing in DB)
+    max_size = 10 * 1024 * 1024 if media_type == "image" else 50 * 1024 * 1024
     
     if file_size > max_size:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File too large. Max size: {max_size / (1024*1024):.0f}MB"
+            detail=f"File too large. Max size: {max_size / (1024*1024):.0f}MB (DB storage limit)"
         )
     
-    # Create a new UploadFile from the content we already read
-    # This avoids reading the file twice
-    from io import BytesIO
+    logger.info(f"Uploading {media_type} to database: {file.filename} ({file_size} bytes) by user {current_user.id}")
     
-    file_obj = BytesIO(file_content)
-    file_obj.seek(0)
-    
-    # Create a new UploadFile with the same metadata
-    upload_file = UploadFile(
-        filename=file.filename,
-        file=file_obj,
-        headers=file.headers
-    )
-    
-    logger.info(f"Uploading {media_type}: {file.filename} ({file_size} bytes) by user {current_user.id}")
-    
-    # Upload to S3
     try:
-        if media_type == "image":
-            url = await s3_service.upload_image(upload_file)
-        else:
-            url = await s3_service.upload_video(upload_file)
+        # Encode file as base64 for database storage
+        file_data_base64 = base64.b64encode(file_content).decode('utf-8')
         
-        if not url:
-            logger.error(f"S3 upload failed for {file.filename}. Check S3 configuration.")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to upload media file. Please check S3 configuration."
-            )
+        # Store in database
+        media = Media(
+            filename=file.filename,
+            content_type=file.content_type or 'application/octet-stream',
+            file_data=file_data_base64,
+            file_size=file_size
+        )
+        db.add(media)
+        db.commit()
+        db.refresh(media)
         
-        logger.info(f"Media uploaded successfully: {url}")
+        # Return URL that points to our media endpoint
+        base_url = os.getenv("API_BASE_URL", "https://alumni-portal-yw7q.onrender.com")
+        url = f"{base_url}/api/v1/posts/media/{media.id}"
+        
+        logger.info(f"Media stored in database successfully: {media.id}")
         return {"url": url, "type": media_type}
         
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Error uploading media: {str(e)}")
+        logger.error(f"Error storing media in database: {str(e)}")
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to upload media file: {str(e)}"

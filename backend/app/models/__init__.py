@@ -13,6 +13,7 @@ from app.models.mentor import Mentor, MentorMatch
 from app.models.fundraiser import Fundraiser
 from app.models.ad import Ad
 from app.models.lead_intelligence import AdClick, AdImpression, CareerRoadmapRequest, CareerRoadmapView
+from app.models.media import Media
 
 __all__ = [
     "User", "UserProfile", "UserRole",
@@ -28,5 +29,6 @@ __all__ = [
     "Mentor", "MentorMatch",
     "Fundraiser",
     "Ad",
-    "AdClick", "AdImpression", "CareerRoadmapRequest", "CareerRoadmapView"
+    "AdClick", "AdImpression", "CareerRoadmapRequest", "CareerRoadmapView",
+    "Media"
 ]
