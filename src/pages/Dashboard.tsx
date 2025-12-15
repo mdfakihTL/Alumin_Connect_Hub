@@ -859,15 +859,25 @@ const Dashboard = () => {
   useEffect(() => {
     // Always load posts when component mounts (component remounts on navigation)
     const loadInitialPosts = async () => {
+      // Only load if we don't have posts already displayed
+      // This prevents clearing posts when navigating back to dashboard
+      if (displayedPosts.length > 0 && postsLoaded) {
+        console.log('Posts already loaded, skipping reload');
+        return; // Don't reload if we already have posts
+      }
+      
       // Reset postsLoaded when filters change to force reload
-      if (Object.keys(filters).some(key => {
+      const hasActiveFilters = Object.keys(filters).some(key => {
         const filterValue = filters[key as keyof FilterOptions];
         return Array.isArray(filterValue) ? filterValue.length > 0 : Boolean(filterValue);
-      })) {
+      });
+      
+      if (hasActiveFilters) {
         setPostsLoaded(false); // Reset to force reload when filters change
       }
       
       try {
+        console.log('Loading posts from API...');
         const postsResponse = await apiClient.getPosts(1, POSTS_PER_PAGE);
         const apiPosts = postsResponse.posts || [];
         
@@ -917,15 +927,19 @@ const Dashboard = () => {
           }
         });
         
+        console.log(`Loaded ${formattedPosts.length} posts from API`);
         setDisplayedPosts(postsWithAds);
         setPage(1);
         setHasMore(postsResponse.total > POSTS_PER_PAGE);
         setPostsLoaded(true); // Mark as loaded
       } catch (error) {
         console.error('Failed to load posts from API:', error);
-        // Fallback to mock data if API fails
-        loadMorePosts();
-        setPostsLoaded(true); // Mark as loaded even if using mock data
+        // Only fallback to mock data if we truly have no posts
+        if (displayedPosts.length === 0) {
+          console.log('Falling back to mock data');
+          loadMorePosts();
+          setPostsLoaded(true); // Mark as loaded even if using mock data
+        }
       }
     };
     

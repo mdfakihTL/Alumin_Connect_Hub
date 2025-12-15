@@ -36,7 +36,8 @@ lerna-debug.log*
 *.sw?
 
 # Environment
-# .env - REMOVED: Now tracked in git for deployment
+# .env - REMOVED: Now tracked in git for deployment (root level only)
+backend/.env
 .env.local
 .env.*.local
 
