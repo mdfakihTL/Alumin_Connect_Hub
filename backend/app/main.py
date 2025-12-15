@@ -16,6 +16,16 @@ async def lifespan(app: FastAPI):
     create_tables()
     print("Database tables created/verified.")
     
+    # Load Knowledge Base documents on startup
+    try:
+        from app.services.knowledge_base import load_all_documents, get_knowledge_base_status
+        doc_count = load_all_documents()
+        status = get_knowledge_base_status()
+        print(f"✓ Knowledge Base loaded: {doc_count} documents, {status['chunk_count']} chunks")
+        print(f"  University: {status['university_name']} ({status['university_id']})")
+    except Exception as e:
+        print(f"⚠ Could not load Knowledge Base: {e}")
+    
     # Auto-seed database if enabled and empty
     if os.getenv("AUTO_SEED", "false").lower() == "true":
         try:
