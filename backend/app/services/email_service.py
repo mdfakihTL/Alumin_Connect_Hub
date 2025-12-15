@@ -1,9 +1,9 @@
 """
-Email service for sending emails
+Email service for sending emails via Brevo HTTP API
+Render blocks SMTP ports, so we use HTTP API instead
 """
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import os
+import requests
 from typing import Optional
 import logging
 
@@ -11,22 +11,28 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Brevo API endpoint
+BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
+
 
 class EmailService:
-    """Service for sending emails via SMTP"""
+    """Service for sending emails via Brevo HTTP API (works on Render!)"""
     
-    def __init__(self, smtp_host=None, smtp_port=587, smtp_user=None, smtp_password=None, smtp_from_email=None):
+    def __init__(self, api_key=None, from_email=None, from_name=None):
         """
-        Initialize email service with SMTP settings.
-        If no settings provided, uses global settings from config.
+        Initialize email service with Brevo API settings.
+        If no settings provided, uses global settings from config/env.
         """
         try:
-            self.smtp_host = smtp_host or getattr(settings, 'SMTP_HOST', None)
-            self.smtp_port = smtp_port or getattr(settings, 'SMTP_PORT', 587)
-            self.smtp_user = smtp_user or getattr(settings, 'SMTP_USER', None)
-            self.smtp_password = smtp_password or getattr(settings, 'SMTP_PASSWORD', None)
-            self.smtp_from_email = smtp_from_email or getattr(settings, 'SMTP_FROM_EMAIL', None) or self.smtp_user
-            self.enabled = all([self.smtp_host, self.smtp_user, self.smtp_password])
+            self.api_key = api_key or os.getenv('BREVO_API_KEY') or getattr(settings, 'BREVO_API_KEY', None)
+            self.from_email = from_email or os.getenv('SMTP_FROM_EMAIL') or os.getenv('BREVO_FROM_EMAIL') or getattr(settings, 'SMTP_FROM_EMAIL', None) or 'noreply@alumni-portal.com'
+            self.from_name = from_name or os.getenv('SMTP_FROM_NAME') or os.getenv('BREVO_FROM_NAME') or getattr(settings, 'SMTP_FROM_NAME', None) or 'Alumni Portal'
+            self.enabled = bool(self.api_key)
+            
+            if self.enabled:
+                logger.info(f"EmailService initialized with Brevo API (from: {self.from_email})")
+            else:
+                logger.warning("EmailService: BREVO_API_KEY not set. Emails will not be sent.")
         except Exception as e:
             logger.error(f"Error initializing EmailService: {str(e)}")
             self.enabled = False
@@ -37,14 +43,10 @@ class EmailService:
         Create EmailService instance from University model.
         Falls back to global settings if university doesn't have email configured.
         """
-        if university and university.email and university.smtp_host:
-            return cls(
-                smtp_host=university.smtp_host,
-                smtp_port=university.smtp_port or 587,
-                smtp_user=university.smtp_user,
-                smtp_password=university.smtp_password,
-                smtp_from_email=university.email
-            )
+        # For now, all universities use the global Brevo API key
+        # University-specific from_email can be supported later
+        if university and university.email:
+            return cls(from_email=university.email, from_name=university.name)
         # Fall back to global settings
         return cls()
     
@@ -55,48 +57,55 @@ class EmailService:
         body: str,
         html_body: Optional[str] = None
     ) -> bool:
-        """Send email using SMTP"""
+        """Send email using Brevo HTTP API"""
         if not self.enabled:
-            logger.warning(f"SMTP not configured. Email to {to_email} not sent.")
+            logger.warning(f"Brevo API not configured (BREVO_API_KEY missing). Email to {to_email} not sent.")
             return False
 
         try:
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = subject
-            msg['From'] = self.smtp_from_email
-            msg['To'] = to_email
-
-            # Add plain text
-            msg.attach(MIMEText(body, 'plain'))
-
-            # Add HTML if provided
+            headers = {
+                "accept": "application/json",
+                "api-key": self.api_key,
+                "content-type": "application/json"
+            }
+            
+            payload = {
+                "sender": {
+                    "name": self.from_name,
+                    "email": self.from_email
+                },
+                "to": [
+                    {
+                        "email": to_email
+                    }
+                ],
+                "subject": subject,
+                "textContent": body
+            }
+            
+            # Add HTML content if provided
             if html_body:
-                msg.attach(MIMEText(html_body, 'html'))
+                payload["htmlContent"] = html_body
 
-            # Send email
-            # Try different connection methods based on port
-            # Port 465 uses SSL, port 587 uses STARTTLS
-            if self.smtp_port == 465:
-                # Use SSL connection for port 465
-                with smtplib.SMTP_SSL(self.smtp_host, self.smtp_port, timeout=30) as server:
-                    server.login(self.smtp_user, self.smtp_password)
-                    server.send_message(msg)
+            response = requests.post(
+                BREVO_API_URL,
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+            
+            if response.status_code in [200, 201]:
+                logger.info(f"Email sent successfully to {to_email} via Brevo API")
+                return True
             else:
-                # Use STARTTLS for port 587 or other ports
-                with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=30) as server:
-                    server.starttls()
-                    server.login(self.smtp_user, self.smtp_password)
-                    server.send_message(msg)
-
-            logger.info(f"Email sent successfully to {to_email}")
-            return True
-        except smtplib.SMTPException as e:
-            logger.error(f"SMTP error sending email to {to_email}: {str(e)}")
+                logger.error(f"Brevo API error: {response.status_code} - {response.text}")
+                return False
+                
+        except requests.exceptions.Timeout:
+            logger.error(f"Timeout sending email to {to_email}")
             return False
-        except (ConnectionError, OSError) as e:
-            logger.error(f"Network error sending email to {to_email}: {str(e)}")
-            logger.error(f"SMTP Host: {self.smtp_host}, Port: {self.smtp_port}")
-            logger.error("This might be a firewall/network issue. Check if Render allows outbound SMTP connections.")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error sending email to {to_email}: {str(e)}")
             return False
         except Exception as e:
             logger.error(f"Error sending email to {to_email}: {str(e)}")
@@ -142,36 +151,41 @@ Alumni Portal Team
     <style>
         body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
         .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-        .header {{ background-color: #4F46E5; color: white; padding: 20px; text-align: center; }}
-        .content {{ background-color: #f9f9f9; padding: 20px; }}
-        .credentials {{ background-color: #fff; padding: 15px; border-left: 4px solid #4F46E5; margin: 20px 0; }}
-        .button {{ display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
-        .footer {{ text-align: center; color: #666; font-size: 12px; margin-top: 20px; }}
+        .header {{ background-color: #4F46E5; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
+        .content {{ background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }}
+        .credentials {{ background-color: #fff; padding: 20px; border-left: 4px solid #4F46E5; margin: 20px 0; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+        .button {{ display: inline-block; padding: 14px 28px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: bold; }}
+        .button:hover {{ background-color: #4338CA; }}
+        .footer {{ text-align: center; color: #666; font-size: 12px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }}
+        .highlight {{ color: #4F46E5; font-weight: bold; }}
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>Welcome to {university_name or 'Alumni Portal'}!</h1>
+            <h1>🎓 Welcome to {university_name or 'Alumni Portal'}!</h1>
         </div>
         <div class="content">
-            <p>Dear {user_name},</p>
+            <p>Dear <span class="highlight">{user_name}</span>,</p>
             <p>Your account has been created successfully. Here are your login credentials:</p>
             
             <div class="credentials">
-                <p><strong>Email:</strong> {to_email}</p>
-                <p><strong>Password:</strong> {password}</p>
+                <p><strong>📧 Email:</strong> {to_email}</p>
+                <p><strong>🔑 Password:</strong> <code style="background: #e5e7eb; padding: 2px 8px; border-radius: 4px;">{password}</code></p>
             </div>
             
             <p>Please log in using the button below:</p>
-            <a href="{login_url}" class="button">Log In</a>
+            <center>
+                <a href="{login_url}" class="button">🚀 Log In Now</a>
+            </center>
             
-            <p><strong>Important:</strong> We recommend changing your password after your first login for security purposes.</p>
+            <p><strong>⚠️ Important:</strong> We recommend changing your password after your first login for security purposes.</p>
             
             <p>If you have any questions, please contact your university administrator.</p>
         </div>
         <div class="footer">
-            <p>Best regards,<br>Alumni Portal Team</p>
+            <p>Best regards,<br><strong>Alumni Portal Team</strong></p>
+            <p style="font-size: 11px; color: #999;">This is an automated email. Please do not reply.</p>
         </div>
     </div>
 </body>
@@ -183,4 +197,3 @@ Alumni Portal Team
 
 # Create singleton instance
 email_service = EmailService()
-
