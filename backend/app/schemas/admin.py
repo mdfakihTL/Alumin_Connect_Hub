@@ -85,6 +85,14 @@ class AdminDocumentListResponse(BaseModel):
     page_size: int
 
 
+class TicketResponseItem(BaseModel):
+    id: str
+    message: str
+    responder_name: str
+    is_admin: bool
+    created_at: datetime
+
+
 class AdminTicketResponse(BaseModel):
     id: str
     user_id: str
@@ -96,6 +104,22 @@ class AdminTicketResponse(BaseModel):
     status: str
     description: str
     response_count: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+
+class AdminTicketDetailResponse(BaseModel):
+    """Ticket with full conversation history for admin view"""
+    id: str
+    user_id: str
+    user_name: str
+    user_email: str
+    subject: str
+    category: str
+    priority: str
+    status: str
+    description: str
+    responses: List[TicketResponseItem]
     created_at: datetime
     updated_at: Optional[datetime] = None
 

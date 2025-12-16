@@ -73,6 +73,29 @@ export interface AdminTicketResponse {
   updated_at: string;
 }
 
+export interface TicketResponseItem {
+  id: string;
+  message: string;
+  responder_name: string;
+  is_admin: boolean;
+  created_at: string;
+}
+
+export interface AdminTicketDetailResponse {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  subject: string;
+  category: string;
+  priority: string;
+  status: string;
+  description: string;
+  responses: TicketResponseItem[];
+  created_at: string;
+  updated_at: string;
+}
+
 export const adminApi = {
   // Dashboard
   getDashboardStats: async (): Promise<AdminDashboardStats> => {
@@ -136,6 +159,10 @@ export const adminApi = {
     page_size?: number;
   }): Promise<{ tickets: AdminTicketResponse[]; total: number; page: number; page_size: number }> => {
     return apiClient.get('/admin/tickets', params);
+  },
+
+  getTicketDetail: async (ticketId: string): Promise<AdminTicketDetailResponse> => {
+    return apiClient.get<AdminTicketDetailResponse>(`/admin/tickets/${ticketId}`);
   },
 
   updateTicketStatus: async (ticketId: string, newStatus: string): Promise<MessageResponse> => {
