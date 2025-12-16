@@ -56,14 +56,32 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+// Loading spinner component for auth checks
+const AuthLoading = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="flex flex-col items-center gap-4">
+      <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <p className="text-muted-foreground text-sm">Loading...</p>
+    </div>
+  </div>
+);
+
 // Protected Routes Components - Must be inside Router and AuthProvider
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+  
+  // Wait for auth check to complete before redirecting
+  if (isLoading) return <AuthLoading />;
+  
   return user ? <>{children}</> : <Navigate to="/login" />;
 };
 
 const ProfileRoute = () => {
-  const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { user, isAdmin, isSuperAdmin, isLoading } = useAuth();
+  
+  // Wait for auth check to complete before redirecting
+  if (isLoading) return <AuthLoading />;
+  
   if (!user) return <Navigate to="/login" />;
   // Admin and Super Admin get simplified profile
   if (isAdmin || isSuperAdmin) return <AdminProfile />;
@@ -72,14 +90,22 @@ const ProfileRoute = () => {
 };
 
 const AdminRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isLoading } = useAuth();
+  
+  // Wait for auth check to complete before redirecting
+  if (isLoading) return <AuthLoading />;
+  
   if (!user) return <Navigate to="/login" />;
   if (!isAdmin) return <Navigate to="/dashboard" />;
   return <>{children}</>;
 };
 
 const SuperAdminRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin, isLoading } = useAuth();
+  
+  // Wait for auth check to complete before redirecting
+  if (isLoading) return <AuthLoading />;
+  
   if (!user) return <Navigate to="/login" />;
   if (!isSuperAdmin) return <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} />;
   return <>{children}</>;

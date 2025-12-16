@@ -455,6 +455,8 @@ const Dashboard = () => {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [postsLoaded, setPostsLoaded] = useState(false); // Track if posts have been loaded
+  const [isLoading, setIsLoading] = useState(true); // Initial loading state
+  const [isRefreshing, setIsRefreshing] = useState(false); // Refreshing with cached data
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
@@ -474,6 +476,35 @@ const Dashboard = () => {
   const searchRef = useRef<HTMLDivElement>(null);
   const POSTS_PER_PAGE = 6;
   const nextPostId = useRef(1000); // Start user posts at 1000 to avoid conflicts
+  const CACHE_KEY = 'dashboard_posts_cache';
+  const CACHE_EXPIRY_KEY = 'dashboard_posts_cache_expiry';
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+  // Cache helper functions
+  const getCachedPosts = (): Post[] | null => {
+    try {
+      const expiry = sessionStorage.getItem(CACHE_EXPIRY_KEY);
+      if (expiry && Date.now() > parseInt(expiry)) {
+        // Cache expired
+        sessionStorage.removeItem(CACHE_KEY);
+        sessionStorage.removeItem(CACHE_EXPIRY_KEY);
+        return null;
+      }
+      const cached = sessionStorage.getItem(CACHE_KEY);
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const setCachedPosts = (posts: Post[]) => {
+    try {
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify(posts));
+      sessionStorage.setItem(CACHE_EXPIRY_KEY, (Date.now() + CACHE_DURATION).toString());
+    } catch {
+      // Ignore storage errors
+    }
+  };
 
   // Combine user posts with mock posts and apply filters
   const getAllPosts = () => {
@@ -742,6 +773,10 @@ const Dashboard = () => {
           
           // Also add to userPosts for consistency
           setUserPosts((prev) => [formattedNewPost, ...prev]);
+          
+          // Update cache with new post
+          const cachedPosts = getCachedPosts() || [];
+          setCachedPosts([formattedNewPost, ...cachedPosts]);
         } catch (error: any) {
           console.error('Error creating post:', error);
           
@@ -896,21 +931,34 @@ const Dashboard = () => {
   useEffect(() => {
     // Always load posts when component mounts (component remounts on navigation)
     const loadInitialPosts = async () => {
-      // Only load if we don't have posts already displayed
-      // This prevents clearing posts when navigating back to dashboard
-      if (displayedPosts.length > 0 && postsLoaded) {
-        console.log('Posts already loaded, skipping reload');
-        return; // Don't reload if we already have posts
-      }
-      
-      // Reset postsLoaded when filters change to force reload
+      // Check for cached posts first
+      const cachedPosts = getCachedPosts();
       const hasActiveFilters = Object.keys(filters).some(key => {
         const filterValue = filters[key as keyof FilterOptions];
         return Array.isArray(filterValue) ? filterValue.length > 0 : Boolean(filterValue);
       });
       
+      // If we have cached posts and no filters, show them immediately
+      if (cachedPosts && cachedPosts.length > 0 && !hasActiveFilters) {
+        const postsWithAds: (Post | Ad)[] = [];
+        cachedPosts.forEach((post, idx) => {
+          postsWithAds.push(post);
+          if ((idx + 1) % 8 === 0) {
+            const adIndex = Math.floor(idx / 8) % mockAds.length;
+            postsWithAds.push(mockAds[adIndex]);
+          }
+        });
+        setDisplayedPosts(postsWithAds);
+        setIsLoading(false);
+        setIsRefreshing(true); // Show small refresh indicator
+      } else if (displayedPosts.length === 0) {
+        setIsLoading(true); // Show full loading if no cached data
+      }
+      
+      // Reset postsLoaded when filters change to force reload
       if (hasActiveFilters) {
         setPostsLoaded(false); // Reset to force reload when filters change
+        setIsLoading(true);
       }
       
       try {
@@ -954,6 +1002,11 @@ const Dashboard = () => {
           location: p.location,
         }));
         
+        // Cache the posts (only if no filters)
+        if (!hasActiveFilters && formattedPosts.length > 0) {
+          setCachedPosts(formattedPosts);
+        }
+        
         // Set initial liked posts from API response
         const likedPostIds = new Set<string>();
         apiPosts.forEach((p: any) => {
@@ -986,6 +1039,9 @@ const Dashboard = () => {
           loadMorePosts();
           setPostsLoaded(true); // Mark as loaded even if using mock data
         }
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
       }
     };
     
@@ -1946,7 +2002,25 @@ const Dashboard = () => {
                   </div>
                 )}
 
-                {/* Posts Feed */}
+                {/* Refresh Indicator - Shows when refreshing with cached data */}
+                {isRefreshing && displayedPosts.length > 0 && (
+                  <div className="flex items-center justify-center gap-2 py-2 px-4 bg-primary/5 border border-primary/20 rounded-lg mb-4">
+                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm text-muted-foreground">Checking for new posts...</span>
+                  </div>
+                )}
+
+                {/* Initial Loading State */}
+                {isLoading && displayedPosts.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                    <div className="relative">
+                      <div className="w-16 h-16 border-4 border-muted rounded-full" />
+                      <div className="absolute inset-0 w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                    </div>
+                    <p className="text-muted-foreground text-sm">Loading posts...</p>
+                  </div>
+                )}
+
                 {/* Posts Feed with Ads */}
                 {displayedPosts.map((item) => {
                   if ('image' in item && 'title' in item) {
@@ -1966,11 +2040,28 @@ const Dashboard = () => {
                 )}
 
                 {/* End of Feed */}
-                {!hasMore && displayedPosts.length > 0 && (
+                {!hasMore && !isLoading && displayedPosts.length > 0 && (
                   <Card className="p-4 sm:p-6 text-center">
                     <p className="text-sm sm:text-base text-muted-foreground">
                       You're all caught up! 🎉
                     </p>
+                  </Card>
+                )}
+
+                {/* Empty State */}
+                {!isLoading && displayedPosts.length === 0 && (
+                  <Card className="p-8 sm:p-12 text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
+                      <MessageCircle className="w-8 h-8 text-muted-foreground" />
+                    </div>
+                    <h3 className="text-lg font-semibold mb-2">No posts yet</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Be the first to share something with the community!
+                    </p>
+                    <Button onClick={() => setIsModalOpen(true)}>
+                      <PlusCircle className="w-4 h-4 mr-2" />
+                      Create Post
+                    </Button>
                   </Card>
                 )}
               </div>
