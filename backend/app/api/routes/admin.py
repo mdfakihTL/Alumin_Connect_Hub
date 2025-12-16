@@ -278,11 +278,15 @@ async def bulk_import_users(
     db: Session = Depends(get_db)
 ):
     """
-    Bulk import alumni users.
+    Bulk import alumni users with welcome emails.
     """
     success_count = 0
     failed_count = 0
     errors = []
+    
+    # Get university for email
+    university = db.query(University).filter(University.id == current_user.university_id).first()
+    university_name = university.name if university else None
     
     for user_data in users:
         try:
@@ -292,8 +296,12 @@ async def bulk_import_users(
                 errors.append(f"{user_data.email}: Already exists")
                 continue
             
+            # Generate username from email
+            username = user_data.email.split('@')[0] if user_data.email else None
+            
             user = User(
                 email=user_data.email,
+                username=username,
                 hashed_password=get_password_hash(user_data.password),
                 name=user_data.name,
                 university_id=current_user.university_id,
@@ -309,6 +317,21 @@ async def bulk_import_users(
             profile = UserProfile(user_id=user.id)
             db.add(profile)
             db.commit()
+            
+            # Send welcome email with credentials
+            try:
+                uni_email_service = EmailService.from_university(university) if university else EmailService()
+                if uni_email_service.enabled:
+                    uni_email_service.send_welcome_email(
+                        to_email=user.email,
+                        user_name=user.name,
+                        password=user_data.password,  # Send plain password
+                        university_name=university_name
+                    )
+                    logger.info(f"Welcome email sent to {user.email}")
+            except Exception as e:
+                logger.error(f"Failed to send welcome email to {user.email}: {str(e)}")
+                # Don't fail the import if email fails
             
             success_count += 1
         except Exception as e:
