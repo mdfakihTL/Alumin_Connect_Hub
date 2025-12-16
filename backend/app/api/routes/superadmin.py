@@ -15,9 +15,8 @@ from app.schemas.superadmin import (
     AdminUserCreate, AdminUserResponse, AdminUserListResponse,
     GlobalAdCreate, GlobalAdUpdate, GlobalAdResponse, AdListResponse,
     AdminPasswordResetRequest, AdminPasswordResetListResponse
-    GlobalAdCreate, GlobalAdUpdate, GlobalAdResponse,
-    AdminPasswordResetRequest, AdminPasswordResetListResponse, AdminPasswordResetBody
 )
+from app.schemas.admin import PasswordResetBody
 import json
 
 router = APIRouter()
@@ -452,7 +451,7 @@ async def list_admin_password_resets(
 @router.post("/password-resets/{admin_id}/reset")
 async def reset_admin_password(
     admin_id: str,
-    password_data: AdminPasswordResetBody,
+    password_data: PasswordResetBody,
     current_user: User = Depends(require_superadmin),
     db: Session = Depends(get_db)
 ):
