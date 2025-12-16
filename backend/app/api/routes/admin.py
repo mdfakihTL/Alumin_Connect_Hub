@@ -22,6 +22,7 @@ from app.schemas.admin import (
     AdminDashboardStats, AlumniUserCreate, AlumniUserResponse,
     AlumniUserListResponse, BulkImportResponse, PasswordResetRequest,
     PasswordResetListResponse, AdminTicketResponse, AdminTicketListResponse,
+    AdminTicketDetailResponse, TicketResponseItem,
     AdminDocumentRequestResponse, AdminDocumentListResponse,
     FundraiserCreate, FundraiserUpdate, FundraiserResponse,
     AdCreate, AdUpdate, AdResponse, PasswordResetBody
@@ -634,6 +635,58 @@ async def list_admin_tickets(
         total=total,
         page=page,
         page_size=page_size
+    )
+
+
+@router.get("/tickets/{ticket_id}", response_model=AdminTicketDetailResponse)
+async def get_admin_ticket_detail(
+    ticket_id: str,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Get detailed support ticket with full conversation history.
+    """
+    ticket = db.query(SupportTicket).filter(
+        SupportTicket.id == ticket_id,
+        SupportTicket.university_id == current_user.university_id
+    ).first()
+    
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ticket not found"
+        )
+    
+    # Get all responses for this ticket
+    responses = db.query(TicketResponse).filter(
+        TicketResponse.ticket_id == ticket_id
+    ).order_by(TicketResponse.created_at.asc()).all()
+    
+    response_list = [
+        TicketResponseItem(
+            id=r.id,
+            message=r.message,
+            responder_name=r.responder_name,
+            is_admin=r.is_admin,
+            created_at=r.created_at
+        )
+        for r in responses
+    ]
+    
+    return AdminTicketDetailResponse(
+        id=ticket.id,
+        user_id=ticket.user_id,
+        user_name=ticket.user_name,
+        user_email=ticket.user_email,
+        subject=ticket.subject,
+        category=ticket.category.value,
+        priority=ticket.priority.value,
+        status=ticket.status.value,
+        description=ticket.description,
+        responses=response_list,
+        created_at=ticket.created_at,
+        updated_at=ticket.updated_at
     )
 
 
