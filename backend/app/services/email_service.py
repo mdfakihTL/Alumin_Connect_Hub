@@ -29,11 +29,16 @@ class EmailService:
             self.from_name = from_name or os.getenv('SMTP_FROM_NAME') or os.getenv('BREVO_FROM_NAME') or getattr(settings, 'SMTP_FROM_NAME', None) or 'Alumni Portal'
             self.enabled = bool(self.api_key)
             
+            # Use print for guaranteed visibility in Render logs
             if self.enabled:
+                print(f"✅ EmailService: Brevo API configured (from: {self.from_email})")
                 logger.info(f"EmailService initialized with Brevo API (from: {self.from_email})")
             else:
+                print(f"⚠️ EmailService: BREVO_API_KEY not set! Emails disabled.")
+                print(f"   BREVO_API_KEY env var: {'SET' if os.getenv('BREVO_API_KEY') else 'NOT SET'}")
                 logger.warning("EmailService: BREVO_API_KEY not set. Emails will not be sent.")
         except Exception as e:
+            print(f"❌ EmailService init error: {str(e)}")
             logger.error(f"Error initializing EmailService: {str(e)}")
             self.enabled = False
     
@@ -58,11 +63,16 @@ class EmailService:
         html_body: Optional[str] = None
     ) -> bool:
         """Send email using Brevo HTTP API"""
+        print(f"📧 EmailService.send_email called for: {to_email}")
+        
         if not self.enabled:
+            print(f"⚠️ Email NOT sent to {to_email} - Brevo API not configured")
             logger.warning(f"Brevo API not configured (BREVO_API_KEY missing). Email to {to_email} not sent.")
             return False
 
         try:
+            print(f"📤 Sending email to {to_email} via Brevo API...")
+            
             headers = {
                 "accept": "application/json",
                 "api-key": self.api_key,
@@ -95,19 +105,24 @@ class EmailService:
             )
             
             if response.status_code in [200, 201]:
+                print(f"✅ Email sent successfully to {to_email}")
                 logger.info(f"Email sent successfully to {to_email} via Brevo API")
                 return True
             else:
+                print(f"❌ Brevo API error: {response.status_code} - {response.text}")
                 logger.error(f"Brevo API error: {response.status_code} - {response.text}")
                 return False
                 
         except requests.exceptions.Timeout:
+            print(f"❌ Timeout sending email to {to_email}")
             logger.error(f"Timeout sending email to {to_email}")
             return False
         except requests.exceptions.RequestException as e:
+            print(f"❌ Request error sending email to {to_email}: {str(e)}")
             logger.error(f"Request error sending email to {to_email}: {str(e)}")
             return False
         except Exception as e:
+            print(f"❌ Error sending email to {to_email}: {str(e)}")
             logger.error(f"Error sending email to {to_email}: {str(e)}")
             return False
     
