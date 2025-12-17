@@ -19,7 +19,8 @@ class ApiClient {
   }
 
   private getAuthToken(): string | null {
-    return localStorage.getItem('access_token');
+    // Check both token keys for compatibility
+    return localStorage.getItem('auth_token') || localStorage.getItem('access_token');
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
@@ -39,6 +40,7 @@ class ApiClient {
 
       // Handle specific error codes
       if (response.status === 401) {
+        localStorage.removeItem('auth_token');
         localStorage.removeItem('access_token');
         localStorage.removeItem('alumni_user');
         window.location.href = '/login';
