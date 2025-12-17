@@ -20,7 +20,18 @@ class ApiClient {
 
   private getAuthToken(): string | null {
     // Check both token keys for compatibility
-    return localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+    const authToken = localStorage.getItem('auth_token');
+    const accessToken = localStorage.getItem('access_token');
+    const token = authToken || accessToken;
+    
+    // Debug logging
+    console.log('[API Client] Token check:', {
+      hasAuthToken: !!authToken,
+      hasAccessToken: !!accessToken,
+      tokenUsed: token ? 'present' : 'missing'
+    });
+    
+    return token;
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
