@@ -69,14 +69,27 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS - Allow all origins for simplicity (can be restricted in production)
-# Using FastAPI's built-in CORSMiddleware which is well-tested and reliable
+# Configure CORS - Allow specific origins for credentials to work
+# Note: Cannot use "*" with credentials=True per CORS spec
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:8080",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+    "https://alumni-portal-bhanushrichinta-coders-projects.vercel.app",
+    "https://alumni-portal-git-main-bhanushrichinta-coders-projects.vercel.app",
+    "https://alumni-portal.vercel.app",
+]
+
+# Also allow any Vercel preview URLs
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins - simpler and more reliable
+    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"https://.*\.vercel\.app",  # Allow all Vercel preview URLs
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
     expose_headers=["*"],
 )
 
