@@ -1,6 +1,6 @@
 import { toast } from '@/hooks/use-toast';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
@@ -19,19 +19,7 @@ class ApiClient {
   }
 
   private getAuthToken(): string | null {
-    // Check both token keys for compatibility
-    const authToken = localStorage.getItem('auth_token');
-    const accessToken = localStorage.getItem('access_token');
-    const token = authToken || accessToken;
-    
-    // Debug logging
-    console.log('[API Client] Token check:', {
-      hasAuthToken: !!authToken,
-      hasAccessToken: !!accessToken,
-      tokenUsed: token ? 'present' : 'missing'
-    });
-    
-    return token;
+    return localStorage.getItem('access_token');
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
@@ -51,7 +39,6 @@ class ApiClient {
 
       // Handle specific error codes
       if (response.status === 401) {
-        localStorage.removeItem('auth_token');
         localStorage.removeItem('access_token');
         localStorage.removeItem('alumni_user');
         window.location.href = '/login';

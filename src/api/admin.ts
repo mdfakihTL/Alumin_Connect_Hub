@@ -58,44 +58,6 @@ export interface PasswordResetRequest {
   requested_at: string;
 }
 
-export interface AdminTicketResponse {
-  id: string;
-  user_id: string;
-  user_name: string;
-  user_email: string;
-  subject: string;
-  category: string;
-  priority: string;
-  status: string;
-  description: string;
-  response_count: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface TicketResponseItem {
-  id: string;
-  message: string;
-  responder_name: string;
-  is_admin: boolean;
-  created_at: string;
-}
-
-export interface AdminTicketDetailResponse {
-  id: string;
-  user_id: string;
-  user_name: string;
-  user_email: string;
-  subject: string;
-  category: string;
-  priority: string;
-  status: string;
-  description: string;
-  responses: TicketResponseItem[];
-  created_at: string;
-  updated_at: string;
-}
-
 export const adminApi = {
   // Dashboard
   getDashboardStats: async (): Promise<AdminDashboardStats> => {
@@ -157,16 +119,12 @@ export const adminApi = {
     priority?: string;
     page?: number;
     page_size?: number;
-  }): Promise<{ tickets: AdminTicketResponse[]; total: number; page: number; page_size: number }> => {
+  }): Promise<{ tickets: any[]; total: number; page: number; page_size: number }> => {
     return apiClient.get('/admin/tickets', params);
   },
 
-  getTicketDetail: async (ticketId: string): Promise<AdminTicketDetailResponse> => {
-    return apiClient.get<AdminTicketDetailResponse>(`/admin/tickets/${ticketId}`);
-  },
-
-  updateTicketStatus: async (ticketId: string, newStatus: string): Promise<MessageResponse> => {
-    return apiClient.put<MessageResponse>(`/admin/tickets/${ticketId}/status`, undefined, { new_status: newStatus });
+  updateTicketStatus: async (ticketId: string, status: string): Promise<MessageResponse> => {
+    return apiClient.put<MessageResponse>(`/admin/tickets/${ticketId}/status`, undefined);
   },
 
   respondToTicket: async (ticketId: string, message: string): Promise<MessageResponse> => {

@@ -1,13 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { adminApi, AdminTicketResponse, AdminTicketDetailResponse, TicketResponseItem } from '@/api/admin';
+import { useSupport, SupportTicket } from '@/contexts/SupportContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
@@ -40,103 +39,23 @@ import {
   Calendar,
   Tag,
   AlertTriangle,
-  RefreshCw,
-  Mail,
-  Hash,
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
-// Transform API response to component format
-interface SupportTicket {
-  id: string;
-  userId: string;
-  userName: string;
-  userEmail: string;
-  subject: string;
-  category: string;
-  priority: string;
-  status: string;
-  description: string;
-  responseCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface TicketDetail extends SupportTicket {
-  responses: TicketResponseItem[];
-}
-
-const transformTicket = (apiTicket: AdminTicketResponse): SupportTicket => ({
-  id: apiTicket.id,
-  userId: apiTicket.user_id,
-  userName: apiTicket.user_name,
-  userEmail: apiTicket.user_email,
-  subject: apiTicket.subject,
-  category: apiTicket.category,
-  priority: apiTicket.priority,
-  status: apiTicket.status,
-  description: apiTicket.description,
-  responseCount: apiTicket.response_count,
-  createdAt: apiTicket.created_at,
-  updatedAt: apiTicket.updated_at,
-});
-
-const transformTicketDetail = (apiTicket: AdminTicketDetailResponse): TicketDetail => ({
-  id: apiTicket.id,
-  userId: apiTicket.user_id,
-  userName: apiTicket.user_name,
-  userEmail: apiTicket.user_email,
-  subject: apiTicket.subject,
-  category: apiTicket.category,
-  priority: apiTicket.priority,
-  status: apiTicket.status,
-  description: apiTicket.description,
-  responseCount: apiTicket.responses.length,
-  createdAt: apiTicket.created_at,
-  updatedAt: apiTicket.updated_at,
-  responses: apiTicket.responses,
-});
-
 export default function AdminSupport() {
   const { user } = useAuth();
+  const { getTicketsByUniversity, updateTicketStatus, addResponse } = useSupport();
   const { toast } = useToast();
 
-  const [tickets, setTickets] = useState<SupportTicket[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTicket, setSelectedTicket] = useState<TicketDetail | null>(null);
-  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
   const [statusUpdate, setStatusUpdate] = useState('');
+  const [adminNotes, setAdminNotes] = useState('');
   const [responseMessage, setResponseMessage] = useState('');
   const [activeTab, setActiveTab] = useState('all');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fetch tickets from admin API
-  const fetchTickets = useCallback(async () => {
-    if (!user) return;
-    
-    setIsLoading(true);
-    try {
-      const response = await adminApi.getTickets({ page_size: 100 });
-      setTickets(response.tickets.map(transformTicket));
-    } catch (error) {
-      console.error('Failed to fetch tickets:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load support tickets',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user, toast]);
-
-  useEffect(() => {
-    fetchTickets();
-  }, [fetchTickets]);
-
-  const universityTickets = tickets;
+  const universityTickets = user?.universityId ? getTicketsByUniversity(user.universityId) : [];
 
   const filteredTickets = universityTickets.filter(ticket => {
     const matchesSearch =
@@ -147,8 +66,7 @@ export default function AdminSupport() {
 
     const matchesTab =
       activeTab === 'all' ||
-      ticket.status === activeTab ||
-      (activeTab === 'in-progress' && ticket.status === 'inprogress');
+      ticket.status === activeTab;
 
     return matchesSearch && matchesTab;
   });
@@ -196,56 +114,27 @@ export default function AdminSupport() {
     }
   };
 
-  const handleTicketClick = async (ticket: SupportTicket) => {
-    setIsLoadingDetail(true);
+  const handleTicketClick = (ticket: SupportTicket) => {
+    setSelectedTicket(ticket);
+    setStatusUpdate(ticket.status);
+    setAdminNotes(ticket.adminNotes || '');
     setResponseMessage('');
-    
-    try {
-      const detail = await adminApi.getTicketDetail(ticket.id);
-      const ticketDetail = transformTicketDetail(detail);
-      setSelectedTicket(ticketDetail);
-      setStatusUpdate(ticketDetail.status);
-    } catch (error) {
-      console.error('Failed to fetch ticket details:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load ticket details',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoadingDetail(false);
-    }
   };
 
-  const handleUpdateStatus = async () => {
+  const handleUpdateStatus = () => {
     if (!selectedTicket) return;
 
-    setIsSubmitting(true);
-    try {
-      await adminApi.updateTicketStatus(selectedTicket.id, statusUpdate);
-      
-      // Update selected ticket and local list
-      setSelectedTicket(prev => prev ? { ...prev, status: statusUpdate, updatedAt: new Date().toISOString() } : null);
-      setTickets(prev => prev.map(t => 
-        t.id === selectedTicket.id ? { ...t, status: statusUpdate, updatedAt: new Date().toISOString() } : t
-      ));
+    updateTicketStatus(selectedTicket.id, statusUpdate as SupportTicket['status'], adminNotes);
 
-      toast({
-        title: 'Ticket Updated',
-        description: 'The ticket status has been updated successfully.',
-      });
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to update ticket status',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    toast({
+      title: 'Ticket Updated',
+      description: 'The ticket status has been updated successfully.',
+    });
+
+    setSelectedTicket(null);
   };
 
-  const handleSendResponse = async () => {
+  const handleSendResponse = () => {
     if (!selectedTicket || !responseMessage.trim()) {
       toast({
         title: 'Error',
@@ -255,86 +144,28 @@ export default function AdminSupport() {
       return;
     }
 
-    setIsSubmitting(true);
-    try {
-      await adminApi.respondToTicket(selectedTicket.id, responseMessage);
-      
-      // Refresh ticket details to show new response
-      const detail = await adminApi.getTicketDetail(selectedTicket.id);
-      const ticketDetail = transformTicketDetail(detail);
-      setSelectedTicket(ticketDetail);
-      
-      // Update local tickets list
-      setTickets(prev => prev.map(t => 
-        t.id === selectedTicket.id 
-          ? { ...t, responseCount: ticketDetail.responseCount, status: ticketDetail.status, updatedAt: ticketDetail.updatedAt } 
-          : t
-      ));
+    addResponse(selectedTicket.id, responseMessage);
 
-      toast({
-        title: 'Response Sent',
-        description: 'Your response has been sent to the user.',
-      });
+    toast({
+      title: 'Response Sent',
+      description: 'Your response has been sent to the user.',
+    });
 
-      setResponseMessage('');
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to send response',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    setResponseMessage('');
+    setSelectedTicket(null);
   };
 
   const stats = {
     total: universityTickets.length,
     open: universityTickets.filter(t => t.status === 'open').length,
-    inProgress: universityTickets.filter(t => t.status === 'in-progress' || t.status === 'inprogress').length,
+    inProgress: universityTickets.filter(t => t.status === 'in-progress').length,
     resolved: universityTickets.filter(t => t.status === 'resolved').length,
     closed: universityTickets.filter(t => t.status === 'closed').length,
     highPriority: universityTickets.filter(t => t.priority === 'high' && t.status !== 'resolved' && t.status !== 'closed').length,
   };
 
-  // Show loading skeleton
-  if (isLoading) {
-    return (
-      <div className="space-y-4 sm:space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-6">
-                <div className="h-4 bg-muted rounded w-16 mb-2"></div>
-                <div className="h-8 bg-muted rounded w-12"></div>
-              </CardHeader>
-            </Card>
-          ))}
-        </div>
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardHeader className="p-3 sm:p-6">
-                <div className="h-6 bg-muted rounded w-3/4 mb-2"></div>
-                <div className="h-4 bg-muted rounded w-1/2"></div>
-              </CardHeader>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Refresh Button */}
-      <div className="flex justify-end">
-        <Button variant="outline" size="sm" onClick={fetchTickets} disabled={isLoading}>
-          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
-      </div>
-
       {/* Statistics */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         <Card>
@@ -469,10 +300,10 @@ export default function AdminSupport() {
                           <span className="hidden md:inline">
                             Updated {formatDistanceToNow(new Date(ticket.updatedAt), { addSuffix: true })}
                           </span>
-                          {ticket.responseCount > 0 && (
+                          {ticket.responses && ticket.responses.length > 0 && (
                             <>
                               <span className="hidden sm:inline">•</span>
-                              <span>{ticket.responseCount} response{ticket.responseCount !== 1 ? 's' : ''}</span>
+                              <span>{ticket.responses.length} response{ticket.responses.length !== 1 ? 's' : ''}</span>
                             </>
                           )}
                         </div>
@@ -487,15 +318,9 @@ export default function AdminSupport() {
       </Tabs>
 
       {/* Ticket Details Dialog */}
-      <Dialog open={!!selectedTicket || isLoadingDetail} onOpenChange={(open) => !open && setSelectedTicket(null)}>
+      <Dialog open={!!selectedTicket} onOpenChange={(open) => !open && setSelectedTicket(null)}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          {isLoadingDetail && (
-            <div className="flex flex-col items-center justify-center py-12">
-              <RefreshCw className="w-8 h-8 animate-spin text-primary mb-4" />
-              <p className="text-muted-foreground">Loading ticket details...</p>
-            </div>
-          )}
-          {selectedTicket && !isLoadingDetail && (
+          {selectedTicket && (
             <>
               <DialogHeader>
                 <div className="flex items-center gap-2 mb-2">
@@ -519,128 +344,70 @@ export default function AdminSupport() {
               </DialogHeader>
 
               <div className="space-y-6 mt-4">
-                {/* User Info Card */}
-                <div className="bg-muted/30 p-4 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <User className="w-5 h-5 text-primary" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold">{selectedTicket.userName}</p>
-                      <p className="text-sm text-muted-foreground flex items-center gap-1">
-                        <Mail className="w-3 h-3" />
-                        {selectedTicket.userEmail}
-                      </p>
-                    </div>
-                    <div className="text-right text-sm text-muted-foreground">
-                      <p className="flex items-center gap-1">
-                        <Hash className="w-3 h-3" />
-                        Ticket #{selectedTicket.id.slice(-6)}
-                      </p>
-                      <p>{format(new Date(selectedTicket.createdAt), 'MMM d, yyyy')}</p>
-                    </div>
+                {/* Original Description */}
+                <div>
+                  <h4 className="font-semibold mb-2">Description</h4>
+                  <div className="bg-muted/50 p-4 rounded-lg">
+                    <p className="text-sm whitespace-pre-wrap">{selectedTicket.description}</p>
                   </div>
                 </div>
 
-                {/* Conversation Thread */}
-                <div>
-                  <h4 className="font-semibold mb-3 flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4" />
-                    Conversation Thread
-                  </h4>
-                  <ScrollArea className="h-[300px] pr-4">
-                    <div className="space-y-4">
-                      {/* Original ticket message */}
-                      <div className="p-4 rounded-lg bg-muted/50 border-l-4 border-muted">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="font-semibold text-sm">{selectedTicket.userName}</span>
-                          <Badge variant="outline" className="text-xs">Original Ticket</Badge>
-                          <span className="text-xs text-muted-foreground ml-auto">
-                            {format(new Date(selectedTicket.createdAt), 'MMM d, h:mm a')}
-                          </span>
-                        </div>
-                        <p className="text-sm whitespace-pre-wrap">{selectedTicket.description}</p>
-                      </div>
-
-                      {/* Responses */}
-                      {selectedTicket.responses && selectedTicket.responses.map((response) => (
+                {/* Conversation History */}
+                {selectedTicket.responses && selectedTicket.responses.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold mb-3">Conversation History</h4>
+                    <div className="space-y-3">
+                      {selectedTicket.responses.map((response) => (
                         <div
                           key={response.id}
                           className={`p-4 rounded-lg ${
-                            response.is_admin
-                              ? 'bg-primary/5 border-l-4 border-primary ml-4'
+                            response.userRole === 'admin'
+                              ? 'bg-primary/5 border-l-4 border-primary'
                               : 'bg-muted/50 border-l-4 border-muted'
                           }`}
                         >
                           <div className="flex items-center gap-2 mb-2">
-                            <span className="font-semibold text-sm">{response.responder_name}</span>
-                            <Badge 
-                              variant={response.is_admin ? "default" : "outline"} 
-                              className="text-xs"
-                            >
-                              {response.is_admin ? 'Admin' : 'Alumni'}
+                            <span className="font-semibold text-sm">{response.userName}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {response.userRole === 'admin' ? 'Admin' : 'Alumni'}
                             </Badge>
-                            <span className="text-xs text-muted-foreground ml-auto">
-                              {format(new Date(response.created_at), 'MMM d, h:mm a')}
+                            <span className="text-xs text-muted-foreground">
+                              {format(new Date(response.createdAt), 'MMM d, h:mm a')}
                             </span>
                           </div>
                           <p className="text-sm whitespace-pre-wrap">{response.message}</p>
                         </div>
                       ))}
-
-                      {selectedTicket.responses?.length === 0 && (
-                        <div className="text-center py-8 text-muted-foreground">
-                          <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">No responses yet. Be the first to respond!</p>
-                        </div>
-                      )}
                     </div>
-                  </ScrollArea>
+                  </div>
+                )}
+
+                {/* Send Response */}
+                <div>
+                  <Label htmlFor="response">Send Response</Label>
+                  <div className="flex gap-2 mt-2">
+                    <Textarea
+                      id="response"
+                      placeholder="Type your response here..."
+                      value={responseMessage}
+                      onChange={(e) => setResponseMessage(e.target.value)}
+                      rows={4}
+                      className="flex-1"
+                    />
+                  </div>
+                  <Button onClick={handleSendResponse} className="mt-2">
+                    <Send className="w-4 h-4 mr-2" />
+                    Send Response
+                  </Button>
                 </div>
-
-                {/* Send Response (only for open or in-progress tickets) */}
-                {(selectedTicket.status === 'open' || selectedTicket.status === 'in-progress' || selectedTicket.status === 'inprogress') && (
-                  <div className="border-t pt-4">
-                    <Label htmlFor="response">Reply to User</Label>
-                    <div className="flex gap-2 mt-2">
-                      <Textarea
-                        id="response"
-                        placeholder="Type your response here..."
-                        value={responseMessage}
-                        onChange={(e) => setResponseMessage(e.target.value)}
-                        rows={3}
-                        className="flex-1"
-                        disabled={isSubmitting}
-                      />
-                    </div>
-                    <Button onClick={handleSendResponse} className="mt-2" disabled={isSubmitting || !responseMessage.trim()}>
-                      {isSubmitting ? (
-                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <Send className="w-4 h-4 mr-2" />
-                      )}
-                      Send Response
-                    </Button>
-                  </div>
-                )}
-
-                {/* Closed/Resolved notice */}
-                {(selectedTicket.status === 'resolved' || selectedTicket.status === 'closed') && (
-                  <div className="bg-green-50 dark:bg-green-950/30 p-3 rounded-lg border border-green-200 dark:border-green-800">
-                    <p className="text-sm text-green-700 dark:text-green-300 flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" />
-                      This ticket has been {selectedTicket.status}. Reopen by changing status to continue the conversation.
-                    </p>
-                  </div>
-                )}
 
                 {/* Update Status */}
                 <div className="border-t pt-6">
                   <h4 className="font-semibold mb-3">Update Ticket Status</h4>
-                  <div className="flex items-end gap-4">
-                    <div className="flex-1">
+                  <div className="space-y-4">
+                    <div>
                       <Label htmlFor="status">Status</Label>
-                      <Select value={statusUpdate} onValueChange={setStatusUpdate} disabled={isSubmitting}>
+                      <Select value={statusUpdate} onValueChange={setStatusUpdate}>
                         <SelectTrigger id="status" className="mt-2">
                           <SelectValue />
                         </SelectTrigger>
@@ -652,12 +419,25 @@ export default function AdminSupport() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <Button onClick={handleUpdateStatus} disabled={isSubmitting || statusUpdate === selectedTicket.status}>
-                      {isSubmitting ? (
-                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      ) : null}
-                      Update Status
-                    </Button>
+
+                    <div>
+                      <Label htmlFor="adminNotes">Admin Notes (Internal)</Label>
+                      <Textarea
+                        id="adminNotes"
+                        placeholder="Add internal notes about this ticket..."
+                        value={adminNotes}
+                        onChange={(e) => setAdminNotes(e.target.value)}
+                        rows={3}
+                        className="mt-2"
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setSelectedTicket(null)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleUpdateStatus}>Update Ticket</Button>
+                    </div>
                   </div>
                 </div>
               </div>
