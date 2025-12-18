@@ -48,6 +48,22 @@ export interface AdminUserResponse {
   created_at: string;
 }
 
+// Global user (all roles)
+export interface GlobalUserResponse {
+  id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+  role: string;
+  university_id?: string;
+  university_name?: string;
+  graduation_year?: number;
+  major?: string;
+  is_mentor: boolean;
+  is_active: boolean;
+  created_at?: string;
+}
+
 export const superadminApi = {
   // Dashboard
   getDashboardStats: async (): Promise<SuperAdminDashboardStats> => {
@@ -116,10 +132,38 @@ export const superadminApi = {
     university_id?: string;
     role?: string;
     search?: string;
+    is_mentor?: boolean;
     page?: number;
     page_size?: number;
-  }): Promise<{ users: UserResponse[]; total: number; page: number; page_size: number }> => {
+  }): Promise<{ 
+    users: GlobalUserResponse[]; 
+    total: number; 
+    page: number; 
+    page_size: number;
+    role_counts: { superadmin: number; admin: number; alumni: number; mentor: number };
+  }> => {
     return apiClient.get('/superadmin/users', params);
+  },
+
+  createGlobalUser: async (data: {
+    email: string;
+    password: string;
+    name: string;
+    role: string;
+    university_id?: string;
+    graduation_year?: number;
+    major?: string;
+    is_mentor?: boolean;
+  }): Promise<GlobalUserResponse> => {
+    return apiClient.post<GlobalUserResponse>('/superadmin/users', data);
+  },
+
+  toggleUserStatus: async (userId: string): Promise<{ message: string; success: boolean; is_active: boolean }> => {
+    return apiClient.put(`/superadmin/users/${userId}/toggle-status`);
+  },
+
+  deleteGlobalUser: async (userId: string): Promise<MessageResponse> => {
+    return apiClient.delete<MessageResponse>(`/superadmin/users/${userId}`);
   },
 
   // Password Resets (for admins)
