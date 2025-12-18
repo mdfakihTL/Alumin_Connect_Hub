@@ -7,91 +7,96 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Search, Users, Shield, GraduationCap, Mail, Plus, Edit, Trash2, Crown, Power } from 'lucide-react';
+import { Search, Users, Shield, GraduationCap, Plus, Trash2, Crown, Power, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
-interface GlobalUser {
-  id: string;
-  name: string;
-  email: string;
-  role: 'superadmin' | 'admin' | 'alumni';
-  universityId?: string;
-  universityName?: string;
-  graduationYear?: string;
-  major?: string;
-  isMentor?: boolean;
-  enabled: boolean;
-}
+import { superadminApi, GlobalUserResponse } from '@/api/superadmin';
 
 const SuperAdminGlobalUsers = () => {
   const { toast } = useToast();
-  const [users, setUsers] = useState<GlobalUser[]>([]);
+  const [users, setUsers] = useState<GlobalUserResponse[]>([]);
   const [universities, setUniversities] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'superadmins' | 'admins' | 'alumni' | 'mentors'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<GlobalUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [pageSize] = useState(20);
+  
+  // Role counts
+  const [roleCounts, setRoleCounts] = useState({
+    superadmin: 0,
+    admin: 0,
+    alumni: 0,
+    mentor: 0,
+  });
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
-    role: 'alumni' as 'superadmin' | 'admin' | 'alumni',
+    role: 'ALUMNI' as 'SUPERADMIN' | 'ADMIN' | 'ALUMNI',
     universityId: '',
     graduationYear: '',
     major: '',
     isMentor: false,
-    enabled: true,
   });
 
   useEffect(() => {
     loadUsers();
     loadUniversities();
-  }, []);
+  }, [currentPage, filter, searchQuery]);
 
-  const loadUniversities = () => {
-    const unis = JSON.parse(localStorage.getItem('alumni_universities') || '[]');
-    setUniversities(unis);
+  const loadUniversities = async () => {
+    try {
+      const response = await superadminApi.getUniversities();
+      // Handle both array response and object response with universities property
+      const unis = Array.isArray(response) ? response : (response.universities || []);
+      setUniversities(unis);
+    } catch (error) {
+      console.error('Failed to load universities:', error);
+    }
   };
 
-  const loadUsers = () => {
-    const unis = JSON.parse(localStorage.getItem('alumni_universities') || '[]');
-    const allUsers: GlobalUser[] = [];
+  const loadUsers = async () => {
+    setIsLoading(true);
+    try {
+      // Map filter to API role parameter
+      let roleParam: string | undefined;
+      let isMentorParam: boolean | undefined;
+      
+      if (filter === 'superadmins') roleParam = 'SUPERADMIN';
+      else if (filter === 'admins') roleParam = 'ADMIN';
+      else if (filter === 'alumni') roleParam = 'ALUMNI';
+      else if (filter === 'mentors') isMentorParam = true;
 
-    // Load super admins
-    const superAdmins = JSON.parse(localStorage.getItem('super_admins_list') || '[]');
-    superAdmins.forEach((sa: any) => {
-      allUsers.push({ ...sa, role: 'superadmin', enabled: sa.enabled !== false });
-    });
-
-    // Load admins
-    const admins = JSON.parse(localStorage.getItem('super_admin_admins') || '[]');
-    admins.forEach((admin: any) => {
-      const uni = unis.find((u: any) => u.id === admin.universityId);
-      allUsers.push({
-        ...admin,
-        role: 'admin',
-        universityName: uni?.name,
-        enabled: admin.enabled !== false,
+      const response = await superadminApi.getAllUsers({
+        page: currentPage,
+        page_size: pageSize,
+        search: searchQuery || undefined,
+        role: roleParam,
+        is_mentor: isMentorParam,
       });
-    });
 
-    // Load alumni from all universities
-    unis.forEach((uni: any) => {
-      const uniUsers = JSON.parse(localStorage.getItem(`alumni_users_${uni.id}`) || '[]');
-      uniUsers.forEach((user: any) => {
-        allUsers.push({
-          ...user,
-          role: 'alumni',
-          universityName: uni.name,
-          enabled: user.enabled !== false,
-        });
+      setUsers(response.users || []);
+      setTotalUsers(response.total || 0);
+      setRoleCounts(response.role_counts || { superadmin: 0, admin: 0, alumni: 0, mentor: 0 });
+    } catch (error: any) {
+      console.error('Failed to load users:', error);
+      toast({
+        title: 'Failed to load users',
+        description: error.message || 'Please try again',
+        variant: 'destructive',
       });
-    });
-
-    setUsers(allUsers);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!formData.name || !formData.email || !formData.password) {
       toast({
         title: 'Missing information',
@@ -101,7 +106,7 @@ const SuperAdminGlobalUsers = () => {
       return;
     }
 
-    if (formData.role !== 'superadmin' && !formData.universityId) {
+    if (formData.role !== 'SUPERADMIN' && !formData.universityId) {
       toast({
         title: 'Missing university',
         description: 'Please select a university for this user',
@@ -110,88 +115,71 @@ const SuperAdminGlobalUsers = () => {
       return;
     }
 
-    const newUser: GlobalUser = {
-      id: `user_${Date.now()}`,
-      name: formData.name,
-      email: formData.email,
-      role: formData.role,
-      universityId: formData.universityId,
-      universityName: universities.find(u => u.id === formData.universityId)?.name,
-      graduationYear: formData.graduationYear,
-      major: formData.major,
-      isMentor: formData.isMentor,
-      enabled: formData.enabled,
-    };
+    setIsSubmitting(true);
+    try {
+      await superadminApi.createGlobalUser({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+        university_id: formData.universityId || undefined,
+        graduation_year: formData.graduationYear ? parseInt(formData.graduationYear) : undefined,
+        major: formData.major || undefined,
+        is_mentor: formData.isMentor,
+      });
 
-    // Save based on role
-    if (formData.role === 'superadmin') {
-      const superAdmins = JSON.parse(localStorage.getItem('super_admins_list') || '[]');
-      superAdmins.push(newUser);
-      localStorage.setItem('super_admins_list', JSON.stringify(superAdmins));
-    } else if (formData.role === 'admin') {
-      const admins = JSON.parse(localStorage.getItem('super_admin_admins') || '[]');
-      admins.push(newUser);
-      localStorage.setItem('super_admin_admins', JSON.stringify(admins));
-    } else {
-      const uniUsers = JSON.parse(localStorage.getItem(`alumni_users_${formData.universityId}`) || '[]');
-      uniUsers.push(newUser);
-      localStorage.setItem(`alumni_users_${formData.universityId}`, JSON.stringify(uniUsers));
-    }
-
-    loadUsers();
-    toast({
-      title: 'User created',
-      description: `${formData.name} has been added as ${formData.role}`,
-    });
-    resetForm();
-  };
-
-  const handleToggleEnabled = (user: GlobalUser) => {
-    const newStatus = !user.enabled;
-    
-    if (user.role === 'superadmin') {
-      const superAdmins = JSON.parse(localStorage.getItem('super_admins_list') || '[]');
-      const updated = superAdmins.map((u: any) => u.id === user.id ? { ...u, enabled: newStatus } : u);
-      localStorage.setItem('super_admins_list', JSON.stringify(updated));
-    } else if (user.role === 'admin') {
-      const admins = JSON.parse(localStorage.getItem('super_admin_admins') || '[]');
-      const updated = admins.map((u: any) => u.id === user.id ? { ...u, enabled: newStatus } : u);
-      localStorage.setItem('super_admin_admins', JSON.stringify(updated));
-    } else if (user.universityId) {
-      const uniUsers = JSON.parse(localStorage.getItem(`alumni_users_${user.universityId}`) || '[]');
-      const updated = uniUsers.map((u: any) => u.id === user.id ? { ...u, enabled: newStatus } : u);
-      localStorage.setItem(`alumni_users_${user.universityId}`, JSON.stringify(updated));
-    }
-
-    loadUsers();
-    toast({
-      title: newStatus ? 'User enabled' : 'User disabled',
-      description: `${user.name} is now ${newStatus ? 'enabled' : 'disabled'}`,
-    });
-  };
-
-  const handleDelete = (user: GlobalUser) => {
-    if (window.confirm(`Are you sure you want to delete ${user.name}?`)) {
-      if (user.role === 'superadmin') {
-        const superAdmins = JSON.parse(localStorage.getItem('super_admins_list') || '[]');
-        const updated = superAdmins.filter((u: any) => u.id !== user.id);
-        localStorage.setItem('super_admins_list', JSON.stringify(updated));
-      } else if (user.role === 'admin') {
-        const admins = JSON.parse(localStorage.getItem('super_admin_admins') || '[]');
-        const updated = admins.filter((u: any) => u.id !== user.id);
-        localStorage.setItem('super_admin_admins', JSON.stringify(updated));
-      } else if (user.universityId) {
-        const uniUsers = JSON.parse(localStorage.getItem(`alumni_users_${user.universityId}`) || '[]');
-        const updated = uniUsers.filter((u: any) => u.id !== user.id);
-        localStorage.setItem(`alumni_users_${user.universityId}`, JSON.stringify(updated));
-      }
-
-      loadUsers();
       toast({
-        title: 'User deleted',
-        description: `${user.name} has been removed`,
+        title: 'User created',
+        description: `${formData.name} has been added as ${formData.role.toLowerCase()}`,
+      });
+      
+      resetForm();
+      loadUsers();
+    } catch (error: any) {
+      toast({
+        title: 'Failed to create user',
+        description: error.message || 'Please try again',
         variant: 'destructive',
       });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleEnabled = async (user: GlobalUserResponse) => {
+    try {
+      const result = await superadminApi.toggleUserStatus(user.id);
+      toast({
+        title: result.is_active ? 'User enabled' : 'User disabled',
+        description: `${user.name} is now ${result.is_active ? 'enabled' : 'disabled'}`,
+      });
+      loadUsers();
+    } catch (error: any) {
+      toast({
+        title: 'Failed to update user',
+        description: error.message || 'Please try again',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDelete = async (user: GlobalUserResponse) => {
+    if (window.confirm(`Are you sure you want to delete ${user.name}?`)) {
+      try {
+        await superadminApi.deleteGlobalUser(user.id);
+        toast({
+          title: 'User deleted',
+          description: `${user.name} has been removed`,
+          variant: 'destructive',
+        });
+        loadUsers();
+      } catch (error: any) {
+        toast({
+          title: 'Failed to delete user',
+          description: error.message || 'Please try again',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
@@ -200,37 +188,41 @@ const SuperAdminGlobalUsers = () => {
       name: '',
       email: '',
       password: '',
-      role: 'alumni',
+      role: 'ALUMNI',
       universityId: '',
       graduationYear: '',
       major: '',
       isMentor: false,
-      enabled: true,
     });
-    setEditingUser(null);
     setIsModalOpen(false);
   };
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = 
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (user.universityName || '').toLowerCase().includes(searchQuery.toLowerCase());
-    
-    let matchesFilter = true;
-    if (filter === 'superadmins') matchesFilter = user.role === 'superadmin';
-    else if (filter === 'admins') matchesFilter = user.role === 'admin';
-    else if (filter === 'alumni') matchesFilter = user.role === 'alumni';
-    else if (filter === 'mentors') matchesFilter = user.isMentor === true;
-    
-    return matchesSearch && matchesFilter;
-  });
+  const totalPages = Math.ceil(totalUsers / pageSize);
 
-  const roleCount = {
-    superadmins: users.filter(u => u.role === 'superadmin').length,
-    admins: users.filter(u => u.role === 'admin').length,
-    alumni: users.filter(u => u.role === 'alumni').length,
-    mentors: users.filter(u => u.isMentor).length,
+  const getRoleBadge = (role: string) => {
+    switch (role.toUpperCase()) {
+      case 'SUPERADMIN':
+        return (
+          <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 text-xs">
+            <Crown className="w-3 h-3 mr-1" />
+            Super Admin
+          </Badge>
+        );
+      case 'ADMIN':
+        return (
+          <Badge variant="secondary" className="text-xs">
+            <Shield className="w-3 h-3 mr-1" />
+            Admin
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="outline" className="text-xs">
+            <GraduationCap className="w-3 h-3 mr-1" />
+            Alumni
+          </Badge>
+        );
+    }
   };
 
   return (
@@ -246,23 +238,23 @@ const SuperAdminGlobalUsers = () => {
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
-              {users.length} Total
+              {totalUsers} Total
             </Badge>
             <Badge variant="outline" className="flex items-center gap-2">
               <Crown className="w-4 h-4 text-purple-500" />
-              {roleCount.superadmins} Super
+              {roleCounts.superadmin} Super
             </Badge>
             <Badge variant="outline" className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-blue-500" />
-              {roleCount.admins} Admins
+              {roleCounts.admin} Admins
             </Badge>
             <Badge variant="outline" className="flex items-center gap-2">
               <GraduationCap className="w-4 h-4 text-green-500" />
-              {roleCount.alumni} Alumni
+              {roleCounts.alumni} Alumni
             </Badge>
             <Badge variant="outline" className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-orange-500" />
-              {roleCount.mentors} Mentors
+              {roleCounts.mentor} Mentors
             </Badge>
           </div>
           <Button onClick={() => setIsModalOpen(true)}>
@@ -278,24 +270,27 @@ const SuperAdminGlobalUsers = () => {
               type="search"
               placeholder="Search by name, email, or university..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
               className="pl-10"
             />
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant={filter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('all')}>
+            <Button variant={filter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => { setFilter('all'); setCurrentPage(1); }}>
               All
             </Button>
-            <Button variant={filter === 'superadmins' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('superadmins')}>
+            <Button variant={filter === 'superadmins' ? 'default' : 'outline'} size="sm" onClick={() => { setFilter('superadmins'); setCurrentPage(1); }}>
               Super
             </Button>
-            <Button variant={filter === 'admins' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('admins')}>
+            <Button variant={filter === 'admins' ? 'default' : 'outline'} size="sm" onClick={() => { setFilter('admins'); setCurrentPage(1); }}>
               Admins
             </Button>
-            <Button variant={filter === 'alumni' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('alumni')}>
+            <Button variant={filter === 'alumni' ? 'default' : 'outline'} size="sm" onClick={() => { setFilter('alumni'); setCurrentPage(1); }}>
               Alumni
             </Button>
-            <Button variant={filter === 'mentors' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('mentors')}>
+            <Button variant={filter === 'mentors' ? 'default' : 'outline'} size="sm" onClick={() => { setFilter('mentors'); setCurrentPage(1); }}>
               Mentors
             </Button>
           </div>
@@ -317,7 +312,16 @@ const SuperAdminGlobalUsers = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.length === 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="py-12">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                      <span className="text-muted-foreground">Loading users...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : users.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12">
                     <div className="flex flex-col items-center justify-center">
@@ -341,7 +345,7 @@ const SuperAdminGlobalUsers = () => {
                           variant="outline" 
                           size="sm" 
                           className="mt-3"
-                          onClick={() => { setSearchQuery(''); setFilter('all'); }}
+                          onClick={() => { setSearchQuery(''); setFilter('all'); setCurrentPage(1); }}
                         >
                           Clear Filters
                         </Button>
@@ -350,41 +354,22 @@ const SuperAdminGlobalUsers = () => {
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map(user => (
+                users.map(user => (
                   <tr key={user.id} className="border-b border-border hover:bg-muted/50">
                     <td className="py-3 text-sm">{user.name}</td>
                     <td className="py-3 text-sm text-muted-foreground">{user.email}</td>
+                    <td className="py-3 text-sm">{getRoleBadge(user.role)}</td>
                     <td className="py-3 text-sm">
-                      {user.role === 'superadmin' && (
-                        <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 text-xs">
-                          <Crown className="w-3 h-3 mr-1" />
-                          Super Admin
-                        </Badge>
-                      )}
-                      {user.role === 'admin' && (
+                      {user.university_name ? (
                         <Badge variant="secondary" className="text-xs">
-                          <Shield className="w-3 h-3 mr-1" />
-                          Admin
-                        </Badge>
-                      )}
-                      {user.role === 'alumni' && (
-                        <Badge variant="outline" className="text-xs">
-                          <GraduationCap className="w-3 h-3 mr-1" />
-                          Alumni
-                        </Badge>
-                      )}
-                    </td>
-                    <td className="py-3 text-sm">
-                      {user.universityName ? (
-                        <Badge variant="secondary" className="text-xs">
-                          {user.universityName}
+                          {user.university_name}
                         </Badge>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
                     </td>
                     <td className="py-3 text-sm">
-                      {user.enabled ? (
+                      {user.is_active ? (
                         <Badge variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20 text-xs">
                           Active
                         </Badge>
@@ -420,6 +405,58 @@ const SuperAdminGlobalUsers = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-4 pt-4 border-t">
+            <p className="text-sm text-muted-foreground">
+              Showing {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalUsers)} of {totalUsers} users
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage === pageNum ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setCurrentPage(pageNum)}
+                      className="w-8 h-8 p-0"
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Add User Modal */}
@@ -439,9 +476,9 @@ const SuperAdminGlobalUsers = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="superadmin">Super Administrator</SelectItem>
-                  <SelectItem value="admin">University Administrator</SelectItem>
-                  <SelectItem value="alumni">Alumni</SelectItem>
+                  <SelectItem value="SUPERADMIN">Super Administrator</SelectItem>
+                  <SelectItem value="ADMIN">University Administrator</SelectItem>
+                  <SelectItem value="ALUMNI">Alumni</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -479,7 +516,7 @@ const SuperAdminGlobalUsers = () => {
               />
             </div>
 
-            {formData.role !== 'superadmin' && (
+            {formData.role !== 'SUPERADMIN' && (
               <div className="space-y-2">
                 <Label htmlFor="university">University *</Label>
                 <Select value={formData.universityId} onValueChange={(value) => setFormData({ ...formData, universityId: value })}>
@@ -495,7 +532,7 @@ const SuperAdminGlobalUsers = () => {
               </div>
             )}
 
-            {formData.role === 'alumni' && (
+            {formData.role === 'ALUMNI' && (
               <>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -529,17 +566,15 @@ const SuperAdminGlobalUsers = () => {
               </>
             )}
 
-            <div className="flex items-center justify-between">
-              <Label htmlFor="enabled">Enabled</Label>
-              <Switch
-                id="enabled"
-                checked={formData.enabled}
-                onCheckedChange={(checked) => setFormData({ ...formData, enabled: checked })}
-              />
-            </div>
-
-            <Button onClick={handleCreate} className="w-full">
-              Create User
+            <Button onClick={handleCreate} className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create User'
+              )}
             </Button>
           </div>
         </DialogContent>
@@ -549,4 +584,3 @@ const SuperAdminGlobalUsers = () => {
 };
 
 export default SuperAdminGlobalUsers;
-

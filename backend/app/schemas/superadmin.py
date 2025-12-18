@@ -171,3 +171,44 @@ class AdListResponse(BaseModel):
     total: int
     active_count: int
 
+
+# Global User Management (All users across all universities)
+class GlobalUserResponse(BaseModel):
+    """Global user response for superadmin."""
+    id: str
+    name: str
+    email: str
+    avatar: Optional[str] = None
+    role: str  # 'SUPERADMIN', 'ADMIN', 'ALUMNI'
+    university_id: Optional[str] = None
+    university_name: Optional[str] = None
+    graduation_year: Optional[int] = None
+    major: Optional[str] = None
+    is_mentor: bool = False
+    is_active: bool = True
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class GlobalUserListResponse(BaseModel):
+    """Paginated list of all users."""
+    users: List[GlobalUserResponse]
+    total: int
+    page: int
+    page_size: int
+    role_counts: Dict[str, int]  # e.g., {'superadmin': 1, 'admin': 5, 'alumni': 100}
+
+
+class GlobalUserCreate(BaseModel):
+    """Create a new user (any role)."""
+    email: EmailStr
+    password: str
+    name: str
+    role: str  # 'SUPERADMIN', 'ADMIN', 'ALUMNI'
+    university_id: Optional[str] = None  # Required for non-superadmin
+    graduation_year: Optional[int] = None
+    major: Optional[str] = None
+    is_mentor: bool = False
+

@@ -14,7 +14,8 @@ from app.schemas.superadmin import (
     SuperAdminDashboardStats, UniversityCreate, UniversityUpdate, UniversityResponse,
     AdminUserCreate, AdminUserResponse, AdminUserListResponse,
     GlobalAdCreate, GlobalAdUpdate, GlobalAdResponse, AdListResponse,
-    AdminPasswordResetRequest, AdminPasswordResetListResponse
+    AdminPasswordResetRequest, AdminPasswordResetListResponse,
+    GlobalUserResponse, GlobalUserListResponse, GlobalUserCreate
 )
 from app.schemas.admin import PasswordResetBody
 import json
@@ -408,6 +409,232 @@ async def deactivate_admin(
     db.commit()
     
     return {"message": "Admin deactivated", "success": True}
+
+
+# Global User Management (All users across all universities)
+@router.get("/users", response_model=GlobalUserListResponse)
+async def list_all_users(
+    search: Optional[str] = None,
+    role: Optional[str] = None,  # 'SUPERADMIN', 'ADMIN', 'ALUMNI'
+    university_id: Optional[str] = None,
+    is_mentor: Optional[bool] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(require_superadmin),
+    db: Session = Depends(get_db)
+):
+    """
+    List all users across all universities with filters.
+    """
+    query = db.query(User)
+    
+    # Apply filters
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            (User.name.ilike(search_term)) |
+            (User.email.ilike(search_term))
+        )
+    
+    if role:
+        try:
+            role_enum = UserRole(role.upper())
+            query = query.filter(User.role == role_enum)
+        except ValueError:
+            pass
+    
+    if university_id:
+        query = query.filter(User.university_id == university_id)
+    
+    if is_mentor is not None:
+        query = query.filter(User.is_mentor == is_mentor)
+    
+    # Get total count
+    total = query.count()
+    
+    # Get role counts for stats
+    superadmin_count = db.query(User).filter(User.role == UserRole.SUPERADMIN).count()
+    admin_count = db.query(User).filter(User.role == UserRole.ADMIN).count()
+    alumni_count = db.query(User).filter(User.role == UserRole.ALUMNI).count()
+    mentor_count = db.query(User).filter(User.is_mentor == True).count()
+    
+    # Paginate
+    users = query.order_by(User.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    
+    # Build response
+    user_responses = []
+    for user in users:
+        university = db.query(University).filter(University.id == user.university_id).first() if user.university_id else None
+        user_responses.append(GlobalUserResponse(
+            id=user.id,
+            name=user.name,
+            email=user.email,
+            avatar=user.avatar,
+            role=user.role.value,
+            university_id=user.university_id,
+            university_name=university.name if university else None,
+            graduation_year=user.graduation_year,
+            major=user.major,
+            is_mentor=user.is_mentor or False,
+            is_active=user.is_active if user.is_active is not None else True,
+            created_at=user.created_at
+        ))
+    
+    return GlobalUserListResponse(
+        users=user_responses,
+        total=total,
+        page=page,
+        page_size=page_size,
+        role_counts={
+            "superadmin": superadmin_count,
+            "admin": admin_count,
+            "alumni": alumni_count,
+            "mentor": mentor_count
+        }
+    )
+
+
+@router.post("/users", response_model=GlobalUserResponse, status_code=status.HTTP_201_CREATED)
+async def create_global_user(
+    user_data: GlobalUserCreate,
+    current_user: User = Depends(require_superadmin),
+    db: Session = Depends(get_db)
+):
+    """
+    Create a new user with any role.
+    """
+    # Check if email exists
+    existing = db.query(User).filter(User.email == user_data.email).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+    
+    # Validate role
+    try:
+        role_enum = UserRole(user_data.role.upper())
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role. Must be one of: SUPERADMIN, ADMIN, ALUMNI"
+        )
+    
+    # Verify university for non-superadmin
+    university = None
+    if role_enum != UserRole.SUPERADMIN:
+        if not user_data.university_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="University ID required for non-superadmin users"
+            )
+        university = db.query(University).filter(University.id == user_data.university_id).first()
+        if not university:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="University not found"
+            )
+    
+    user = User(
+        email=user_data.email,
+        username=user_data.email.split('@')[0],
+        hashed_password=get_password_hash(user_data.password),
+        name=user_data.name,
+        university_id=user_data.university_id,
+        graduation_year=user_data.graduation_year,
+        major=user_data.major,
+        is_mentor=user_data.is_mentor,
+        role=role_enum
+    )
+    
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    # Create profile
+    profile = UserProfile(user_id=user.id)
+    db.add(profile)
+    db.commit()
+    
+    return GlobalUserResponse(
+        id=user.id,
+        name=user.name,
+        email=user.email,
+        avatar=user.avatar,
+        role=user.role.value,
+        university_id=user.university_id,
+        university_name=university.name if university else None,
+        graduation_year=user.graduation_year,
+        major=user.major,
+        is_mentor=user.is_mentor or False,
+        is_active=user.is_active if user.is_active is not None else True,
+        created_at=user.created_at
+    )
+
+
+@router.put("/users/{user_id}/toggle-status")
+async def toggle_user_status(
+    user_id: str,
+    current_user: User = Depends(require_superadmin),
+    db: Session = Depends(get_db)
+):
+    """
+    Toggle a user's active status.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Don't allow deactivating yourself
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot deactivate your own account"
+        )
+    
+    user.is_active = not (user.is_active if user.is_active is not None else True)
+    db.commit()
+    
+    return {"message": f"User {'activated' if user.is_active else 'deactivated'}", "success": True, "is_active": user.is_active}
+
+
+@router.delete("/users/{user_id}")
+async def delete_global_user(
+    user_id: str,
+    current_user: User = Depends(require_superadmin),
+    db: Session = Depends(get_db)
+):
+    """
+    Delete a user.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Don't allow deleting yourself
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete your own account"
+        )
+    
+    # Delete user profile first
+    profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+    if profile:
+        db.delete(profile)
+    
+    db.delete(user)
+    db.commit()
+    
+    return {"message": "User deleted", "success": True}
 
 
 # Admin Password Resets
