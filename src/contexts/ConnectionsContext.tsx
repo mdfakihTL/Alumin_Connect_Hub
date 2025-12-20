@@ -94,9 +94,9 @@ export const ConnectionsProvider = ({ children }: { children: ReactNode }) => {
         connectionsApi.getSentRequests(),
       ]);
       
-      setConnections(connectionsRes.connections.map(transformConnection));
-      setReceivedRequests(receivedRes.requests.map(transformRequest));
-      setSentRequests(sentRes.requests.map(transformRequest));
+      setConnections((connectionsRes?.connections || []).map(transformConnection));
+      setReceivedRequests((receivedRes?.requests || []).map(transformRequest));
+      setSentRequests((sentRes?.requests || []).map(transformRequest));
     } catch (err) {
       console.error('Failed to fetch connections:', err);
       setError('Failed to load connections');
