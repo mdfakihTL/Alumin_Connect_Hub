@@ -7,19 +7,21 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { FileText, Upload, Trash2, File, FileCode, FileType, Plus, Book, AlertCircle } from 'lucide-react';
+import { FileText, Upload, Trash2, File, FileCode, FileType, Plus, Book, AlertCircle, RefreshCw, Loader2, Cloud } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
 interface KnowledgeDocument {
   id: string;
   title: string;
-  description: string;
-  fileType: 'pdf' | 'txt' | 'doc' | 'docx' | 'md';
-  fileName: string;
-  content: string; // For demo, we'll store text content
-  fileSize: string;
-  uploadDate: string;
-  universityId: string;
+  description: string | null;
+  filename: string;
+  s3_url: string;
+  file_type: string;
+  file_size: number;
+  is_active: boolean;
+  created_at: string | null;
 }
 
 const AdminKnowledgeBase = () => {
@@ -27,6 +29,8 @@ const AdminKnowledgeBase = () => {
   const { toast } = useToast();
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -38,67 +42,125 @@ const AdminKnowledgeBase = () => {
     loadDocuments();
   }, [user?.universityId]);
 
-  const loadDocuments = () => {
-    const stored = localStorage.getItem(`knowledge_base_${user?.universityId}`);
-    if (stored) {
-      setDocuments(JSON.parse(stored));
+  const loadDocuments = async () => {
+    if (!user?.universityId) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/knowledge-base/s3-documents?university_id=${user.universityId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setDocuments(data);
+      } else {
+        console.error('Failed to load documents');
+      }
+    } catch (error) {
+      console.error('Error loading documents:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleUpload = () => {
-    if (!formData.title || !formData.fileName || !formData.file) {
+  const handleUpload = async () => {
+    if (!formData.title || !formData.file) {
       toast({
         title: 'Missing information',
-        description: 'Please fill in all required fields',
+        description: 'Please fill in title and select a file',
         variant: 'destructive',
       });
       return;
     }
 
-    // Extract file type from file extension
-    const extension = formData.fileName.split('.').pop()?.toLowerCase() || 'txt';
-    const fileType = (['pdf', 'txt', 'doc', 'docx', 'md'].includes(extension) ? extension : 'txt') as KnowledgeDocument['fileType'];
-    
-    // Calculate file size
-    const fileSizeBytes = formData.file.size;
-    const fileSize = fileSizeBytes < 1024 * 1024 
-      ? `${Math.round(fileSizeBytes / 1024)}KB` 
-      : `${(fileSizeBytes / (1024 * 1024)).toFixed(1)}MB`;
+    setIsUploading(true);
 
-    const newDoc: KnowledgeDocument = {
-      id: `doc_${Date.now()}`,
-      title: formData.title,
-      description: formData.description,
-      fileType,
-      fileName: formData.fileName,
-      content: '', // Content will be parsed server-side
-      fileSize,
-      uploadDate: new Date().toISOString(),
-      universityId: user?.universityId || '',
-    };
+    try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('file', formData.file);
+      formDataToSend.append('title', formData.title);
+      formDataToSend.append('description', formData.description || '');
+      formDataToSend.append('university_id', user?.universityId || 'mit');
 
-    const updated = [...documents, newDoc];
-    localStorage.setItem(`knowledge_base_${user?.universityId}`, JSON.stringify(updated));
-    setDocuments(updated);
+      const response = await fetch(`${API_BASE_URL}/admin/knowledge-base/upload-s3`, {
+        method: 'POST',
+        body: formDataToSend,
+      });
 
-    toast({
-      title: 'Document uploaded',
-      description: 'Knowledge base document has been added to the chatbot',
-    });
+      const result = await response.json();
 
-    resetForm();
+      if (response.ok && result.success) {
+        toast({
+          title: 'Document uploaded',
+          description: 'Knowledge base document has been uploaded to S3 and added to the chatbot',
+        });
+        loadDocuments();
+        resetForm();
+      } else {
+        throw new Error(result.detail || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        title: 'Upload failed',
+        description: error instanceof Error ? error.message : 'Failed to upload document',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
-  const handleDelete = (docId: string) => {
-    if (window.confirm('Are you sure you want to remove this document from the knowledge base?')) {
-      const updated = documents.filter(d => d.id !== docId);
-      localStorage.setItem(`knowledge_base_${user?.universityId}`, JSON.stringify(updated));
-      setDocuments(updated);
+  const handleDelete = async (docId: string, docTitle: string) => {
+    if (!window.confirm(`Are you sure you want to remove "${docTitle}" from the knowledge base?`)) {
+      return;
+    }
 
-      toast({
-        title: 'Document removed',
-        description: 'Document has been removed from the knowledge base',
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/knowledge-base/s3-documents/${docId}`, {
+        method: 'DELETE',
       });
+
+      if (response.ok) {
+        toast({
+          title: 'Document removed',
+          description: 'Document has been removed from the knowledge base',
+        });
+        loadDocuments();
+      } else {
+        const result = await response.json();
+        throw new Error(result.detail || 'Delete failed');
+      }
+    } catch (error) {
+      toast({
+        title: 'Delete failed',
+        description: error instanceof Error ? error.message : 'Failed to delete document',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleReload = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/knowledge-base/reload`, {
+        method: 'POST',
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        toast({
+          title: 'Knowledge base reloaded',
+          description: result.message,
+        });
+        loadDocuments();
+      }
+    } catch (error) {
+      toast({
+        title: 'Reload failed',
+        description: 'Failed to reload knowledge base',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -122,6 +184,12 @@ const AdminKnowledgeBase = () => {
     }
   };
 
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes}B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -136,23 +204,29 @@ const AdminKnowledgeBase = () => {
           <div className="flex-1">
             <h2 className="text-xl font-bold mb-2">Chatbot Knowledge Base</h2>
             <p className="text-sm text-muted-foreground">
-              Upload documents to train your university's AI chatbot
+              Upload documents to train your university's AI chatbot (stored in S3)
             </p>
           </div>
-          <Button onClick={() => setIsModalOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Upload Document
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleReload} disabled={isLoading}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              Reload
+            </Button>
+            <Button onClick={() => setIsModalOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Upload Document
+            </Button>
+          </div>
         </div>
 
         {/* Info Alert */}
         <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 flex items-start gap-3">
-          <Book className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+          <Cloud className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
           <div className="text-sm">
-            <p className="font-medium text-blue-700 dark:text-blue-400 mb-1">Knowledge Base</p>
+            <p className="font-medium text-blue-700 dark:text-blue-400 mb-1">S3 Cloud Storage</p>
             <p className="text-blue-600 dark:text-blue-300 text-xs">
-              Upload documents containing information about your university, programs, policies, and FAQs. 
-              The AI chatbot will use these to provide accurate answers to alumni.
+              Documents are stored in AWS S3 and served via CloudFront CDN. 
+              The AI chatbot uses these to provide accurate answers to alumni.
             </p>
           </div>
         </div>
@@ -160,7 +234,12 @@ const AdminKnowledgeBase = () => {
 
       {/* Documents Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {documents.length === 0 ? (
+        {isLoading && documents.length === 0 ? (
+          <Card className="p-10 text-center col-span-full">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+            <p className="text-muted-foreground">Loading documents...</p>
+          </Card>
+        ) : documents.length === 0 ? (
           <Card className="p-10 text-center col-span-full border-dashed border-2 bg-gradient-to-br from-muted/30 via-background to-muted/30">
             <div className="flex flex-col items-center justify-center">
               <div className="relative mb-5">
@@ -189,15 +268,15 @@ const AdminKnowledgeBase = () => {
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                    {getFileIcon(doc.fileType)}
+                    {getFileIcon(doc.file_type)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold truncate">{doc.title}</h3>
-                    <p className="text-xs text-muted-foreground truncate">{doc.fileName}</p>
+                    <p className="text-xs text-muted-foreground truncate">{doc.filename}</p>
                   </div>
                 </div>
                 <Badge variant="secondary" className="text-xs uppercase">
-                  {doc.fileType}
+                  {doc.file_type}
                 </Badge>
               </div>
 
@@ -206,14 +285,19 @@ const AdminKnowledgeBase = () => {
               )}
 
               <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
-                <span>{doc.fileSize}</span>
-                <span>{new Date(doc.uploadDate).toLocaleDateString()}</span>
+                <span>{formatFileSize(doc.file_size)}</span>
+                <span>{doc.created_at ? new Date(doc.created_at).toLocaleDateString() : 'N/A'}</span>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 mb-3">
+                <Cloud className="w-3 h-3" />
+                <span>Stored in S3</span>
               </div>
 
               <Button 
                 size="sm" 
                 variant="outline"
-                onClick={() => handleDelete(doc.id)}
+                onClick={() => handleDelete(doc.id, doc.title)}
                 className="w-full text-destructive hover:text-destructive"
               >
                 <Trash2 className="w-3 h-3 mr-2" />
@@ -265,22 +349,38 @@ const AdminKnowledgeBase = () => {
                 className="cursor-pointer"
               />
               <p className="text-xs text-muted-foreground">
-                Supported formats: PDF, TXT, DOC, DOCX, MD
+                Supported formats: TXT, MD (PDF/DOC coming soon). Max size: 50MB
               </p>
             </div>
+
+            {formData.file && (
+              <div className="bg-muted/50 rounded-lg p-3">
+                <p className="text-sm font-medium">Selected file:</p>
+                <p className="text-xs text-muted-foreground">{formData.fileName} ({formatFileSize(formData.file.size)})</p>
+              </div>
+            )}
 
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
               <div className="flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
                 <p className="text-xs text-amber-600 dark:text-amber-400">
-                  The chatbot will use this content to answer alumni questions about {user?.university}.
+                  The file will be uploaded to S3 and the chatbot will use it to answer alumni questions about {user?.university || 'your university'}.
                 </p>
               </div>
             </div>
 
-            <Button onClick={handleUpload} className="w-full">
-              <Upload className="w-4 h-4 mr-2" />
-              Upload to Knowledge Base
+            <Button onClick={handleUpload} className="w-full" disabled={isUploading}>
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload to Knowledge Base
+                </>
+              )}
             </Button>
           </div>
         </DialogContent>
@@ -290,4 +390,3 @@ const AdminKnowledgeBase = () => {
 };
 
 export default AdminKnowledgeBase;
-

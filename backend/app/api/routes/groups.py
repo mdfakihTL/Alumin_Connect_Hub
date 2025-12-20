@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from typing import Optional, List
 from datetime import datetime
 
@@ -45,8 +46,24 @@ async def list_groups(
 ):
     """
     List groups with pagination and filtering.
+    Private groups are only visible to members.
     """
+    # Get all group IDs where the current user is a member
+    user_group_ids = db.query(GroupMember.group_id).filter(
+        GroupMember.user_id == current_user.id
+    ).all()
+    user_group_ids = [g[0] for g in user_group_ids]
+    
+    # Base query - active groups only
     query = db.query(Group).filter(Group.is_active == True)
+    
+    # Filter: Show public groups OR private groups where user is a member
+    query = query.filter(
+        or_(
+            Group.is_private == False,  # Public groups
+            Group.id.in_(user_group_ids)  # Private groups user is member of
+        )
+    )
     
     if university_id:
         query = query.filter(Group.university_id == university_id)
@@ -67,13 +84,16 @@ async def list_groups(
     group_responses = []
     for group in groups:
         # Check if current user is a member
-        membership = db.query(GroupMember).filter(
-            GroupMember.group_id == group.id,
-            GroupMember.user_id == current_user.id
-        ).first()
+        is_joined = group.id in user_group_ids
         
-        is_joined = membership is not None
-        unread_count = membership.unread_count if membership else 0
+        # Get unread count if member
+        unread_count = 0
+        if is_joined:
+            membership = db.query(GroupMember).filter(
+                GroupMember.group_id == group.id,
+                GroupMember.user_id == current_user.id
+            ).first()
+            unread_count = membership.unread_count if membership else 0
         
         group_responses.append(GroupResponse(
             id=group.id,

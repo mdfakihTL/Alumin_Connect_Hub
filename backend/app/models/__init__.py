@@ -14,6 +14,7 @@ from app.models.fundraiser import Fundraiser
 from app.models.ad import Ad
 from app.models.lead_intelligence import AdClick, AdImpression, CareerRoadmapRequest, CareerRoadmapView
 from app.models.media import Media
+from app.models.knowledge_base import KnowledgeBaseDocument
 
 __all__ = [
     "User", "UserProfile", "UserRole",
@@ -30,5 +31,6 @@ __all__ = [
     "Fundraiser",
     "Ad",
     "AdClick", "AdImpression", "CareerRoadmapRequest", "CareerRoadmapView",
-    "Media"
+    "Media",
+    "KnowledgeBaseDocument"
 ]

@@ -5,62 +5,70 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { 
   Users, UserPlus, Shield, FileText, Calendar, 
-  UsersRound, DollarSign, Settings, Menu
+  UsersRound, DollarSign, Settings, Menu, RefreshCw
 } from 'lucide-react';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
 import { useSidebar } from '@/contexts/SidebarContext';
 import WorldMapHeatmap from '@/components/WorldMapHeatmap';
+import { adminApi } from '@/api/admin';
+import { useToast } from '@/hooks/use-toast';
 
 const AdminDashboard = () => {
   const { user } = useAuth();
   const { getUniversity } = useUniversity();
   const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
+  const { toast } = useToast();
   const navigate = useNavigate();
 
   const university = user?.universityId ? getUniversity(user.universityId) : null;
 
-  // Get real statistics from localStorage
+  // Get real statistics from API
   const [stats, setStats] = useState({
     totalAlumni: 0,
     activeMentors: 0,
     pendingDocuments: 0,
     pendingEvents: 0,
     pendingPasswordResets: 0,
-    activeGroups: 24,
-    activeFundraisers: 2,
+    activeGroups: 0,
+    activeFundraisers: 0,
+    openTickets: 0,
   });
+  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchStats = async () => {
     if (!user?.universityId) return;
 
-    // Get real stats
-    const users = JSON.parse(localStorage.getItem(`alumni_users_${user.universityId}`) || '[]');
-    const mentors = users.filter((u: any) => u.isMentor);
-    const docRequests = JSON.parse(localStorage.getItem(`document_requests_${user.universityId}`) || '[]');
-    const pendingDocs = docRequests.filter((d: any) => d.status === 'pending');
-    const passwordResets = JSON.parse(localStorage.getItem(`password_reset_requests_${user.universityId}`) || '[]');
-    const pendingResets = passwordResets.filter((r: any) => r.status === 'pending');
+    setIsLoading(true);
+    try {
+      const dashboardStats = await adminApi.getDashboardStats();
+      setStats({
+        totalAlumni: dashboardStats.total_alumni,
+        activeMentors: dashboardStats.active_mentors,
+        pendingDocuments: dashboardStats.pending_documents,
+        pendingEvents: dashboardStats.upcoming_events,
+        pendingPasswordResets: dashboardStats.password_resets,
+        activeGroups: dashboardStats.active_groups,
+        activeFundraisers: dashboardStats.active_fundraisers,
+        openTickets: dashboardStats.open_tickets,
+      });
+    } catch (error) {
+      console.error('Failed to fetch dashboard stats:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load dashboard statistics',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    // Get events and groups from localStorage
-    const events = JSON.parse(localStorage.getItem(`events_${user.universityId}`) || '[]');
-    const pendingEvents = events.filter((e: any) => e.status === 'pending' || !e.status);
-    const groups = JSON.parse(localStorage.getItem(`groups_${user.universityId}`) || '[]');
-    const activeGroups = groups.filter((g: any) => g.status !== 'archived');
-    const fundraisers = JSON.parse(localStorage.getItem(`fundraisers_${user.universityId}`) || '[]');
-    const activeFundraisers = fundraisers.filter((f: any) => f.status === 'active');
-
-    setStats({
-      totalAlumni: users.length,
-      activeMentors: mentors.length,
-      pendingDocuments: pendingDocs.length,
-      pendingEvents: pendingEvents.length,
-      pendingPasswordResets: pendingResets.length,
-      activeGroups: activeGroups.length,
-      activeFundraisers: activeFundraisers.length,
-    });
+  useEffect(() => {
+    fetchStats();
   }, [user?.universityId]);
 
   return (
@@ -100,16 +108,29 @@ const AdminDashboard = () => {
                     <p className="text-xs sm:text-sm text-muted-foreground">{university?.name || user?.university}</p>
                   </div>
                 </div>
-                {/* Sidebar Toggle - All Screen Sizes */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={toggleSidebar}
-                  className="h-10 w-10 flex-shrink-0"
-                  title="Toggle menu"
-                >
-                  <Menu className="w-5 h-5" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  {/* Refresh Button */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={fetchStats}
+                    disabled={isLoading}
+                    className="h-10 w-10 flex-shrink-0"
+                    title="Refresh stats"
+                  >
+                    <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+                  </Button>
+                  {/* Sidebar Toggle - All Screen Sizes */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={toggleSidebar}
+                    className="h-10 w-10 flex-shrink-0"
+                    title="Toggle menu"
+                  >
+                    <Menu className="w-5 h-5" />
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -126,7 +147,11 @@ const AdminDashboard = () => {
                         <Users className="w-5 h-5 text-blue-500" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-bold">{stats.totalAlumni}</h3>
+                        {isLoading ? (
+                          <Skeleton className="h-7 w-12 mb-1" />
+                        ) : (
+                          <h3 className="text-xl font-bold">{stats.totalAlumni}</h3>
+                        )}
                         <p className="text-xs text-muted-foreground truncate">Alumni</p>
                       </div>
                     </div>
@@ -139,7 +164,11 @@ const AdminDashboard = () => {
                         <Shield className="w-5 h-5 text-green-500" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-bold">{stats.activeMentors}</h3>
+                        {isLoading ? (
+                          <Skeleton className="h-7 w-12 mb-1" />
+                        ) : (
+                          <h3 className="text-xl font-bold">{stats.activeMentors}</h3>
+                        )}
                         <p className="text-xs text-muted-foreground truncate">Mentors</p>
                       </div>
                     </div>
@@ -150,12 +179,16 @@ const AdminDashboard = () => {
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center flex-shrink-0 relative">
                         <FileText className="w-5 h-5 text-orange-500" />
-                        {stats.pendingDocuments > 0 && (
+                        {!isLoading && stats.pendingDocuments > 0 && (
                           <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 min-w-4 p-0 text-[9px] flex items-center justify-center">{stats.pendingDocuments}</Badge>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-bold">{stats.pendingDocuments}</h3>
+                        {isLoading ? (
+                          <Skeleton className="h-7 w-12 mb-1" />
+                        ) : (
+                          <h3 className="text-xl font-bold">{stats.pendingDocuments}</h3>
+                        )}
                         <p className="text-xs text-muted-foreground truncate">Docs</p>
                       </div>
                     </div>
@@ -166,51 +199,67 @@ const AdminDashboard = () => {
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0 relative">
                         <Shield className="w-5 h-5 text-red-500" />
-                        {stats.pendingPasswordResets > 0 && (
+                        {!isLoading && stats.pendingPasswordResets > 0 && (
                           <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 min-w-4 p-0 text-[9px] flex items-center justify-center">{stats.pendingPasswordResets}</Badge>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-bold">{stats.pendingPasswordResets}</h3>
+                        {isLoading ? (
+                          <Skeleton className="h-7 w-12 mb-1" />
+                        ) : (
+                          <h3 className="text-xl font-bold">{stats.pendingPasswordResets}</h3>
+                        )}
                         <p className="text-xs text-muted-foreground truncate">Resets</p>
                       </div>
                     </div>
                   </Card>
 
-                  {/* Pending Events */}
-                  <Card className="p-4 hover:shadow-md transition-shadow">
+                  {/* Events */}
+                  <Card className="p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/admin/events')}>
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
                         <Calendar className="w-5 h-5 text-purple-500" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-bold">{stats.pendingEvents}</h3>
+                        {isLoading ? (
+                          <Skeleton className="h-7 w-12 mb-1" />
+                        ) : (
+                          <h3 className="text-xl font-bold">{stats.pendingEvents}</h3>
+                        )}
                         <p className="text-xs text-muted-foreground truncate">Events</p>
                       </div>
                     </div>
                   </Card>
 
                   {/* Active Groups */}
-                  <Card className="p-4 hover:shadow-md transition-shadow">
+                  <Card className="p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/admin/groups')}>
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center flex-shrink-0">
                         <UsersRound className="w-5 h-5 text-cyan-500" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-bold">{stats.activeGroups}</h3>
+                        {isLoading ? (
+                          <Skeleton className="h-7 w-12 mb-1" />
+                        ) : (
+                          <h3 className="text-xl font-bold">{stats.activeGroups}</h3>
+                        )}
                         <p className="text-xs text-muted-foreground truncate">Groups</p>
                       </div>
                     </div>
                   </Card>
 
                   {/* Active Fundraisers */}
-                  <Card className="p-4 hover:shadow-md transition-shadow">
+                  <Card className="p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/admin/fundraiser')}>
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-pink-500/10 flex items-center justify-center flex-shrink-0">
                         <DollarSign className="w-5 h-5 text-pink-500" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-bold">{stats.activeFundraisers}</h3>
+                        {isLoading ? (
+                          <Skeleton className="h-7 w-12 mb-1" />
+                        ) : (
+                          <h3 className="text-xl font-bold">{stats.activeFundraisers}</h3>
+                        )}
                         <p className="text-xs text-muted-foreground truncate">Campaigns</p>
                       </div>
                     </div>

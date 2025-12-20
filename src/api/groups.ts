@@ -27,6 +27,7 @@ export const groupsApi = {
     category?: string;
     search?: string;
     joined_only?: boolean;
+    university_id?: string;
   }): Promise<GroupListResponse> => {
     return apiClient.get<GroupListResponse>('/groups', params);
   },
@@ -63,10 +64,10 @@ export const groupsApi = {
 
   // Get group messages
   getGroupMessages: async (groupId: string, params?: {
-    page?: number;
-    page_size?: number;
-  }): Promise<{ messages: GroupMessageResponse[]; total: number }> => {
-    return apiClient.get(`/groups/${groupId}/messages`, params);
+    limit?: number;
+  }): Promise<{ messages: GroupMessageResponse[] }> => {
+    const messages = await apiClient.get<GroupMessageResponse[]>(`/groups/${groupId}/messages`, params);
+    return { messages };
   },
 
   // Send group message

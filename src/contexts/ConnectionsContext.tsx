@@ -6,6 +6,7 @@ import type { ConnectionResponse, ConnectionRequestResponse } from '@/api/types'
 
 export interface Connection {
   id: string;
+  userId: string; // The actual user ID (for messaging)
   name: string;
   avatar: string;
   university: string;
@@ -50,6 +51,7 @@ const ConnectionsContext = createContext<ConnectionsContextType | undefined>(und
 // Transform API response to frontend format
 const transformConnection = (apiConn: ConnectionResponse): Connection => ({
   id: apiConn.id,
+  userId: apiConn.user.id, // Store the actual user ID for messaging
   name: apiConn.user.name,
   avatar: apiConn.user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${apiConn.user.name}`,
   university: apiConn.user.university || 'University',
@@ -94,9 +96,14 @@ export const ConnectionsProvider = ({ children }: { children: ReactNode }) => {
         connectionsApi.getSentRequests(),
       ]);
       
-      setConnections(connectionsRes.connections.map(transformConnection));
-      setReceivedRequests(receivedRes.requests.map(transformRequest));
-      setSentRequests(sentRes.requests.map(transformRequest));
+      // Add null checks for API responses
+      const connections = connectionsRes?.connections || [];
+      const receivedRequests = receivedRes?.requests || receivedRes || [];
+      const sentRequests = sentRes?.requests || sentRes || [];
+      
+      setConnections(Array.isArray(connections) ? connections.map(transformConnection) : []);
+      setReceivedRequests(Array.isArray(receivedRequests) ? receivedRequests.map(transformRequest) : []);
+      setSentRequests(Array.isArray(sentRequests) ? sentRequests.map(transformRequest) : []);
     } catch (err) {
       console.error('Failed to fetch connections:', err);
       setError('Failed to load connections');

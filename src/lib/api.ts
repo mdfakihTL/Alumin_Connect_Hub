@@ -837,6 +837,127 @@ class ApiClient {
       method: 'POST',
     });
   }
+
+  // ============ NOTIFICATIONS API ============
+  
+  async getNotifications(params?: {
+    type_filter?: string;
+    unread_only?: boolean;
+    page?: number;
+    page_size?: number;
+  }): Promise<{
+    notifications: NotificationResponse[];
+    total: number;
+    unread_count: number;
+    page: number;
+    page_size: number;
+  }> {
+    const queryParams = new URLSearchParams();
+    if (params?.type_filter) queryParams.append('type_filter', params.type_filter);
+    if (params?.unread_only) queryParams.append('unread_only', 'true');
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.page_size) queryParams.append('page_size', params.page_size.toString());
+    
+    const query = queryParams.toString();
+    return this.request(`/notifications${query ? `?${query}` : ''}`);
+  }
+
+  async getUnreadNotificationCount(): Promise<{ unread_count: number }> {
+    return this.request('/notifications/unread-count');
+  }
+
+  async markNotificationAsRead(notificationId: string): Promise<{ success: boolean }> {
+    return this.request(`/notifications/${notificationId}/read`, {
+      method: 'PUT',
+    });
+  }
+
+  async markAllNotificationsAsRead(): Promise<{ success: boolean }> {
+    return this.request('/notifications/mark-all-read', {
+      method: 'PUT',
+    });
+  }
+
+  async deleteNotification(notificationId: string): Promise<{ success: boolean }> {
+    return this.request(`/notifications/${notificationId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async clearAllNotifications(): Promise<{ success: boolean }> {
+    return this.request('/notifications', {
+      method: 'DELETE',
+    });
+  }
+
+  // ============ USERS/CONNECTIONS API ============
+  
+  async getSuggestedConnections(limit: number = 5): Promise<SuggestedConnection[]> {
+    return this.request(`/users/suggested-connections?limit=${limit}`);
+  }
+
+  async getMentors(params?: {
+    page?: number;
+    page_size?: number;
+    search?: string;
+  }): Promise<{
+    mentors: MentorResponse[];
+    total: number;
+    page: number;
+    page_size: number;
+  }> {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.page_size) queryParams.append('page_size', params.page_size.toString());
+    if (params?.search) queryParams.append('search', params.search);
+    
+    const query = queryParams.toString();
+    return this.request(`/users/mentors${query ? `?${query}` : ''}`);
+  }
+}
+
+// Notification Response Interface
+export interface NotificationResponse {
+  id: string;
+  type: 'like' | 'comment' | 'connection' | 'event' | 'job' | 'announcement';
+  title: string;
+  message: string;
+  avatar?: string;
+  read: boolean;
+  time: string;
+  created_at: string;
+  action_url?: string;
+  related_id?: string;
+}
+
+// Suggested Connection Interface
+export interface SuggestedConnection {
+  id: string;
+  name: string;
+  title?: string;
+  company?: string;
+  avatar?: string;
+  university?: string;
+  graduation_year?: string;
+  major?: string;
+  mutual_connections: number;
+  match_reasons?: string[];
+}
+
+// Mentor Response Interface
+export interface MentorResponse {
+  id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+  title?: string;
+  company?: string;
+  major?: string;
+  graduation_year?: string;
+  location?: string;
+  phone?: string;
+  bio?: string;
+  expertise?: string[];
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);

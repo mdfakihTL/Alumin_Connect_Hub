@@ -16,13 +16,20 @@ async def lifespan(app: FastAPI):
     create_tables()
     print("Database tables created/verified.")
     
-    # Load Knowledge Base documents on startup
+    # Load Knowledge Base documents on startup (local + S3)
     try:
-        from app.services.knowledge_base import load_all_documents, get_knowledge_base_status
-        doc_count = load_all_documents()
-        status = get_knowledge_base_status()
-        print(f"✓ Knowledge Base loaded: {doc_count} documents, {status['chunk_count']} chunks")
-        print(f"  University: {status['university_name']} ({status['university_id']})")
+        from app.services.knowledge_base import load_all_documents_with_s3, get_knowledge_base_status
+        from app.core.database import SessionLocal
+        
+        # Create a database session for S3 document loading
+        db = SessionLocal()
+        try:
+            doc_count = load_all_documents_with_s3(db)
+            status = get_knowledge_base_status()
+            print(f"✓ Knowledge Base loaded: {doc_count} documents, {status['chunk_count']} chunks")
+            print(f"  University: {status['university_name']} ({status['university_id']})")
+        finally:
+            db.close()
     except Exception as e:
         print(f"⚠ Could not load Knowledge Base: {e}")
     
@@ -80,6 +87,7 @@ ALLOWED_ORIGINS = [
     "https://alumni-portal-bhanushrichinta-coders-projects.vercel.app",
     "https://alumni-portal-git-main-bhanushrichinta-coders-projects.vercel.app",
     "https://alumni-portal.vercel.app",
+    "https://devalumni.tledtech.com",
 ]
 
 # Also allow any Vercel preview URLs

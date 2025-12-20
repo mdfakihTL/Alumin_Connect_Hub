@@ -60,7 +60,11 @@ export const GroupsProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await groupsApi.getGroups({ page_size: 100 });
+      // Filter groups by user's university
+      const response = await groupsApi.getGroups({ 
+        page_size: 100,
+        university_id: user.universityId // Filter by current user's university
+      });
       setGroups(response.groups.map(transformGroup));
     } catch (err) {
       console.error('Failed to fetch groups:', err);

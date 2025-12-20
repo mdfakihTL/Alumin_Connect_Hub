@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bell, Check, X } from 'lucide-react';
+import { Bell, Check, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -8,10 +8,10 @@ import {
 } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Card } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
 import { useConnections } from '@/contexts/ConnectionsContext';
 import { useToast } from '@/hooks/use-toast';
+import { apiClient, NotificationResponse } from '@/lib/api';
 
 interface Notification {
   id: string;
@@ -23,58 +23,62 @@ interface Notification {
   avatar?: string;
 }
 
-const mockNotifications: Notification[] = [
-  {
-    id: '1',
-    type: 'like',
-    title: 'Sarah Johnson liked your post',
-    message: 'Your post about career growth resonated with the community',
-    time: '5m ago',
-    read: false,
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah',
-  },
-  {
-    id: '2',
-    type: 'comment',
-    title: 'Michael Chen commented',
-    message: 'Great insights! Would love to connect and discuss further.',
-    time: '1h ago',
-    read: false,
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Michael',
-  },
-  {
-    id: '3',
-    type: 'connection',
-    title: 'New connection request',
-    message: 'Emily Rodriguez wants to connect with you',
-    time: '3h ago',
-    read: false,
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Emily',
-  },
-  {
-    id: '4',
-    type: 'event',
-    title: 'Event Reminder',
-    message: 'Alumni Networking Mixer starts in 2 days',
-    time: '5h ago',
-    read: true,
-  },
-  {
-    id: '5',
-    type: 'job',
-    title: 'New job opportunity',
-    message: 'Senior Software Engineer at Google matches your profile',
-    time: '1d ago',
-    read: true,
-  },
-];
-
 const NotificationBell = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { receivedRequests, acceptRequest, rejectRequest } = useConnections();
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Fetch notifications from API
+  const fetchNotifications = async () => {
+    setIsLoading(true);
+    try {
+      const response = await apiClient.getNotifications({ page_size: 10 });
+      const formattedNotifications: Notification[] = response.notifications.map((n: NotificationResponse) => ({
+        id: n.id,
+        type: n.type,
+        title: n.title,
+        message: n.message,
+        time: n.time,
+        read: n.read,
+        avatar: n.avatar,
+      }));
+      setNotifications(formattedNotifications);
+      setUnreadCount(response.unread_count);
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+      // Keep existing notifications on error
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch unread count periodically
+  useEffect(() => {
+    fetchNotifications();
+    
+    // Poll for new notifications every 30 seconds
+    const interval = setInterval(async () => {
+      try {
+        const countResponse = await apiClient.getUnreadNotificationCount();
+        setUnreadCount(countResponse.unread_count);
+      } catch (error) {
+        // Silently fail
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Refresh notifications when popover opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchNotifications();
+    }
+  }, [isOpen]);
 
   // Convert connection requests to notifications
   const connectionNotifications: Notification[] = receivedRequests.map(req => ({
@@ -89,11 +93,21 @@ const NotificationBell = () => {
 
   // Combine all notifications
   const allNotifications = [...connectionNotifications, ...notifications];
-  const unreadCount = allNotifications.filter(n => !n.read).length;
+  const totalUnreadCount = unreadCount + connectionNotifications.length;
 
-  const handleNotificationClick = (notification: Notification) => {
-    // Mark as read and remove from list
-    setNotifications(prev => prev.filter(n => n.id !== notification.id));
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read via API
+    if (!notification.id.startsWith('conn_')) {
+      try {
+        await apiClient.markNotificationAsRead(notification.id);
+        setNotifications(prev => prev.map(n => 
+          n.id === notification.id ? { ...n, read: true } : n
+        ));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      } catch (error) {
+        console.error('Failed to mark notification as read:', error);
+      }
+    }
     
     // Navigate based on type
     if (notification.type === 'event') {
@@ -106,15 +120,20 @@ const NotificationBell = () => {
     setIsOpen(false);
   };
 
-  const markAllAsRead = () => {
-    // Mark all as read, then remove them after a short delay
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    
-    // Remove read notifications after marking them
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => !n.read));
-      setIsOpen(false);
-    }, 500);
+  const markAllAsRead = async () => {
+    try {
+      await apiClient.markAllNotificationsAsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
+      toast({
+        title: 'All notifications marked as read',
+      });
+    } catch (error) {
+      toast({
+        title: 'Failed to mark notifications as read',
+        variant: 'destructive',
+      });
+    }
   };
 
   const getNotificationIcon = (type: string) => {
@@ -138,12 +157,12 @@ const NotificationBell = () => {
           className="relative h-9 w-9 sm:h-10 sm:w-10 rounded-full hover:bg-accent"
         >
           <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
-          {unreadCount > 0 && (
+          {totalUnreadCount > 0 && (
             <Badge
               variant="destructive"
               className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 h-4 w-4 sm:h-5 sm:w-5 rounded-full p-0 flex items-center justify-center text-[9px] sm:text-[10px] font-bold"
             >
-              {unreadCount > 9 ? '9+' : unreadCount}
+              {totalUnreadCount > 9 ? '9+' : totalUnreadCount}
             </Badge>
           )}
         </Button>
@@ -151,7 +170,7 @@ const NotificationBell = () => {
       <PopoverContent className="w-[90vw] sm:w-96 p-0" align="end">
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="font-semibold text-base">Notifications</h3>
-          {unreadCount > 0 && (
+          {totalUnreadCount > 0 && (
             <Button
               variant="ghost"
               size="sm"
@@ -163,7 +182,12 @@ const NotificationBell = () => {
           )}
         </div>
         <ScrollArea className="h-[400px] sm:h-[500px]">
-          {notifications.length === 0 ? (
+          {isLoading ? (
+            <div className="p-8 text-center text-muted-foreground">
+              <Loader2 className="w-8 h-8 mx-auto mb-3 animate-spin" />
+              <p className="text-sm">Loading notifications...</p>
+            </div>
+          ) : allNotifications.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               <Bell className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p className="text-sm">No notifications yet</p>
@@ -278,4 +302,3 @@ const NotificationBell = () => {
 };
 
 export default NotificationBell;
-

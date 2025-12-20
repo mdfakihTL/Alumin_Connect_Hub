@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     S3_BUCKET_NAME: Optional[str] = None
     CLOUDFRONT_URL: Optional[str] = None
     AWS_REGION: str = "ap-south-1"
+    
+    # AI/LLM Settings
+    GROQ_API_KEY: Optional[str] = None
+    OPENAI_API_KEY: Optional[str] = None
     # Email/SMTP Settings
     SMTP_HOST: Optional[str] = None
     SMTP_PORT: int = 587  # Use 465 for SSL, 587 for STARTTLS, 2525 as alternative

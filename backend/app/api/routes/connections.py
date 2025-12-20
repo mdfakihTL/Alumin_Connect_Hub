@@ -136,6 +136,21 @@ async def send_connection_request(
     db.commit()
     db.refresh(connection_request)
     
+    # Create notification for the target user
+    from app.models.notification import Notification, NotificationType
+    
+    notification = Notification(
+        user_id=target_user.id,
+        type=NotificationType.CONNECTION,
+        title="New Connection Request",
+        message=f"{current_user.name} wants to connect with you",
+        avatar=current_user.avatar,
+        action_url="/connections",
+        related_id=connection_request.id
+    )
+    db.add(notification)
+    db.commit()
+    
     return {
         "message": f"Connection request sent to {target_user.name}",
         "success": True,
@@ -221,7 +236,7 @@ async def get_sent_requests(
     return responses
 
 
-@router.post("/requests/{request_id}/accept")
+@router.put("/requests/{request_id}/accept")
 async def accept_connection_request(
     request_id: str,
     current_user: User = Depends(get_current_active_user),
@@ -262,9 +277,23 @@ async def accept_connection_request(
     if to_profile:
         to_profile.connections_count += 1
     
-    db.commit()
-    
     from_user = db.query(User).filter(User.id == connection_request.from_user_id).first()
+    
+    # Create notification for the requester that their request was accepted
+    from app.models.notification import Notification, NotificationType
+    
+    notification = Notification(
+        user_id=connection_request.from_user_id,
+        type=NotificationType.CONNECTION,
+        title="Connection Accepted",
+        message=f"{current_user.name} accepted your connection request",
+        avatar=current_user.avatar,
+        action_url="/connections",
+        related_id=connection.id
+    )
+    db.add(notification)
+    
+    db.commit()
     
     return {
         "message": f"You are now connected with {from_user.name if from_user else 'user'}",
@@ -272,7 +301,7 @@ async def accept_connection_request(
     }
 
 
-@router.post("/requests/{request_id}/reject")
+@router.put("/requests/{request_id}/reject")
 async def reject_connection_request(
     request_id: str,
     current_user: User = Depends(get_current_active_user),

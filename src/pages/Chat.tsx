@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useSidebar } from '@/contexts/SidebarContext';
 import DesktopNav from '@/components/DesktopNav';
@@ -7,14 +7,18 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Send, Users, Menu, MessageSquare } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Search, Send, Users, Menu, MessageSquare, Loader2 } from 'lucide-react';
 import { useGroups } from '@/contexts/GroupsContext';
 import { useConnections } from '@/contexts/ConnectionsContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { messagesApi } from '@/api/messages';
+import { groupsApi, GroupMessageResponse } from '@/api/groups';
+import { useToast } from '@/hooks/use-toast';
 
 interface ChatItem {
   id: string;
+  userId?: string; // The actual user ID for messaging (for personal chats)
   name: string;
   avatar: string;
   lastMessage: string;
@@ -37,15 +41,20 @@ const Chat = () => {
   const location = useLocation();
   const { joinedGroups } = useGroups();
   const { connections } = useConnections();
+  const { toast } = useToast();
   const [message, setMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'personal' | 'groups'>('all');
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
+  const [conversationIds, setConversationIds] = useState<Record<string, string>>({});
+  const [isSending, setIsSending] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
   // Convert connections to chat items
   const connectionChats: ChatItem[] = useMemo(() => 
     connections.map(conn => ({
       id: `c${conn.id}`,
+      userId: conn.userId, // Store the actual user ID for messaging
       name: conn.name,
       avatar: conn.avatar,
       lastMessage: 'Start a conversation',
@@ -104,6 +113,73 @@ const Chat = () => {
 
   const [selectedChat, setSelectedChat] = useState<ChatItem | null>(null);
 
+  // Load messages for a conversation or group
+  const loadMessages = useCallback(async (chatItem: ChatItem) => {
+    setIsLoadingMessages(true);
+    
+    try {
+      if (chatItem.isGroup) {
+        // Load group messages
+        const groupId = chatItem.id.replace('g', '');
+        const response = await groupsApi.getGroupMessages(groupId);
+        
+        // Convert API messages to local format
+        const apiMessages: Message[] = (response.messages || []).map((msg: GroupMessageResponse) => ({
+          id: msg.id,
+          content: msg.content,
+          sender: msg.sender.name,
+          timestamp: msg.timestamp,
+          isOwn: msg.is_own
+        }));
+        
+        setMessages(prev => ({
+          ...prev,
+          [chatItem.id]: apiMessages
+        }));
+      } else {
+        // Load personal conversation messages
+        const userId = chatItem.userId;
+        
+        if (!userId) {
+          console.error('No user ID found for chat item:', chatItem);
+          setMessages(prev => ({ ...prev, [chatItem.id]: [] }));
+          return;
+        }
+        
+        const response = await messagesApi.getOrCreateConversation(userId);
+        
+        // Store conversation ID for sending messages
+        setConversationIds(prev => ({
+          ...prev,
+          [chatItem.id]: response.conversation.id
+        }));
+        
+        // Convert API messages to local format
+        const apiMessages: Message[] = response.messages.map(msg => ({
+          id: msg.id,
+          content: msg.content,
+          sender: msg.sender,
+          timestamp: msg.timestamp,
+          isOwn: msg.is_own
+        }));
+        
+        setMessages(prev => ({
+          ...prev,
+          [chatItem.id]: apiMessages
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+      // Initialize with empty messages on error
+      setMessages(prev => ({
+        ...prev,
+        [chatItem.id]: []
+      }));
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  }, []);
+
   // Handle navigation from connections page
   useEffect(() => {
     const selectedUser = location.state?.selectedUser;
@@ -118,41 +194,101 @@ const Chat = () => {
     }
   }, [location.state, connectionChats]);
 
-  // Initialize some sample messages
+  // Load messages when chat is selected
   useEffect(() => {
-    if (selectedChat && !messages[selectedChat.id]) {
-      setMessages(prev => ({
-        ...prev,
-        [selectedChat.id]: [
-          {
-            id: '1',
-            content: selectedChat.lastMessage,
-            sender: selectedChat.name,
-            timestamp: selectedChat.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            isOwn: false,
-          },
-        ],
-      }));
+    if (selectedChat) {
+      loadMessages(selectedChat);
     }
-  }, [selectedChat]);
+  }, [selectedChat, loadMessages]);
 
-  const handleSendMessage = () => {
-    if (!message.trim() || !selectedChat) return;
+  const handleSendMessage = async () => {
+    if (!message.trim() || !selectedChat || isSending) return;
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      content: message.trim(),
-      sender: user?.name || 'You',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isOwn: true,
-    };
-
-    setMessages(prev => ({
-      ...prev,
-      [selectedChat.id]: [...(prev[selectedChat.id] || []), newMessage],
-    }));
-
-    setMessage('');
+    const messageContent = message.trim();
+    setMessage(''); // Clear immediately for better UX
+    setIsSending(true);
+    
+    try {
+      // Handle group messages
+      if (selectedChat.isGroup) {
+        const groupId = selectedChat.id.replace('g', '');
+        const msgResponse = await groupsApi.sendGroupMessage(groupId, messageContent);
+        
+        const newMessage: Message = {
+          id: msgResponse.id,
+          content: msgResponse.content,
+          sender: msgResponse.sender.name,
+          timestamp: msgResponse.timestamp,
+          isOwn: true,
+        };
+        
+        setMessages(prev => ({
+          ...prev,
+          [selectedChat.id]: [...(prev[selectedChat.id] || []), newMessage],
+        }));
+        setIsSending(false);
+        return;
+      }
+    
+      // Handle personal conversation messages
+      const conversationId = conversationIds[selectedChat.id];
+      
+      if (!conversationId) {
+        // Create conversation first
+        const userId = selectedChat.userId;
+        if (!userId) {
+          throw new Error('No user ID found for this chat');
+        }
+        const response = await messagesApi.getOrCreateConversation(userId);
+        setConversationIds(prev => ({
+          ...prev,
+          [selectedChat.id]: response.conversation.id
+        }));
+        
+        // Now send the message
+        const msgResponse = await messagesApi.sendMessage(response.conversation.id, messageContent);
+        
+        const newMessage: Message = {
+          id: msgResponse.id,
+          content: msgResponse.content,
+          sender: msgResponse.sender,
+          timestamp: msgResponse.timestamp,
+          isOwn: true,
+        };
+        
+        setMessages(prev => ({
+          ...prev,
+          [selectedChat.id]: [...(prev[selectedChat.id] || []), newMessage],
+        }));
+      } else {
+        // Send message to existing conversation
+        const msgResponse = await messagesApi.sendMessage(conversationId, messageContent);
+        
+        const newMessage: Message = {
+          id: msgResponse.id,
+          content: msgResponse.content,
+          sender: msgResponse.sender,
+          timestamp: msgResponse.timestamp,
+          isOwn: true,
+        };
+        
+        setMessages(prev => ({
+          ...prev,
+          [selectedChat.id]: [...(prev[selectedChat.id] || []), newMessage],
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      toast({
+        title: 'Failed to send message',
+        description: 'Please try again',
+        variant: 'destructive',
+      });
+      // Restore the message
+      setMessage(messageContent);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -326,7 +462,21 @@ const Chat = () => {
 
               {/* Messages */}
               <div className="flex-1 p-4 overflow-y-auto space-y-3">
-                {(messages[selectedChat.id] || []).map((msg) => (
+                {isLoadingMessages ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin text-primary" />
+                      <p className="text-sm text-muted-foreground">Loading messages...</p>
+                    </div>
+                  </div>
+                ) : (messages[selectedChat.id] || []).length === 0 ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <MessageSquare className="w-12 h-12 mx-auto mb-2 text-muted-foreground opacity-50" />
+                      <p className="text-sm text-muted-foreground">No messages yet. Start a conversation!</p>
+                    </div>
+                  </div>
+                ) : (messages[selectedChat.id] || []).map((msg) => (
                   <div
                     key={msg.id}
                     className={`flex gap-3 ${msg.isOwn ? 'flex-row-reverse' : ''}`}
@@ -369,14 +519,19 @@ const Chat = () => {
                     onChange={(e) => setMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
                     className="h-11"
+                    disabled={isSending}
                   />
                   <Button 
                     size="icon" 
                     className="h-11 w-11 flex-shrink-0"
                     onClick={handleSendMessage}
-                    disabled={!message.trim()}
+                    disabled={!message.trim() || isSending}
                   >
-                    <Send className="w-5 h-5" />
+                    {isSending ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Send className="w-5 h-5" />
+                    )}
                   </Button>
                 </div>
               </div>

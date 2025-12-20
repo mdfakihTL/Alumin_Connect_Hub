@@ -15,11 +15,11 @@ interface Message {
   isError?: boolean;
 }
 
-// Example prompts for MIT Knowledge Base
-const examplePrompts = [
+// Example prompts for Knowledge Base
+const getExamplePrompts = (universityName: string) => [
   "What are the admission requirements?",
   "Tell me about scholarship opportunities",
-  "What programs does MIT offer?",
+  `What programs does ${universityName} offer?`,
   "How do I access alumni benefits?",
   "What are the housing options?",
 ];
@@ -51,10 +51,15 @@ interface ChatQueryResponse {
 const UniversityChatbot = () => {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  
+  // Get university name from user or default
+  const universityName = user?.university || 'Your University';
+  const examplePrompts = getExamplePrompts(universityName);
+  
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: `Hi ${user?.name || 'there'}! 👋 I'm your MIT AI Assistant powered by the Knowledge Base. I can answer questions about admissions, academics, campus life, alumni benefits, and more. Ask me anything!`,
+      text: `Hi ${user?.name || 'there'}! 👋 I'm your ${universityName} AI Assistant powered by the Knowledge Base. I can answer questions about admissions, academics, campus life, alumni benefits, and more. Ask me anything!`,
       sender: 'bot',
       timestamp: new Date(),
     },
@@ -75,6 +80,16 @@ const UniversityChatbot = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Reset welcome message when user changes
+  useEffect(() => {
+    setMessages([{
+      id: '1',
+      text: `Hi ${user?.name || 'there'}! 👋 I'm your ${universityName} AI Assistant powered by the Knowledge Base. I can answer questions about admissions, academics, campus life, alumni benefits, and more. Ask me anything!`,
+      sender: 'bot',
+      timestamp: new Date(),
+    }]);
+  }, [user?.university, user?.name, universityName]);
 
   // Call the actual Knowledge Base API
   const fetchKnowledgeBaseAnswer = async (question: string): Promise<{ answer: string; sources: string[] }> => {
@@ -164,10 +179,10 @@ const UniversityChatbot = () => {
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-bold text-sm sm:text-base flex items-center gap-2">
-                <span className="truncate">MIT Knowledge Assistant</span>
+                <span className="truncate">{universityName} AI Assistant</span>
                 <Badge className="bg-primary text-xs flex-shrink-0">AI</Badge>
               </h3>
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">Ask me anything about MIT!</p>
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">Ask me anything about {universityName}!</p>
             </div>
           </div>
         </div>
@@ -184,7 +199,7 @@ const UniversityChatbot = () => {
             <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-sm sm:text-base truncate">MIT AI Assistant</h3>
+            <h3 className="font-bold text-sm sm:text-base truncate">{universityName} AI Assistant</h3>
             <p className="text-xs text-muted-foreground truncate">Powered by Knowledge Base</p>
           </div>
         </div>

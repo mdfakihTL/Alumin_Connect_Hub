@@ -92,123 +92,21 @@ interface Ad {
   media_type?: string;
 }
 
-// No static mock posts - all posts come from API
+// No static mock posts, ads, or connections - all content comes from API
 
-const mockAds: Ad[] = [
-  {
-    id: 'ad1',
-    image:
-      'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=400&fit=crop',
-    title: 'Master Your Career',
-    description: 'Professional development courses from top universities',
-    link: '#',
-  },
-  {
-    id: 'ad2',
-    image:
-      'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=800&h=400&fit=crop',
-    title: 'Alumni Travel Program',
-    description: 'Exclusive destinations with fellow alumni',
-    link: '#',
-  },
-  {
-    id: 'ad3',
-    image:
-      'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&h=400&fit=crop',
-    title: 'Invest in Your Future',
-    description: 'Financial planning services for alumni',
-    link: '#',
-  },
-];
-
-// Success Stories Data
-const successStories = [
-  {
-    id: 1,
-    name: 'Sarah Chen',
-    title: 'CEO at TechVision',
-    year: '2015',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=SarahChen',
-    story: 'Launched a successful AI startup that was acquired by Google',
-    achievement: 'Raised $50M Series B',
-  },
-  {
-    id: 2,
-    name: 'Marcus Johnson',
-    title: 'Award-winning Author',
-    year: '2012',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Marcus',
-    story: 'Published bestselling book on leadership and innovation',
-    achievement: 'NY Times Bestseller',
-  },
-  {
-    id: 3,
-    name: 'Dr. Priya Patel',
-    title: 'Medical Research Lead',
-    year: '2018',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Priya',
-    story: 'Leading groundbreaking cancer research at Johns Hopkins',
-    achievement: 'Nobel Prize Nominee',
-  },
-];
-
-// Suggested Connections Data
-const suggestedConnections = [
-  {
-    id: 1,
-    name: 'Alex Rivera',
-    title: 'Product Manager at Microsoft',
-    university: 'MIT',
-    year: '2019',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=AlexRivera',
-    mutualConnections: 12,
-  },
-  {
-    id: 2,
-    name: 'Samantha Lee',
-    title: 'UX Designer at Adobe',
-    university: 'Stanford',
-    year: '2020',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=SamanthaLee',
-    mutualConnections: 8,
-  },
-  {
-    id: 3,
-    name: 'James Wilson',
-    title: 'Data Scientist at Meta',
-    university: 'Berkeley',
-    year: '2018',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=JamesWilson',
-    mutualConnections: 15,
-  },
-  {
-    id: 4,
-    name: 'Nina Patel',
-    title: 'Marketing Lead at Spotify',
-    university: 'Harvard',
-    year: '2021',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=NinaPatel',
-    mutualConnections: 6,
-  },
-];
-
-// Compact Ads Data
-const compactAds = [
-  {
-    id: 'compact1',
-    title: 'Alumni Career Workshop',
-    description: 'Boost your career with expert guidance',
-    image:
-      'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400&h=200&fit=crop',
-  },
-  {
-    id: 'compact2',
-    title: 'Networking Mixer',
-    description: 'Connect with industry leaders',
-    image:
-      'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=400&h=200&fit=crop',
-  },
-];
+// Suggested Connection interface for API response
+interface SuggestedConnectionData {
+  id: string;
+  name: string;
+  title?: string;
+  company?: string;
+  avatar?: string;
+  university?: string;
+  graduation_year?: string;
+  major?: string;
+  mutual_connections: number;
+  match_reasons?: string[];
+}
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -218,7 +116,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { events } = useEvents();
-  const { connections } = useConnections();
+  const { connections, sendConnectionRequest, hasPendingRequest, isConnected } = useConnections();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<{
     id: number;
@@ -272,6 +170,38 @@ const Dashboard = () => {
   const [rightSidebarAds, setRightSidebarAds] = useState<Ad[]>([]);
   const [adsLoaded, setAdsLoaded] = useState(false);
   const trackedImpressions = useRef<Set<string>>(new Set());
+  
+  // Suggested connections from API
+  const [suggestedConnections, setSuggestedConnections] = useState<SuggestedConnectionData[]>([]);
+  const [connectingTo, setConnectingTo] = useState<Set<string>>(new Set());
+  
+  // Handle sending connection request
+  const handleSendConnectionRequest = async (userId: string, userName: string) => {
+    if (connectingTo.has(userId) || hasPendingRequest(userId) || isConnected(userId)) return;
+    
+    setConnectingTo(prev => new Set(prev).add(userId));
+    try {
+      await sendConnectionRequest(userId);
+      toast({
+        title: 'Connection request sent!',
+        description: `Your request to connect with ${userName} has been sent`,
+      });
+      // Remove from suggested list after sending
+      setSuggestedConnections(prev => prev.filter(p => p.id !== userId));
+    } catch {
+      toast({
+        title: 'Failed to send request',
+        description: 'Please try again later',
+        variant: 'destructive',
+      });
+    } finally {
+      setConnectingTo(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
+      });
+    }
+  };
   
   const [filters, setFilters] = useState<FilterOptions>({
     postTypes: [],
@@ -410,8 +340,8 @@ const Dashboard = () => {
       return;
     }
 
-    // Insert ads every 8 posts (use real ads if available)
-    const adsToUse = feedAds.length > 0 ? feedAds : mockAds;
+    // Insert ads every 8 posts (only use real ads from API)
+    const adsToUse = feedAds;
     const postsWithAds: (Post | Ad)[] = [];
     newPosts.forEach((post, idx) => {
       postsWithAds.push(post);
@@ -562,13 +492,13 @@ const Dashboard = () => {
             const postsOnly = prev.filter((item) => 'id' in item) as Post[];
             const newPosts = [formattedNewPost, ...postsOnly];
             
-            // Re-add ads every 8 posts
+            // Re-add ads every 8 posts (only from API)
             const postsWithAds: (Post | Ad)[] = [];
             newPosts.forEach((post, idx) => {
               postsWithAds.push(post);
-              if ((idx + 1) % 8 === 0) {
-                const adIndex = Math.floor(idx / 8) % mockAds.length;
-                postsWithAds.push(mockAds[adIndex]);
+              if ((idx + 1) % 8 === 0 && feedAds.length > 0) {
+                const adIndex = Math.floor(idx / 8) % feedAds.length;
+                postsWithAds.push(feedAds[adIndex]);
               }
             });
             
@@ -755,10 +685,10 @@ const Dashboard = () => {
       console.log(`Loaded ads: ${adsResponse.feed_ads.length} feed, ${adsResponse.left_sidebar_ads.length} left, ${adsResponse.right_sidebar_ads.length} right`);
     } catch (error) {
       console.error('Failed to load ads:', error);
-      // Fall back to mock ads if API fails
-      setFeedAds(mockAds);
-      setLeftSidebarAds(compactAds.slice(0, 1).map(a => ({ ...a, link: '#' })));
-      setRightSidebarAds(compactAds.slice(1, 2).map(a => ({ ...a, link: '#' })));
+      // No fallback ads - only show real ads from API
+      setFeedAds([]);
+      setLeftSidebarAds([]);
+      setRightSidebarAds([]);
       setAdsLoaded(true);
     }
   };
@@ -786,11 +716,30 @@ const Dashboard = () => {
       window.open(ad.link, '_blank');
     }
   };
+  
+  // Load suggested connections from API
+  const loadSuggestedConnections = async () => {
+    try {
+      console.log('Loading suggested connections...');
+      const connections = await apiClient.getSuggestedConnections(5);
+      console.log('Suggested connections received:', connections);
+      if (Array.isArray(connections)) {
+        setSuggestedConnections(connections);
+      } else {
+        console.error('Invalid response format for suggested connections:', connections);
+        setSuggestedConnections([]);
+      }
+    } catch (error) {
+      console.error('Failed to load suggested connections:', error);
+      setSuggestedConnections([]);
+    }
+  };
 
   // Initial load - fetch from API (always load on mount)
   useEffect(() => {
-    // Load ads
+    // Load ads and suggested connections
     loadAds();
+    loadSuggestedConnections();
     
     // Always load posts when component mounts (component remounts on navigation)
     const loadInitialPosts = async () => {
@@ -806,9 +755,10 @@ const Dashboard = () => {
         const postsWithAds: (Post | Ad)[] = [];
         cachedPosts.forEach((post, idx) => {
           postsWithAds.push(post);
-          if ((idx + 1) % 8 === 0) {
-            const adIndex = Math.floor(idx / 8) % mockAds.length;
-            postsWithAds.push(mockAds[adIndex]);
+          // Only add ads if we have real ads from API
+          if ((idx + 1) % 8 === 0 && feedAds.length > 0) {
+            const adIndex = Math.floor(idx / 8) % feedAds.length;
+            postsWithAds.push(feedAds[adIndex]);
           }
         });
         setDisplayedPosts(postsWithAds);
@@ -881,9 +831,9 @@ const Dashboard = () => {
         });
         setLikedPosts(likedPostIds);
         
-        // Add ads every 8 posts (use real ads if available, fallback to mock)
+        // Add ads every 8 posts (only from API, no static fallback)
         const postsWithAds: (Post | Ad)[] = [];
-        const adsToUse = feedAds.length > 0 ? feedAds : mockAds;
+        const adsToUse = feedAds;
         formattedPosts.forEach((post, idx) => {
           postsWithAds.push(post);
           if ((idx + 1) % 8 === 0 && adsToUse.length > 0) {
@@ -899,11 +849,11 @@ const Dashboard = () => {
         setPostsLoaded(true); // Mark as loaded
       } catch (error) {
         console.error('Failed to load posts from API:', error);
-        // Only fallback to mock data if we truly have no posts
+        // If no posts loaded yet, load whatever we have in userPosts
         if (displayedPosts.length === 0) {
-          console.log('Falling back to mock data');
+          console.log('Using cached posts data');
           loadMorePosts();
-          setPostsLoaded(true); // Mark as loaded even if using mock data
+          setPostsLoaded(true);
         }
       } finally {
         setIsLoading(false);
@@ -1129,10 +1079,15 @@ const Dashboard = () => {
   };
 
   const renderPost = (post: Post) => {
+    if (!post || !post.id) {
+      console.error('Invalid post data:', post);
+      return null;
+    }
+    
     // Check if post was liked (either from local state or from API)
     const isLiked = likedPosts.has(post.id);
     // Don't add 1 to likes - the API returns the actual count
-    const displayLikes = post.likes;
+    const displayLikes = post.likes || 0;
     const isUserPost = userPosts.some((p) => p.id === post.id);
     // Use API permissions - fallback to local check for user's own posts
     const canEditPost = post.canEdit ?? isUserPost;
@@ -1434,6 +1389,11 @@ const Dashboard = () => {
   };
 
   const renderAd = (ad: Ad) => {
+    if (!ad || !ad.id) {
+      console.error('Invalid ad data:', ad);
+      return null;
+    }
+    
     // Track impression when ad is first rendered (using ref to prevent duplicates)
     if (!trackedImpressions.current.has(ad.id)) {
       trackedImpressions.current.add(ad.id);
@@ -1651,8 +1611,8 @@ const Dashboard = () => {
                 }}
               >
                 {/* Compact Ad - LEFT SIDEBAR */}
-                {(leftSidebarAds[0] || compactAds[0]) && (() => {
-                  const ad = leftSidebarAds[0] || { ...compactAds[0], link: '#' };
+                {leftSidebarAds[0] && (() => {
+                  const ad = leftSidebarAds[0];
                   // Track impression
                   if (!trackedImpressions.current.has(ad.id)) {
                     trackedImpressions.current.add(ad.id);
@@ -1707,44 +1667,79 @@ const Dashboard = () => {
                       e.stopPropagation();
                     }}
                   >
-                    {suggestedConnections.slice(0, 3).map((person) => (
-                      <div
-                        key={person.id}
-                        className="p-2 hover:bg-accent/50 transition-colors"
-                      >
-                        <div className="flex gap-2">
-                          <img
-                            src={person.image}
-                            alt={person.name}
-                            className="w-10 h-10 rounded-full flex-shrink-0 ring-2 ring-primary/20"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-xs truncate">
-                              {person.name}
-                            </h3>
-                            <p className="text-[10px] text-muted-foreground truncate">
-                              {person.title}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {person.mutualConnections} mutual
-                            </p>
-                            <Button
-                              size="sm"
-                              className="mt-1 h-6 text-[10px] w-full px-2"
-                              onClick={() => {
-                                toast({
-                                  title: 'Connection request sent!',
-                                  description: `Your request to connect with ${person.name} has been sent`,
-                                });
-                              }}
-                            >
-                              <UserPlus2 className="w-3 h-3 mr-1" />
-                              Connect
-                            </Button>
+                    {(!suggestedConnections || suggestedConnections.length === 0) ? (
+                      <div className="p-4 text-center text-muted-foreground">
+                        <Users2 className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-xs">No suggestions available</p>
+                        <p className="text-[10px] mt-1">Check back later for new connections</p>
+                      </div>
+                    ) : suggestedConnections.slice(0, 3).map((person) => {
+                      if (!person || !person.id) return null;
+                      const displayName = person.name || 'Unknown';
+                      const avatarUrl = person.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${displayName}`;
+                      const subtitle = person.title || person.major || 'Alumni';
+                      const yearStr = person.graduation_year ? `'${String(person.graduation_year).slice(-2)}` : '';
+                      const matchReasons = person.match_reasons || [];
+                      
+                      return (
+                        <div
+                          key={person.id}
+                          className="p-2 hover:bg-accent/50 transition-colors"
+                        >
+                          <div className="flex gap-2">
+                            <img
+                              src={avatarUrl}
+                              alt={displayName}
+                              className="w-10 h-10 rounded-full flex-shrink-0 ring-2 ring-primary/20"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-xs truncate">
+                                {displayName}
+                              </h3>
+                              <p className="text-[10px] text-muted-foreground truncate">
+                                {subtitle} {yearStr}
+                              </p>
+                              {/* Match reasons badges */}
+                              {matchReasons.length > 0 && (
+                                <div className="flex flex-wrap gap-0.5 mt-0.5">
+                                  {matchReasons.map((reason, idx) => (
+                                    <Badge 
+                                      key={idx} 
+                                      variant="secondary" 
+                                      className="text-[8px] px-1 py-0 h-3 bg-primary/10 text-primary"
+                                    >
+                                      {reason}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                              <Button
+                                size="sm"
+                                className="mt-1 h-6 text-[10px] w-full px-2"
+                                disabled={connectingTo.has(person.id) || hasPendingRequest(person.id) || isConnected(person.id)}
+                                onClick={() => handleSendConnectionRequest(person.id, displayName)}
+                              >
+                                {connectingTo.has(person.id) ? (
+                                  <>
+                                    <div className="w-3 h-3 mr-1 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    Sending...
+                                  </>
+                                ) : hasPendingRequest(person.id) ? (
+                                  'Pending'
+                                ) : isConnected(person.id) ? (
+                                  'Connected'
+                                ) : (
+                                  <>
+                                    <UserPlus2 className="w-3 h-3 mr-1" />
+                                    Connect
+                                  </>
+                                )}
+                              </Button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   <div className="p-2 border-t border-border">
                     <Button
@@ -1843,7 +1838,7 @@ const Dashboard = () => {
                           className="flex gap-3 p-3 border border-border rounded-lg hover:bg-accent/50 transition-colors"
                         >
                           <img
-                            src={person.image}
+                            src={person.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${person.name}`}
                             alt={person.name}
                             className="w-12 h-12 rounded-full flex-shrink-0 ring-2 ring-primary/20"
                           />
@@ -1852,20 +1847,43 @@ const Dashboard = () => {
                               {person.name}
                             </h3>
                             <p className="text-xs text-muted-foreground truncate">
-                              {person.title}
+                              {person.title || person.major || 'Alumni'} {person.graduation_year ? `'${String(person.graduation_year).slice(-2)}` : ''}
                             </p>
+                            {/* Match reasons badges */}
+                            {person.match_reasons && person.match_reasons.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {person.match_reasons.map((reason, idx) => (
+                                  <Badge 
+                                    key={idx} 
+                                    variant="secondary" 
+                                    className="text-[9px] px-1.5 py-0 h-4 bg-primary/10 text-primary"
+                                  >
+                                    {reason}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
                             <Button
                               size="sm"
                               className="mt-2 h-7 text-xs w-full"
-                              onClick={() => {
-                                toast({
-                                  title: 'Connection request sent!',
-                                  description: `Your request to connect with ${person.name} has been sent`,
-                                });
-                              }}
+                              disabled={connectingTo.has(person.id) || hasPendingRequest(person.id) || isConnected(person.id)}
+                              onClick={() => handleSendConnectionRequest(person.id, person.name)}
                             >
-                              <UserPlus2 className="w-3 h-3 mr-1" />
-                              Connect
+                              {connectingTo.has(person.id) ? (
+                                <>
+                                  <div className="w-3 h-3 mr-1 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  Sending...
+                                </>
+                              ) : hasPendingRequest(person.id) ? (
+                                'Pending'
+                              ) : isConnected(person.id) ? (
+                                'Connected'
+                              ) : (
+                                <>
+                                  <UserPlus2 className="w-3 h-3 mr-1" />
+                                  Connect
+                                </>
+                              )}
                             </Button>
                           </div>
                         </div>
@@ -1915,11 +1933,17 @@ const Dashboard = () => {
                 )}
 
                 {/* Posts Feed with Ads */}
-                {displayedPosts.map((item) => {
-                  if ('image' in item && 'title' in item) {
-                    return renderAd(item as Ad);
+                {displayedPosts.map((item, index) => {
+                  if (!item) return null;
+                  try {
+                    if ('image' in item && 'title' in item && !('author' in item)) {
+                      return renderAd(item as Ad);
+                    }
+                    return renderPost(item as Post);
+                  } catch (err) {
+                    console.error('Error rendering item:', err, item);
+                    return null;
                   }
-                  return renderPost(item as Post);
                 })}
 
                 {/* Loading Indicator */}
@@ -1941,20 +1965,52 @@ const Dashboard = () => {
                   </Card>
                 )}
 
-                {/* Empty State */}
+                {/* Empty State - Exciting Call to Action */}
                 {!isLoading && displayedPosts.length === 0 && (
-                  <Card className="p-8 sm:p-12 text-center">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
-                      <MessageCircle className="w-8 h-8 text-muted-foreground" />
+                  <Card className="p-8 sm:p-12 text-center overflow-hidden relative">
+                    {/* Animated background gradient */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-purple-500/5 to-blue-500/5" />
+                    
+                    <div className="relative z-10">
+                      {/* Animated icon */}
+                      <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center shadow-lg">
+                        <Megaphone className="w-10 h-10 text-white" />
+                      </div>
+                      
+                      <h3 className="text-2xl font-bold mb-3 bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">
+                        Your Voice Matters! 🎉
+                      </h3>
+                      
+                      <p className="text-base text-muted-foreground mb-2">
+                        Be the pioneer! Share your journey and inspire fellow alumni.
+                      </p>
+                      
+                      <div className="flex flex-wrap justify-center gap-2 mb-6">
+                        <Badge variant="secondary" className="text-xs">🎯 Career milestones</Badge>
+                        <Badge variant="secondary" className="text-xs">💡 Success stories</Badge>
+                        <Badge variant="secondary" className="text-xs">🤝 Networking tips</Badge>
+                        <Badge variant="secondary" className="text-xs">📚 Learning experiences</Badge>
+                      </div>
+                      
+                      <p className="text-sm text-muted-foreground mb-6 italic">
+                        "Every great community starts with a single story"
+                      </p>
+                      
+                      <Button 
+                        onClick={() => setIsModalOpen(true)}
+                        size="lg"
+                        className="bg-gradient-to-r from-primary to-purple-500 hover:from-primary/90 hover:to-purple-500/90 shadow-lg"
+                      >
+                        <PlusCircle className="w-5 h-5 mr-2" />
+                        Create Your First Post
+                      </Button>
+                      
+                      <div className="mt-6 pt-6 border-t border-border">
+                        <p className="text-xs text-muted-foreground">
+                          💡 <span className="font-medium">Pro tip:</span> Share a photo, announce a job opportunity, or tell us about your latest achievement!
+                        </p>
+                      </div>
                     </div>
-                    <h3 className="text-lg font-semibold mb-2">No posts yet</h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Be the first to share something with the community!
-                    </p>
-                    <Button onClick={() => setIsModalOpen(true)}>
-                      <PlusCircle className="w-4 h-4 mr-2" />
-                      Create Post
-                    </Button>
                   </Card>
                 )}
               </div>
@@ -1968,8 +2024,8 @@ const Dashboard = () => {
                 }}
               >
                 {/* Compact Ad - RIGHT SIDEBAR */}
-                {(rightSidebarAds[0] || compactAds[1]) && (() => {
-                  const ad = rightSidebarAds[0] || { ...compactAds[1], link: '#' };
+                {rightSidebarAds[0] && (() => {
+                  const ad = rightSidebarAds[0];
                   // Track impression
                   if (!trackedImpressions.current.has(ad.id)) {
                     trackedImpressions.current.add(ad.id);
@@ -2021,7 +2077,7 @@ const Dashboard = () => {
                   </div>
                 )}
 
-                {/* Success Stories */}
+                {/* Success Stories - Coming Soon */}
                 <Card className="overflow-hidden">
                   <div className="p-4 border-b border-border bg-gradient-to-r from-primary/10 to-secondary/10">
                     <div className="flex items-center gap-2">
@@ -2032,52 +2088,16 @@ const Dashboard = () => {
                       Inspiring alumni achievements
                     </p>
                   </div>
-                  <div
-                    className="divide-y divide-border max-h-[300px] overflow-y-auto subtle-scrollbar"
-                    onWheel={(e) => {
-                      e.stopPropagation();
-                    }}
-                  >
-                    {successStories.map((story) => (
-                      <div
-                        key={story.id}
-                        className="p-4 hover:bg-accent/50 transition-colors cursor-pointer"
-                      >
-                        <div className="flex gap-3">
-                          <img
-                            src={story.image}
-                            alt={story.name}
-                            className="w-12 h-12 rounded-full flex-shrink-0 ring-2 ring-primary/20"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-sm truncate">
-                              {story.name}
-                            </h3>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {story.title}
-                            </p>
-                            <Badge
-                              variant="outline"
-                              className="mt-2 text-xs"
-                            >
-                              <TrendingUp className="w-3 h-3 mr-1" />
-                              {story.achievement}
-                            </Badge>
-                            <p className="text-xs mt-2 text-muted-foreground line-clamp-2">
-                              {story.story}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="p-3 border-t border-border">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full text-xs"
-                    >
-                      View All Stories
+                  <div className="p-8 text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
+                      <Trophy className="w-8 h-8 text-primary/50" />
+                    </div>
+                    <h3 className="font-semibold text-sm mb-2">Share Your Story!</h3>
+                    <p className="text-xs text-muted-foreground mb-4 max-w-xs mx-auto">
+                      We're collecting inspiring alumni success stories. Your achievements could motivate others!
+                    </p>
+                    <Button size="sm" variant="outline">
+                      Submit Your Story
                     </Button>
                   </div>
                 </Card>
@@ -2150,8 +2170,8 @@ const Dashboard = () => {
                 )}
 
                 {/* Compact Ad 2 - RIGHT SIDEBAR BOTTOM */}
-                {(rightSidebarAds[1] || compactAds[1]) && (() => {
-                  const ad = rightSidebarAds[1] || { ...compactAds[1], link: '#' };
+                {rightSidebarAds[1] && (() => {
+                  const ad = rightSidebarAds[1];
                   // Track impression
                   if (!trackedImpressions.current.has(ad.id)) {
                     trackedImpressions.current.add(ad.id);

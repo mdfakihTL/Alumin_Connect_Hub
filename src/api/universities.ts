@@ -22,14 +22,23 @@ export const universitiesApi = {
     return apiClient.get<UniversityResponse>(`/universities/${universityId}/branding`);
   },
 
-  // Get university fundraisers
+  // Get university fundraisers (uses admin endpoint)
   getFundraisers: async (universityId: string): Promise<FundraiserResponse[]> => {
-    return apiClient.get<FundraiserResponse[]>(`/universities/${universityId}/fundraisers`);
+    try {
+      return await apiClient.get<FundraiserResponse[]>('/admin/fundraisers');
+    } catch {
+      return []; // Return empty array if not authorized or error
+    }
   },
 
   // Get active fundraisers
   getActiveFundraisers: async (universityId: string): Promise<FundraiserResponse[]> => {
-    return apiClient.get<FundraiserResponse[]>(`/universities/${universityId}/fundraisers/active`);
+    try {
+      const fundraisers = await apiClient.get<FundraiserResponse[]>('/admin/fundraisers');
+      return fundraisers.filter(f => f.is_active);
+    } catch {
+      return []; // Return empty array if not authorized or error
+    }
   },
 
   // Get university ads

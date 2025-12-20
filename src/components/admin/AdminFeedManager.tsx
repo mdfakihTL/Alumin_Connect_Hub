@@ -351,7 +351,23 @@ const AdminFeedManager = () => {
                     
                     <p className="text-sm mb-3 whitespace-pre-wrap">{post.content}</p>
                     
-                    {post.media_url && (
+                    {/* Video Display */}
+                    {post.type === 'video' && post.video_url && (
+                      <div className="relative max-w-md mb-3">
+                        <video
+                          src={post.video_url}
+                          controls
+                          className="w-full rounded-lg"
+                          poster={post.thumbnail_url}
+                          preload="metadata"
+                        >
+                          Your browser does not support the video tag.
+                        </video>
+                      </div>
+                    )}
+                    
+                    {/* Image Display */}
+                    {post.media_url && post.type !== 'video' && (
                       <img 
                         src={post.media_url} 
                         alt="Post media" 

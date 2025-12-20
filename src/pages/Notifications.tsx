@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSidebar } from '@/contexts/SidebarContext';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bell, Heart, MessageCircle, Users, Calendar, Briefcase, Megaphone, Trash2, Check, X, Menu } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Bell, Heart, MessageCircle, Users, Calendar, Briefcase, Megaphone, Trash2, Check, X, Menu, Loader2, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useConnections } from '@/contexts/ConnectionsContext';
 import { useToast } from '@/hooks/use-toast';
+import { apiClient, NotificationResponse } from '@/lib/api';
 
 interface Notification {
   id: string;
@@ -20,84 +21,51 @@ interface Notification {
   avatar?: string;
 }
 
-const mockNotifications: Notification[] = [
-  {
-    id: '1',
-    type: 'like',
-    title: 'Sarah Johnson liked your post',
-    message: 'Your post about career growth resonated with the community',
-    time: '5m ago',
-    read: false,
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah',
-  },
-  {
-    id: '2',
-    type: 'comment',
-    title: 'Michael Chen commented',
-    message: 'Great insights! Would love to connect and discuss further.',
-    time: '1h ago',
-    read: false,
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Michael',
-  },
-  {
-    id: '3',
-    type: 'connection',
-    title: 'New connection request',
-    message: 'Emily Rodriguez wants to connect with you',
-    time: '3h ago',
-    read: false,
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Emily',
-  },
-  {
-    id: '4',
-    type: 'event',
-    title: 'Event Reminder',
-    message: 'Alumni Networking Mixer starts in 2 days',
-    time: '5h ago',
-    read: true,
-  },
-  {
-    id: '5',
-    type: 'job',
-    title: 'New job opportunity',
-    message: 'Senior Software Engineer at Google matches your profile',
-    time: '1d ago',
-    read: true,
-  },
-  {
-    id: '6',
-    type: 'announcement',
-    title: 'University Announcement',
-    message: 'Annual Alumni Gala registration is now open',
-    time: '2d ago',
-    read: true,
-  },
-  {
-    id: '7',
-    type: 'like',
-    title: 'David Kim liked your post',
-    message: 'Your post about AI trends received positive feedback',
-    time: '2d ago',
-    read: true,
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=David',
-  },
-  {
-    id: '8',
-    type: 'comment',
-    title: 'Lisa Thompson commented',
-    message: 'Thanks for sharing this valuable information!',
-    time: '3d ago',
-    read: true,
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Lisa',
-  },
-];
-
 const Notifications = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { receivedRequests, acceptRequest, rejectRequest } = useConnections();
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Fetch notifications from API
+  const fetchNotifications = async (showRefresh = false) => {
+    if (showRefresh) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
+    
+    try {
+      const response = await apiClient.getNotifications({ page_size: 50 });
+      const formattedNotifications: Notification[] = response.notifications.map((n: NotificationResponse) => ({
+        id: n.id,
+        type: n.type,
+        title: n.title,
+        message: n.message,
+        time: n.time,
+        read: n.read,
+        avatar: n.avatar,
+      }));
+      setNotifications(formattedNotifications);
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load notifications',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
 
   // Convert connection requests to notifications
   const connectionNotifications: Notification[] = receivedRequests.map(req => ({
@@ -126,22 +94,68 @@ const Notifications = () => {
     return iconMap[type as keyof typeof iconMap] || { icon: Bell, color: 'text-gray-500 bg-gray-500/10' };
   };
 
-  const markAsRead = (id: string) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === id ? { ...n, read: true } : n))
-    );
+  const markAsRead = async (id: string) => {
+    if (id.startsWith('conn_')) return; // Connection requests handled separately
+    
+    try {
+      await apiClient.markNotificationAsRead(id);
+      setNotifications(prev =>
+        prev.map(n => (n.id === id ? { ...n, read: true } : n))
+      );
+    } catch (error) {
+      console.error('Failed to mark as read:', error);
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const markAllAsRead = async () => {
+    try {
+      await apiClient.markAllNotificationsAsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      toast({
+        title: 'All notifications marked as read',
+      });
+    } catch (error) {
+      toast({
+        title: 'Failed to mark notifications as read',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const deleteNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+  const deleteNotification = async (id: string) => {
+    if (id.startsWith('conn_')) return; // Connection requests handled separately
+    
+    try {
+      await apiClient.deleteNotification(id);
+      setNotifications(prev => prev.filter(n => n.id !== id));
+      toast({
+        title: 'Notification deleted',
+      });
+    } catch (error) {
+      toast({
+        title: 'Failed to delete notification',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const clearAllRead = () => {
-    setNotifications(prev => prev.filter(n => !n.read));
+  const clearAllRead = async () => {
+    try {
+      // Delete read notifications one by one (or implement bulk delete on backend)
+      const readNotifications = notifications.filter(n => n.read);
+      for (const notif of readNotifications) {
+        await apiClient.deleteNotification(notif.id);
+      }
+      setNotifications(prev => prev.filter(n => !n.read));
+      toast({
+        title: 'Read notifications cleared',
+      });
+    } catch (error) {
+      toast({
+        title: 'Failed to clear notifications',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleNotificationClick = (notification: Notification) => {
@@ -160,6 +174,27 @@ const Notifications = () => {
   };
 
   const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <DesktopNav />
+        <MobileNav />
+        <main className={`min-h-screen pb-20 md:pb-0 transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'md:ml-0'}`}>
+          <div className="w-full px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
+            <div className="max-w-5xl mx-auto">
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+                  <p className="text-muted-foreground">Loading notifications...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -186,6 +221,15 @@ const Notifications = () => {
                   Stay updated with your network activity
                 </p>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchNotifications(true)}
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
             </div>
 
             {/* Actions Bar */}
@@ -193,7 +237,7 @@ const Notifications = () => {
               <Tabs value={filter} onValueChange={(v) => setFilter(v as 'all' | 'unread')} className="w-full sm:w-auto">
                 <TabsList className="w-full sm:w-auto">
                   <TabsTrigger value="all" className="flex-1 sm:flex-none">
-                    All ({notifications.length})
+                    All ({allNotifications.length})
                   </TabsTrigger>
                   <TabsTrigger value="unread" className="flex-1 sm:flex-none">
                     Unread ({unreadNotifications.length})
@@ -287,17 +331,19 @@ const Notifications = () => {
                             <h4 className="font-semibold text-sm sm:text-base leading-tight">
                               {notification.title}
                             </h4>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteNotification(notification.id);
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4 text-destructive" />
-                            </Button>
+                            {!isConnectionRequest && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteNotification(notification.id);
+                                }}
+                              >
+                                <Trash2 className="w-4 h-4 text-destructive" />
+                              </Button>
+                            )}
                           </div>
                           <p className="text-xs sm:text-sm text-muted-foreground mb-2 line-clamp-2">
                             {notification.message}
@@ -360,4 +406,3 @@ const Notifications = () => {
 };
 
 export default Notifications;
-

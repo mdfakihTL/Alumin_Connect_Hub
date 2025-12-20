@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { apiClient, MentorResponse } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,27 +8,34 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
-import { Search, Shield, Mail, Phone, Award, Grid3x3, Table2, Filter, X, GraduationCap } from 'lucide-react';
+import { Search, Shield, Mail, Phone, Award, Grid3x3, Table2, Filter, X, GraduationCap, RefreshCw, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 
-interface AlumniUser {
+interface Mentor {
   id: string;
   name: string;
   email: string;
-  graduationYear: string;
-  major: string;
-  isMentor: boolean;
-  universityId: string;
-  phone?: string;
+  avatar?: string;
+  title?: string;
+  company?: string;
+  major?: string;
+  graduationYear?: string;
   location?: string;
+  phone?: string;
+  bio?: string;
 }
 
 const AdminMentorList = () => {
   const { user } = useAuth();
-  const [mentors, setMentors] = useState<AlumniUser[]>([]);
+  const { toast } = useToast();
+  const [mentors, setMentors] = useState<Mentor[]>([]);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalMentors, setTotalMentors] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState({
     name: '',
     email: '',
@@ -37,95 +45,62 @@ const AdminMentorList = () => {
   const [tempFilters, setTempFilters] = useState(filters);
   const itemsPerPage = 12;
 
-  useEffect(() => {
-    // Load users and filter mentors
-    const users = JSON.parse(localStorage.getItem(`alumni_users_${user?.universityId}`) || '[]');
-    const mentorUsers = users.filter((u: AlumniUser) => u.isMentor);
-    
-    // Load additional profile data for mentors
-    const mentorsWithProfile = mentorUsers.map((mentor: AlumniUser) => {
-      const profileData = JSON.parse(localStorage.getItem(`profile_data_${mentor.id}`) || 'null');
-      return {
-        ...mentor,
-        phone: mentor.phone || profileData?.phone || '',
-        location: mentor.location || profileData?.location || '',
-      };
-    });
-    
-    // Add some dummy mentors if none exist
-    if (mentorsWithProfile.length === 0) {
-      const dummyMentors: AlumniUser[] = [
-        {
-          id: 'm1',
-          name: 'Dr. Sarah Williams',
-          email: 'sarah.w@example.com',
-          graduationYear: '2010',
-          major: 'Computer Science',
-          isMentor: true,
-          universityId: user?.universityId || '',
-        },
-        {
-          id: 'm2',
-          name: 'Michael Chen',
-          email: 'michael.c@example.com',
-          graduationYear: '2012',
-          major: 'Engineering',
-          isMentor: true,
-          universityId: user?.universityId || '',
-        },
-        {
-          id: 'm3',
-          name: 'Emily Rodriguez',
-          email: 'emily.r@example.com',
-          graduationYear: '2015',
-          major: 'Business Administration',
-          isMentor: true,
-          universityId: user?.universityId || '',
-        },
-        {
-          id: 'm4',
-          name: 'David Kim',
-          email: 'david.k@example.com',
-          graduationYear: '2013',
-          major: 'Data Science',
-          isMentor: true,
-          universityId: user?.universityId || '',
-        },
-        {
-          id: 'm5',
-          name: 'Jessica Martinez',
-          email: 'jessica.m@example.com',
-          graduationYear: '2011',
-          major: 'Marketing',
-          isMentor: true,
-          universityId: user?.universityId || '',
-        },
-      ];
-      setMentors(dummyMentors);
-    } else {
-      setMentors(mentorsWithProfile);
+  // Fetch mentors from API
+  const fetchMentors = async () => {
+    setIsLoading(true);
+    try {
+      const response = await apiClient.getMentors({
+        page: currentPage,
+        page_size: itemsPerPage,
+        search: searchQuery || undefined,
+      });
+      
+      const formattedMentors: Mentor[] = response.mentors.map((m: MentorResponse) => ({
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        avatar: m.avatar,
+        title: m.title,
+        company: m.company,
+        major: m.major,
+        graduationYear: m.graduation_year,
+        location: m.location,
+        phone: m.phone,
+        bio: m.bio,
+      }));
+      
+      setMentors(formattedMentors);
+      setTotalMentors(response.total);
+    } catch (error) {
+      console.error('Failed to fetch mentors:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load mentors',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
-  }, [user?.universityId]);
+  };
 
-  // Filter mentors based on all filter criteria
+  useEffect(() => {
+    fetchMentors();
+  }, [currentPage, searchQuery]);
+
+  // Filter mentors based on all filter criteria (client-side for additional filters)
   const filteredMentors = useMemo(() => {
     return mentors.filter(mentor => {
       const nameMatch = !filters.name || mentor.name.toLowerCase().includes(filters.name.toLowerCase());
       const emailMatch = !filters.email || mentor.email.toLowerCase().includes(filters.email.toLowerCase());
-      const majorMatch = !filters.major || mentor.major.toLowerCase().includes(filters.major.toLowerCase());
-      const yearMatch = !filters.graduationYear || mentor.graduationYear.includes(filters.graduationYear);
+      const majorMatch = !filters.major || (mentor.major?.toLowerCase().includes(filters.major.toLowerCase()));
+      const yearMatch = !filters.graduationYear || (mentor.graduationYear?.includes(filters.graduationYear));
       
       return nameMatch && emailMatch && majorMatch && yearMatch;
     });
   }, [mentors, filters]);
 
   // Pagination
-  const totalPages = Math.ceil(filteredMentors.length / itemsPerPage);
-  const paginatedMentors = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    const end = start + itemsPerPage;
-    return filteredMentors.slice(start, end);
-  }, [filteredMentors, currentPage, itemsPerPage]);
+  const totalPages = Math.ceil(totalMentors / itemsPerPage);
 
   const handleFilterChange = (key: string, value: string) => {
     setTempFilters((prev) => ({ ...prev, [key]: value }));
@@ -146,6 +121,7 @@ const AdminMentorList = () => {
     };
     setTempFilters(emptyFilters);
     setFilters(emptyFilters);
+    setSearchQuery('');
     setCurrentPage(1);
   };
 
@@ -163,8 +139,30 @@ const AdminMentorList = () => {
     if (isFilterModalOpen) {
       setTempFilters(filters);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFilterModalOpen]);
+
+  if (isLoading && mentors.length === 0) {
+    return (
+      <div className="space-y-6">
+        <Card className="p-6">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold mb-2">Active Mentors</h2>
+              <p className="text-sm text-muted-foreground">
+                Alumni who are available to mentor current students and other alumni
+              </p>
+            </div>
+          </div>
+        </Card>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+            <p className="text-muted-foreground">Loading mentors...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -177,9 +175,17 @@ const AdminMentorList = () => {
             </p>
           </div>
           <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => fetchMentors()}
+              disabled={isLoading}
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </Button>
             <Badge variant="outline" className="text-lg px-4 py-2 flex items-center gap-2">
               <Shield className="w-4 h-4" />
-              {filteredMentors.length} Mentors
+              {totalMentors} Mentors
             </Badge>
             <div className="flex items-center gap-2 border rounded-lg p-1">
               <Button
@@ -200,6 +206,20 @@ const AdminMentorList = () => {
               </Button>
             </div>
           </div>
+        </div>
+
+        {/* Search */}
+        <div className="relative mb-6">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search mentors..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="pl-9"
+          />
         </div>
 
         {/* Filter Button */}
@@ -293,7 +313,7 @@ const AdminMentorList = () => {
       {viewMode === 'cards' && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {paginatedMentors.length === 0 ? (
+            {filteredMentors.length === 0 ? (
               <Card className="p-10 text-center col-span-full border-dashed border-2 bg-gradient-to-br from-muted/30 via-background to-muted/30">
                 <div className="flex flex-col items-center justify-center">
                   <div className="relative mb-5">
@@ -305,24 +325,36 @@ const AdminMentorList = () => {
                   </div>
                   <h3 className="text-lg font-semibold mb-2">No Mentors Found</h3>
                   <p className="text-sm text-muted-foreground max-w-sm">
-                    {getActiveFilterCount() > 0 ? 'No mentors match your filters. Try adjusting your search.' : 'No alumni have registered as mentors yet.'}
+                    {getActiveFilterCount() > 0 || searchQuery ? 'No mentors match your filters. Try adjusting your search.' : 'No alumni have registered as mentors yet.'}
                   </p>
                 </div>
               </Card>
             ) : (
-              paginatedMentors.map(mentor => (
+              filteredMentors.map(mentor => (
                 <Card key={mentor.id} className="p-6 hover:shadow-lg transition-shadow">
                   <div className="flex items-start gap-4 mb-4">
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
-                      {mentor.name.split(' ').map(n => n[0]).join('')}
-                    </div>
+                    {mentor.avatar ? (
+                      <img
+                        src={mentor.avatar}
+                        alt={mentor.name}
+                        className="w-16 h-16 rounded-full object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
+                        {mentor.name.split(' ').map(n => n[0]).join('')}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-lg mb-1 truncate">{mentor.name}</h3>
-                      <p className="text-sm text-muted-foreground truncate">{mentor.major}</p>
-                      <Badge variant="outline" className="mt-2">
-                        <Award className="w-3 h-3 mr-1" />
-                        Class of {mentor.graduationYear}
-                      </Badge>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {mentor.title ? `${mentor.title}${mentor.company ? ` at ${mentor.company}` : ''}` : mentor.major || 'Mentor'}
+                      </p>
+                      {mentor.graduationYear && (
+                        <Badge variant="outline" className="mt-2">
+                          <Award className="w-3 h-3 mr-1" />
+                          Class of {mentor.graduationYear}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   
@@ -364,7 +396,7 @@ const AdminMentorList = () => {
                       className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
                     />
                   </PaginationItem>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map((page) => (
                     <PaginationItem key={page}>
                       <PaginationLink
                         onClick={() => setCurrentPage(page)}
@@ -398,13 +430,13 @@ const AdminMentorList = () => {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Major</TableHead>
+                  <TableHead>Title</TableHead>
                   <TableHead>Graduation Year</TableHead>
                   <TableHead>Location</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedMentors.length === 0 ? (
+                {filteredMentors.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="py-12">
                       <div className="flex flex-col items-center justify-center">
@@ -415,23 +447,25 @@ const AdminMentorList = () => {
                         </div>
                         <h4 className="font-medium mb-1">No Mentors Found</h4>
                         <p className="text-sm text-muted-foreground">
-                          {getActiveFilterCount() > 0 ? 'No mentors match your filters.' : 'No mentors available'}
+                          {getActiveFilterCount() > 0 || searchQuery ? 'No mentors match your filters.' : 'No mentors available'}
                         </p>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  paginatedMentors.map(mentor => (
+                  filteredMentors.map(mentor => (
                     <TableRow key={mentor.id}>
                       <TableCell className="font-medium">{mentor.name}</TableCell>
                       <TableCell>{mentor.email}</TableCell>
                       <TableCell>{mentor.phone || '-'}</TableCell>
-                      <TableCell>{mentor.major}</TableCell>
+                      <TableCell>{mentor.title || mentor.major || '-'}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">
-                          <Award className="w-3 h-3 mr-1" />
-                          {mentor.graduationYear}
-                        </Badge>
+                        {mentor.graduationYear ? (
+                          <Badge variant="outline">
+                            <Award className="w-3 h-3 mr-1" />
+                            {mentor.graduationYear}
+                          </Badge>
+                        ) : '-'}
                       </TableCell>
                       <TableCell>{mentor.location || '-'}</TableCell>
                     </TableRow>
@@ -452,7 +486,7 @@ const AdminMentorList = () => {
                       className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
                     />
                   </PaginationItem>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map((page) => (
                     <PaginationItem key={page}>
                       <PaginationLink
                         onClick={() => setCurrentPage(page)}
@@ -480,4 +514,3 @@ const AdminMentorList = () => {
 };
 
 export default AdminMentorList;
-

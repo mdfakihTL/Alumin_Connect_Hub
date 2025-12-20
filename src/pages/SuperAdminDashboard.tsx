@@ -1,24 +1,28 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { 
   Crown, Building2, Users, TrendingUp, DollarSign, 
-  LayoutDashboard, Settings, Shield, Image, Key, Menu, Target
+  LayoutDashboard, Settings, Shield, Image, Key, Menu, Target, RefreshCw
 } from 'lucide-react';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
 import { useSidebar } from '@/contexts/SidebarContext';
 import SuperAdminAnalytics from '@/components/superadmin/SuperAdminAnalytics';
+import { superadminApi } from '@/api/superadmin';
+import { useToast } from '@/hooks/use-toast';
 
 const SuperAdminDashboard = () => {
   const { user } = useAuth();
   const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
+  const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Get statistics
+  // Get statistics from API
   const [stats, setStats] = useState({
     totalUniversities: 0,
     enabledUniversities: 0,
@@ -26,42 +30,42 @@ const SuperAdminDashboard = () => {
     totalAlumni: 0,
     totalAds: 0,
     activeAds: 0,
-    pendingPasswordResets: 0,
+    totalPosts: 0,
+    totalEvents: 0,
+    totalGroups: 0,
   });
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchStats = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const dashboardStats = await superadminApi.getDashboardStats();
+      setStats({
+        totalUniversities: dashboardStats.total_universities,
+        enabledUniversities: dashboardStats.active_universities,
+        totalAdmins: dashboardStats.total_admins,
+        totalAlumni: dashboardStats.total_alumni,
+        totalAds: dashboardStats.total_ads,
+        activeAds: dashboardStats.active_ads,
+        totalPosts: dashboardStats.total_posts || 0,
+        totalEvents: dashboardStats.total_events || 0,
+        totalGroups: dashboardStats.total_groups || 0,
+      });
+    } catch (error) {
+      console.error('Failed to fetch dashboard stats:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load dashboard statistics',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
-    // Get real stats from localStorage
-    const universities = JSON.parse(localStorage.getItem('alumni_universities') || '[]');
-    const enabledUniversities = universities.filter((u: any) => u.enabled !== false);
-    
-    let totalAdmins = 0;
-    let totalAlumni = 0;
-    
-    universities.forEach((uni: any) => {
-      const users = JSON.parse(localStorage.getItem(`alumni_users_${uni.id}`) || '[]');
-      totalAlumni += users.length;
-    });
-
-    // Count admins from super_admin_admins
-    const admins = JSON.parse(localStorage.getItem('super_admin_admins') || '[]');
-    totalAdmins = admins.length;
-
-    const ads = JSON.parse(localStorage.getItem('super_admin_ads') || '[]');
-    const activeAds = ads.filter((ad: any) => ad.isActive);
-
-    const passwordResets = JSON.parse(localStorage.getItem('super_admin_password_resets') || '[]');
-    const pendingResets = passwordResets.filter((r: any) => r.status === 'pending');
-
-    setStats({
-      totalUniversities: universities.length,
-      enabledUniversities: enabledUniversities.length,
-      totalAdmins: totalAdmins || 2,
-      totalAlumni: totalAlumni || 0,
-      totalAds: ads.length,
-      activeAds: activeAds.length,
-      pendingPasswordResets: pendingResets.length,
-    });
-  }, [user?.universityId]);
+    fetchStats();
+  }, [fetchStats]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -85,16 +89,29 @@ const SuperAdminDashboard = () => {
                     <p className="text-xs sm:text-sm text-muted-foreground">AlumniHub Central Management</p>
                   </div>
                 </div>
-                {/* Sidebar Toggle - All Screen Sizes */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={toggleSidebar}
-                  className="h-10 w-10 flex-shrink-0"
-                  title="Toggle menu"
-                >
-                  <Menu className="w-5 h-5" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  {/* Refresh Button */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={fetchStats}
+                    disabled={isLoading}
+                    className="h-10 w-10 flex-shrink-0"
+                    title="Refresh stats"
+                  >
+                    <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+                  </Button>
+                  {/* Sidebar Toggle - All Screen Sizes */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={toggleSidebar}
+                    className="h-10 w-10 flex-shrink-0"
+                    title="Toggle menu"
+                  >
+                    <Menu className="w-5 h-5" />
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -113,20 +130,28 @@ const SuperAdminDashboard = () => {
                         <Building2 className="w-5 h-5 text-purple-500" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-bold">{stats.totalUniversities}</h3>
+                        {isLoading ? (
+                          <Skeleton className="h-7 w-12 mb-1" />
+                        ) : (
+                          <h3 className="text-xl font-bold">{stats.totalUniversities}</h3>
+                        )}
                         <p className="text-xs text-muted-foreground truncate">Universities</p>
                       </div>
                     </div>
                   </Card>
 
-                  {/* Enabled Universities */}
+                  {/* Active Universities */}
                   <Card className="p-4 hover:shadow-md transition-shadow">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
                         <Building2 className="w-5 h-5 text-green-500" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-bold">{stats.enabledUniversities}</h3>
+                        {isLoading ? (
+                          <Skeleton className="h-7 w-12 mb-1" />
+                        ) : (
+                          <h3 className="text-xl font-bold">{stats.enabledUniversities}</h3>
+                        )}
                         <p className="text-xs text-muted-foreground truncate">Active</p>
                       </div>
                     </div>
@@ -139,7 +164,11 @@ const SuperAdminDashboard = () => {
                         <Shield className="w-5 h-5 text-blue-500" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-bold">{stats.totalAdmins}</h3>
+                        {isLoading ? (
+                          <Skeleton className="h-7 w-12 mb-1" />
+                        ) : (
+                          <h3 className="text-xl font-bold">{stats.totalAdmins}</h3>
+                        )}
                         <p className="text-xs text-muted-foreground truncate">Admins</p>
                       </div>
                     </div>
@@ -152,7 +181,11 @@ const SuperAdminDashboard = () => {
                         <Users className="w-5 h-5 text-cyan-500" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-bold">{stats.totalAlumni}</h3>
+                        {isLoading ? (
+                          <Skeleton className="h-7 w-12 mb-1" />
+                        ) : (
+                          <h3 className="text-xl font-bold">{stats.totalAlumni}</h3>
+                        )}
                         <p className="text-xs text-muted-foreground truncate">Alumni</p>
                       </div>
                     </div>
@@ -165,7 +198,11 @@ const SuperAdminDashboard = () => {
                         <Image className="w-5 h-5 text-orange-500" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-bold">{stats.totalAds}</h3>
+                        {isLoading ? (
+                          <Skeleton className="h-7 w-12 mb-1" />
+                        ) : (
+                          <h3 className="text-xl font-bold">{stats.totalAds}</h3>
+                        )}
                         <p className="text-xs text-muted-foreground truncate">Ads</p>
                       </div>
                     </div>
@@ -178,7 +215,11 @@ const SuperAdminDashboard = () => {
                         <DollarSign className="w-5 h-5 text-pink-500" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-bold">{stats.activeAds}</h3>
+                        {isLoading ? (
+                          <Skeleton className="h-7 w-12 mb-1" />
+                        ) : (
+                          <h3 className="text-xl font-bold">{stats.activeAds}</h3>
+                        )}
                         <p className="text-xs text-muted-foreground truncate">Active</p>
                       </div>
                     </div>

@@ -155,6 +155,10 @@ def create_tables():
         traceback.print_exc()
     
     # Fix ads table - add new columns if missing
+    try:
+        from sqlalchemy import text, inspect
+        inspector = inspect(engine)
+        
         if 'ads' in inspector.get_table_names():
             columns = [col['name'] for col in inspector.get_columns('ads')]
             new_ad_columns = {
@@ -191,6 +195,8 @@ def create_tables():
                     """))
             except Exception as e:
                 print(f"  ⚠ Could not migrate ads data: {e}")
+    except Exception as e:
+        print(f"⚠ Could not fix ads schema: {e}")
     
     # Now create/update all tables
     Base.metadata.create_all(bind=engine)

@@ -1,27 +1,21 @@
 """
-MIT Knowledge Base Service - MVP/Demo Version
+MIT Knowledge Base Service - S3 Integrated Version
 
-This is a DUMMY implementation for hackathon/demo purposes.
-It uses simple keyword matching instead of vector embeddings.
+This service manages knowledge base documents for the AI chatbot.
+Documents can be loaded from:
+1. Local files in /data/knowledge_base/{university_id}/
+2. S3 bucket via CloudFront URL (stored in database)
 
-WHAT'S DUMMY (will change in production):
-- No vector database (using keyword matching)
-- No authentication on admin endpoints
-- Single university hardcoded (MIT)
-- In-memory document storage (reloads on restart)
-- Simple chunking strategy
-- Basic keyword retrieval (not semantic)
-
-WHAT WILL CHANGE FOR PRODUCTION:
-- Add Pinecone/FAISS for vector embeddings
-- Add proper authentication
-- Support multiple universities
-- Use S3 for document storage
-- Implement proper RAG with embeddings
+Features:
+- Supports multiple universities
+- S3 document storage with CloudFront CDN
+- Simple keyword matching for retrieval (can upgrade to vector search)
+- In-memory caching of document chunks
 """
 
 import os
 import re
+import requests
 from pathlib import Path
 from typing import List, Dict, Optional
 from dataclasses import dataclass, field
@@ -203,6 +197,115 @@ def load_all_documents() -> int:
     
     logger.info(f"Loaded {len(knowledge_base.documents)} documents, {chunk_counter} chunks")
     return len(knowledge_base.documents)
+
+
+def load_documents_from_s3(db_session=None) -> int:
+    """
+    Load documents from S3 URLs stored in the database.
+    
+    This function:
+    1. Queries the knowledge_base_documents table for active documents
+    2. Fetches content from S3/CloudFront URLs
+    3. Chunks each document
+    4. Adds chunks to the in-memory knowledge base
+    
+    Args:
+        db_session: SQLAlchemy database session
+        
+    Returns:
+        Number of documents loaded from S3
+    """
+    global knowledge_base
+    
+    if db_session is None:
+        logger.warning("No database session provided for S3 document loading")
+        return 0
+    
+    try:
+        from app.models.knowledge_base import KnowledgeBaseDocument
+        
+        # Query active documents for the university
+        docs = db_session.query(KnowledgeBaseDocument).filter(
+            KnowledgeBaseDocument.university_id == UNIVERSITY_ID,
+            KnowledgeBaseDocument.is_active == True
+        ).all()
+        
+        if not docs:
+            logger.info(f"No S3 documents found for {UNIVERSITY_ID}")
+            return 0
+        
+        loaded_count = 0
+        
+        for doc in docs:
+            try:
+                # Fetch content from S3/CloudFront URL
+                response = requests.get(doc.s3_url, timeout=30)
+                response.raise_for_status()
+                
+                # Handle text content
+                if doc.file_type in ['txt', 'md']:
+                    content = response.text
+                else:
+                    # For PDF/DOC, we'd need additional processing
+                    # For now, skip non-text files
+                    logger.warning(f"Skipping non-text file: {doc.filename} ({doc.file_type})")
+                    continue
+                
+                if not content:
+                    logger.warning(f"Empty content from S3: {doc.filename}")
+                    continue
+                
+                # Store full document
+                doc_key = f"s3_{doc.filename}"
+                knowledge_base.documents[doc_key] = content
+                
+                # Create chunks
+                text_chunks = chunk_text(content)
+                for i, chunk_content in enumerate(text_chunks):
+                    chunk = DocumentChunk(
+                        chunk_id=f"s3_{doc.id}_chunk_{i}",
+                        document_name=doc.title or doc.filename,
+                        content=chunk_content,
+                        university_id=UNIVERSITY_ID
+                    )
+                    knowledge_base.chunks.append(chunk)
+                
+                loaded_count += 1
+                logger.info(f"Loaded S3 document: {doc.title} ({len(content)} chars, {len(text_chunks)} chunks)")
+                
+            except requests.RequestException as e:
+                logger.error(f"Failed to fetch S3 document {doc.filename}: {e}")
+            except Exception as e:
+                logger.error(f"Error processing S3 document {doc.filename}: {e}")
+        
+        logger.info(f"Loaded {loaded_count} documents from S3")
+        return loaded_count
+        
+    except Exception as e:
+        logger.error(f"Error loading S3 documents: {e}")
+        return 0
+
+
+def load_all_documents_with_s3(db_session=None) -> int:
+    """
+    Load documents from both local files and S3.
+    
+    Args:
+        db_session: SQLAlchemy database session for S3 documents
+        
+    Returns:
+        Total number of documents loaded
+    """
+    # First load local documents
+    local_count = load_all_documents()
+    
+    # Then load S3 documents
+    s3_count = load_documents_from_s3(db_session)
+    
+    total = local_count + s3_count
+    logger.info(f"Total knowledge base: {total} documents ({local_count} local, {s3_count} S3)")
+    
+    return total
 
 
 # ==============================================================================

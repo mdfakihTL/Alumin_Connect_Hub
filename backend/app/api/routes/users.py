@@ -160,6 +160,246 @@ async def update_profile(
     )
 
 
+@router.get("/suggested-connections")
+async def get_suggested_connections(
+    limit: int = Query(5, ge=1, le=20),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get suggested connections for the current user.
+    Prioritizes users from same university with:
+    1. Same graduation year AND same major (highest priority)
+    2. Same graduation year OR same major (medium priority)
+    3. Same university (lower priority)
+    """
+    print(f"[SUGGESTED] Called for user: {current_user.name} ({current_user.id})")
+    print(f"[SUGGESTED] User university: {current_user.university_id}, year: {current_user.graduation_year}, major: {current_user.major}")
+    
+    from app.models.connection import Connection, ConnectionRequest, ConnectionStatus
+    from sqlalchemy import func, or_, and_, case
+    
+    # Get IDs of users already connected (from Connection table)
+    connected_ids_1 = db.query(Connection.connected_user_id).filter(
+        Connection.user_id == current_user.id
+    ).all()
+    connected_ids_2 = db.query(Connection.user_id).filter(
+        Connection.connected_user_id == current_user.id
+    ).all()
+    
+    # Get IDs of users with pending connection requests (from ConnectionRequest table)
+    pending_ids_1 = db.query(ConnectionRequest.to_user_id).filter(
+        ConnectionRequest.from_user_id == current_user.id,
+        ConnectionRequest.status == ConnectionStatus.PENDING
+    ).all()
+    pending_ids_2 = db.query(ConnectionRequest.from_user_id).filter(
+        ConnectionRequest.to_user_id == current_user.id,
+        ConnectionRequest.status == ConnectionStatus.PENDING
+    ).all()
+    
+    # Combine all connected/pending IDs
+    connected_ids = set()
+    for row in connected_ids_1 + connected_ids_2 + pending_ids_1 + pending_ids_2:
+        connected_ids.add(row[0])
+    connected_ids.add(current_user.id)  # Exclude self
+    
+    # Base query - same university, not already connected
+    base_query = db.query(User).filter(
+        User.is_active == True,
+        User.role == UserRole.ALUMNI,
+        ~User.id.in_(connected_ids)
+    )
+    
+    suggested = []
+    existing_ids = set()
+    
+    if current_user.university_id:
+        # Filter to same university only
+        uni_query = base_query.filter(User.university_id == current_user.university_id)
+        
+        # Priority 1: Same graduation year AND same major
+        if current_user.graduation_year and current_user.major:
+            same_year_and_major = uni_query.filter(
+                User.graduation_year == current_user.graduation_year,
+                User.major == current_user.major
+            ).limit(limit).all()
+            for u in same_year_and_major:
+                if u.id not in existing_ids:
+                    suggested.append(u)
+                    existing_ids.add(u.id)
+        
+        # Priority 2: Same graduation year (different major)
+        if len(suggested) < limit and current_user.graduation_year:
+            same_year = uni_query.filter(
+                User.graduation_year == current_user.graduation_year
+            ).limit(limit * 2).all()  # Get more to filter
+            for u in same_year:
+                if u.id not in existing_ids and len(suggested) < limit:
+                    suggested.append(u)
+                    existing_ids.add(u.id)
+        
+        # Priority 3: Same major (different year)
+        if len(suggested) < limit and current_user.major:
+            same_major = uni_query.filter(
+                User.major == current_user.major
+            ).limit(limit * 2).all()
+            for u in same_major:
+                if u.id not in existing_ids and len(suggested) < limit:
+                    suggested.append(u)
+                    existing_ids.add(u.id)
+        
+        # Priority 4: Same university (any year/major)
+        if len(suggested) < limit:
+            same_uni = uni_query.limit(limit * 2).all()
+            for u in same_uni:
+                if u.id not in existing_ids and len(suggested) < limit:
+                    suggested.append(u)
+                    existing_ids.add(u.id)
+    else:
+        suggested = base_query.limit(limit).all()
+    
+    # Get profiles for additional info and build response
+    result = []
+    for user in suggested:
+        profile = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
+        
+        # Calculate match reason for UI
+        match_reasons = []
+        if current_user.graduation_year and user.graduation_year == current_user.graduation_year:
+            match_reasons.append("Same batch")
+        if current_user.major and user.major == current_user.major:
+            match_reasons.append("Same course")
+        
+        # Count mutual connections (simplified)
+        mutual = 0  # TODO: Implement proper mutual connections count
+        
+        result.append({
+            "id": user.id,
+            "name": user.name,
+            "title": profile.job_title if profile else None,
+            "company": profile.company if profile else None,
+            "avatar": user.avatar,
+            "university": user.university_id,
+            "graduation_year": user.graduation_year,
+            "major": user.major,
+            "mutual_connections": mutual,
+            "match_reasons": match_reasons
+        })
+    
+    print(f"[SUGGESTED] Returning {len(result)} suggestions")
+    return result
+
+
+@router.get("/mentors")
+async def get_mentors(
+    search: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get list of mentors (users who are available for mentoring).
+    """
+    query = db.query(User).filter(
+        User.is_active == True,
+        User.is_mentor == True
+    )
+    
+    # Filter by current user's university if available
+    if current_user.university_id:
+        query = query.filter(User.university_id == current_user.university_id)
+    
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            (User.name.ilike(search_term)) |
+            (User.email.ilike(search_term)) |
+            (User.major.ilike(search_term))
+        )
+    
+    total = query.count()
+    mentors = query.offset((page - 1) * page_size).limit(page_size).all()
+    
+    result = []
+    for user in mentors:
+        profile = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
+        
+        result.append({
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "avatar": user.avatar,
+            "title": profile.job_title if profile else None,
+            "company": profile.company if profile else None,
+            "major": user.major,
+            "graduation_year": user.graduation_year,
+            "location": profile.location if profile else None,
+            "phone": profile.phone if profile else None,
+            "bio": profile.bio if profile else None,
+            "expertise": []  # TODO: Add expertise field to profile
+        })
+    
+    return {
+        "mentors": result,
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    }
+
+
+@router.get("/", response_model=List[UserResponse])
+async def search_users(
+    search: Optional[str] = None,
+    university_id: Optional[str] = None,
+    is_mentor: Optional[bool] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Search users.
+    """
+    query = db.query(User).filter(
+        User.is_active == True,
+        User.role == UserRole.ALUMNI
+    )
+    
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            (User.name.ilike(search_term)) |
+            (User.major.ilike(search_term))
+        )
+    
+    if university_id:
+        query = query.filter(User.university_id == university_id)
+    
+    if is_mentor is not None:
+        query = query.filter(User.is_mentor == is_mentor)
+    
+    users = query.offset((page - 1) * page_size).limit(page_size).all()
+    
+    return [
+        UserResponse(
+            id=user.id,
+            email=user.email,
+            name=user.name,
+            avatar=user.avatar,
+            university_id=user.university_id,
+            graduation_year=user.graduation_year,
+            major=user.major,
+            role=user.role.value,
+            is_mentor=user.is_mentor if user.is_mentor is not None else False,
+            is_active=user.is_active if user.is_active is not None else True,
+            created_at=user.created_at
+        )
+        for user in users
+    ]
+
+
+# NOTE: This route MUST be last because it has a path parameter that would match other routes
 @router.get("/{user_id}", response_model=UserWithProfileResponse)
 async def get_user(
     user_id: str,
@@ -239,54 +479,3 @@ async def get_user(
         university_name=university_name,
         university=university_branding
     )
-
-
-@router.get("/", response_model=List[UserResponse])
-async def search_users(
-    search: Optional[str] = None,
-    university_id: Optional[str] = None,
-    is_mentor: Optional[bool] = None,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Search users.
-    """
-    query = db.query(User).filter(
-        User.is_active == True,
-        User.role == UserRole.ALUMNI
-    )
-    
-    if search:
-        search_term = f"%{search}%"
-        query = query.filter(
-            (User.name.ilike(search_term)) |
-            (User.major.ilike(search_term))
-        )
-    
-    if university_id:
-        query = query.filter(User.university_id == university_id)
-    
-    if is_mentor is not None:
-        query = query.filter(User.is_mentor == is_mentor)
-    
-    users = query.offset((page - 1) * page_size).limit(page_size).all()
-    
-    return [
-        UserResponse(
-            id=user.id,
-            email=user.email,
-            name=user.name,
-            avatar=user.avatar,
-            university_id=user.university_id,
-            graduation_year=user.graduation_year,
-            major=user.major,
-            role=user.role.value,
-            is_mentor=user.is_mentor if user.is_mentor is not None else False,
-            is_active=user.is_active if user.is_active is not None else True,
-            created_at=user.created_at
-        )
-        for user in users
-    ]
