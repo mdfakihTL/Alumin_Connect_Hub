@@ -80,29 +80,39 @@ POPULAR_ROADMAPS = [
 
 
 # ==============================================================================
-# AI ROADMAP GENERATION (Using OpenAI / Compatible with Grok)
+# AI ROADMAP GENERATION (Using Groq - FREE, or OpenAI as fallback)
 # ==============================================================================
 
 def generate_roadmap_with_ai(request: GenerateRoadmapRequest) -> GeneratedRoadmap:
     """
-    Generate a career roadmap using AI (OpenAI GPT or Grok).
+    Generate a career roadmap using AI.
     
-    Falls back to template-based response if API is unavailable.
+    Supports (in order of preference):
+    1. Groq (FREE) - Uses Llama 3 or Mixtral models
+    2. Google Gemini (FREE tier)
+    3. OpenAI (Paid)
+    
+    Falls back to template-based response if no API is available.
     """
-    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("XAI_API_KEY")
+    # Check for API keys in order of preference (free first)
+    groq_key = os.getenv("GROQ_API_KEY")
+    gemini_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    openai_key = os.getenv("OPENAI_API_KEY")
     
-    if not api_key:
+    if groq_key:
+        return _generate_with_groq(request, groq_key)
+    elif gemini_key:
+        return _generate_with_gemini(request, gemini_key)
+    elif openai_key:
+        return _generate_with_openai(request, openai_key)
+    else:
         logger.warning("No AI API key configured. Using template-based roadmap.")
         return _generate_template_roadmap(request)
-    
-    try:
-        import openai
-        
-        # Configure client (works for both OpenAI and xAI Grok)
-        base_url = os.getenv("XAI_API_BASE", "https://api.openai.com/v1")
-        client = openai.OpenAI(api_key=api_key, base_url=base_url)
-        
-        system_prompt = """You are a career advisor AI. Generate detailed, actionable career roadmaps.
+
+
+def _get_system_prompt() -> str:
+    """Get the system prompt for roadmap generation."""
+    return """You are a career advisor AI. Generate detailed, actionable career roadmaps.
         
 Your response must be valid JSON with this exact structure:
 {
@@ -130,9 +140,13 @@ Create 4-6 milestones that are:
 - Progressive (building on each other)
 - Realistic time estimates
 - Include both technical and soft skills
-"""
 
-        user_prompt = f"""Create a detailed career roadmap for:
+IMPORTANT: Return ONLY valid JSON, no markdown formatting."""
+
+
+def _get_user_prompt(request: GenerateRoadmapRequest) -> str:
+    """Get the user prompt for roadmap generation."""
+    return f"""Create a detailed career roadmap for:
 
 Career Goal: {request.career_goal}
 Current Role: {request.current_role or "Entry level / Student"}
@@ -140,37 +154,151 @@ Years of Experience: {request.years_experience or 0}
 Industry: {request.industry or "Not specified"}
 Additional Context: {request.additional_context or "None"}
 
-Provide practical, actionable steps with realistic timelines. Include market insights and salary expectations."""
+Provide practical, actionable steps with realistic timelines. Include market insights and salary expectations.
+Return ONLY valid JSON."""
 
+
+def _parse_ai_response(content: str, request: GenerateRoadmapRequest) -> GeneratedRoadmap:
+    """Parse AI response and convert to GeneratedRoadmap."""
+    # Clean up response - remove markdown code blocks if present
+    content = content.strip()
+    if content.startswith("```json"):
+        content = content[7:]
+    if content.startswith("```"):
+        content = content[3:]
+    if content.endswith("```"):
+        content = content[:-3]
+    content = content.strip()
+    
+    result = json.loads(content)
+    
+    # Convert to Pydantic model
+    milestones = [Milestone(**m) for m in result.get("milestones", [])]
+    
+    return GeneratedRoadmap(
+        title=result.get("title", f"Path to {request.career_goal}"),
+        summary=result.get("summary", ""),
+        estimated_duration=result.get("estimated_duration", "2-4 years"),
+        milestones=milestones,
+        skills_required=result.get("skills_required", []),
+        market_insights=result.get("market_insights"),
+        salary_range=result.get("salary_range"),
+        related_alumni=[]  # Will be populated separately
+    )
+
+
+def _generate_with_groq(request: GenerateRoadmapRequest, api_key: str) -> GeneratedRoadmap:
+    """
+    Generate roadmap using Groq API (FREE).
+    
+    Groq offers free access to:
+    - llama-3.3-70b-versatile (recommended)
+    - llama-3.1-8b-instant (faster)
+    - mixtral-8x7b-32768
+    """
+    try:
+        import httpx
+        
+        logger.info("Using Groq API for roadmap generation (FREE)")
+        
+        model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        
+        response = httpx.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": _get_system_prompt()},
+                    {"role": "user", "content": _get_user_prompt(request)}
+                ],
+                "temperature": 0.7,
+                "max_tokens": 2000,
+                "response_format": {"type": "json_object"}
+            },
+            timeout=60.0
+        )
+        
+        response.raise_for_status()
+        result = response.json()
+        content = result["choices"][0]["message"]["content"]
+        
+        return _parse_ai_response(content, request)
+        
+    except Exception as e:
+        logger.error(f"Groq API failed: {e}")
+        return _generate_template_roadmap(request)
+
+
+def _generate_with_gemini(request: GenerateRoadmapRequest, api_key: str) -> GeneratedRoadmap:
+    """
+    Generate roadmap using Google Gemini API (FREE tier available).
+    
+    Free tier: 60 requests per minute
+    """
+    try:
+        import httpx
+        
+        logger.info("Using Google Gemini API for roadmap generation")
+        
+        model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+        
+        prompt = f"{_get_system_prompt()}\n\n{_get_user_prompt(request)}"
+        
+        response = httpx.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+            params={"key": api_key},
+            headers={"Content-Type": "application/json"},
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "temperature": 0.7,
+                    "maxOutputTokens": 2000,
+                    "responseMimeType": "application/json"
+                }
+            },
+            timeout=60.0
+        )
+        
+        response.raise_for_status()
+        result = response.json()
+        content = result["candidates"][0]["content"]["parts"][0]["text"]
+        
+        return _parse_ai_response(content, request)
+        
+    except Exception as e:
+        logger.error(f"Gemini API failed: {e}")
+        return _generate_template_roadmap(request)
+
+
+def _generate_with_openai(request: GenerateRoadmapRequest, api_key: str) -> GeneratedRoadmap:
+    """Generate roadmap using OpenAI API (Paid)."""
+    try:
+        import openai
+        
+        logger.info("Using OpenAI API for roadmap generation")
+        
+        client = openai.OpenAI(api_key=api_key)
+        
         response = client.chat.completions.create(
-            model=os.getenv("AI_MODEL", "gpt-3.5-turbo"),
+            model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "system", "content": _get_system_prompt()},
+                {"role": "user", "content": _get_user_prompt(request)}
             ],
             temperature=0.7,
             max_tokens=2000,
             response_format={"type": "json_object"}
         )
         
-        result = json.loads(response.choices[0].message.content)
-        
-        # Convert to Pydantic model
-        milestones = [Milestone(**m) for m in result.get("milestones", [])]
-        
-        return GeneratedRoadmap(
-            title=result.get("title", f"Path to {request.career_goal}"),
-            summary=result.get("summary", ""),
-            estimated_duration=result.get("estimated_duration", "2-4 years"),
-            milestones=milestones,
-            skills_required=result.get("skills_required", []),
-            market_insights=result.get("market_insights"),
-            salary_range=result.get("salary_range"),
-            related_alumni=[]  # Will be populated separately
-        )
+        content = response.choices[0].message.content
+        return _parse_ai_response(content, request)
         
     except Exception as e:
-        logger.error(f"AI roadmap generation failed: {e}")
+        logger.error(f"OpenAI API failed: {e}")
         return _generate_template_roadmap(request)
 
 
