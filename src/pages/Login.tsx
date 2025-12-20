@@ -227,25 +227,25 @@ const Login = () => {
 
               {/* New test alumni */}
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#A31F34]/20">
-                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#A31F34]/50" onClick={() => fillCredentials('alice.chen@mit.edu', 'password123')}>
-                  <h4 className="font-semibold text-xs">Alice Chen</h4>
+                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#A31F34]/50" onClick={() => fillCredentials('joe@mit.edu', 'password123')}>
+                  <h4 className="font-semibold text-xs">Joe Smith</h4>
                   <p className="text-[10px] text-muted-foreground">CS '20</p>
                 </Card>
-                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#A31F34]/50" onClick={() => fillCredentials('bob.williams@mit.edu', 'password123')}>
-                  <h4 className="font-semibold text-xs">Bob Williams</h4>
-                  <p className="text-[10px] text-muted-foreground">EE '20</p>
+                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#A31F34]/50" onClick={() => fillCredentials('alice@mit.edu', 'password123')}>
+                  <h4 className="font-semibold text-xs">Alice Chen</h4>
+                  <p className="text-[10px] text-muted-foreground">EE '21</p>
                 </Card>
-                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#A31F34]/50" onClick={() => fillCredentials('carol.davis@mit.edu', 'password123')}>
+                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#A31F34]/50" onClick={() => fillCredentials('bob@mit.edu', 'password123')}>
+                  <h4 className="font-semibold text-xs">Bob Wilson</h4>
+                  <p className="text-[10px] text-muted-foreground">CS '20</p>
+                </Card>
+                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#A31F34]/50" onClick={() => fillCredentials('carol@mit.edu', 'password123')}>
                   <h4 className="font-semibold text-xs">Carol Davis</h4>
-                  <p className="text-[10px] text-muted-foreground">CS '21</p>
+                  <p className="text-[10px] text-muted-foreground">ME '19</p>
                 </Card>
-                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#A31F34]/50" onClick={() => fillCredentials('david.lee@mit.edu', 'password123')}>
-                  <h4 className="font-semibold text-xs">David Lee</h4>
-                  <p className="text-[10px] text-muted-foreground">CS '19</p>
-                </Card>
-                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#A31F34]/50 col-span-2" onClick={() => fillCredentials('emma.wilson@mit.edu', 'password123')}>
-                  <h4 className="font-semibold text-xs">Emma Wilson</h4>
-                  <p className="text-[10px] text-muted-foreground">Mechanical Engineering '20</p>
+                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#A31F34]/50 col-span-2" onClick={() => fillCredentials('david@mit.edu', 'password123')}>
+                  <h4 className="font-semibold text-xs">David Lee (Mentor)</h4>
+                  <p className="text-[10px] text-muted-foreground">Computer Science '21</p>
                 </Card>
               </div>
             </div>
@@ -287,25 +287,25 @@ const Login = () => {
 
               {/* New test alumni */}
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#8C1515]/20">
-                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#8C1515]/50" onClick={() => fillCredentials('frank.brown@stanford.edu', 'password123')}>
-                  <h4 className="font-semibold text-xs">Frank Brown</h4>
+                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#8C1515]/50" onClick={() => fillCredentials('emma@stanford.edu', 'password123')}>
+                  <h4 className="font-semibold text-xs">Emma Johnson</h4>
                   <p className="text-[10px] text-muted-foreground">CS '20</p>
                 </Card>
-                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#8C1515]/50" onClick={() => fillCredentials('grace.taylor@stanford.edu', 'password123')}>
-                  <h4 className="font-semibold text-xs">Grace Taylor</h4>
-                  <p className="text-[10px] text-muted-foreground">Business '20</p>
+                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#8C1515]/50" onClick={() => fillCredentials('frank@stanford.edu', 'password123')}>
+                  <h4 className="font-semibold text-xs">Frank Brown</h4>
+                  <p className="text-[10px] text-muted-foreground">Business '21</p>
                 </Card>
-                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#8C1515]/50" onClick={() => fillCredentials('henry.martin@stanford.edu', 'password123')}>
-                  <h4 className="font-semibold text-xs">Henry Martin</h4>
-                  <p className="text-[10px] text-muted-foreground">CS '21</p>
+                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#8C1515]/50" onClick={() => fillCredentials('grace@stanford.edu', 'password123')}>
+                  <h4 className="font-semibold text-xs">Grace Kim</h4>
+                  <p className="text-[10px] text-muted-foreground">CS '20</p>
                 </Card>
-                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#8C1515]/50" onClick={() => fillCredentials('ivy.johnson@stanford.edu', 'password123')}>
-                  <h4 className="font-semibold text-xs">Ivy Johnson</h4>
-                  <p className="text-[10px] text-muted-foreground">CS '19</p>
+                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#8C1515]/50" onClick={() => fillCredentials('henry@stanford.edu', 'password123')}>
+                  <h4 className="font-semibold text-xs">Henry Zhang</h4>
+                  <p className="text-[10px] text-muted-foreground">Physics '19</p>
                 </Card>
-                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#8C1515]/50 col-span-2" onClick={() => fillCredentials('jack.anderson@stanford.edu', 'password123')}>
-                  <h4 className="font-semibold text-xs">Jack Anderson</h4>
-                  <p className="text-[10px] text-muted-foreground">Engineering '20</p>
+                <Card className="p-2 hover:shadow-md transition-all cursor-pointer hover:border-[#8C1515]/50 col-span-2" onClick={() => fillCredentials('iris@stanford.edu', 'password123')}>
+                  <h4 className="font-semibold text-xs">Iris Martinez (Mentor)</h4>
+                  <p className="text-[10px] text-muted-foreground">Biology '22</p>
                 </Card>
               </div>
             </div>
