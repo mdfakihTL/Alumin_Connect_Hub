@@ -225,6 +225,17 @@ const AIRoadmap = () => {
     yearsExperience: number;
     additionalContext: string;
   }) => {
+    // Check if user is logged in
+    if (!user || !token) {
+      toast({
+        title: 'Login Required',
+        description: 'Please log in to generate a personalized career roadmap.',
+        variant: 'destructive',
+      });
+      navigate('/login');
+      return;
+    }
+
     setIsGenerating(true);
     setGeneratedRoadmap(null);
 
@@ -242,6 +253,16 @@ const AIRoadmap = () => {
           additional_context: formData.additionalContext || undefined,
         }),
       });
+
+      if (response.status === 401) {
+        toast({
+          title: 'Session Expired',
+          description: 'Please log in again to continue.',
+          variant: 'destructive',
+        });
+        navigate('/login');
+        return;
+      }
 
       if (!response.ok) {
         throw new Error('Failed to generate roadmap');
