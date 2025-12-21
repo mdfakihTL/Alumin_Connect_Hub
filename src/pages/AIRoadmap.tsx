@@ -151,6 +151,7 @@ const AIRoadmap = () => {
   const [showAlumniModal, setShowAlumniModal] = useState(false);
   const [expandedMilestone, setExpandedMilestone] = useState<number | null>(null);
   const [completedMilestones, setCompletedMilestones] = useState<Set<number>>(new Set());
+  const [viewingSavedRoadmap, setViewingSavedRoadmap] = useState<SavedRoadmap | null>(null);
   
   const [activeTab, setActiveTab] = useState<'generate' | 'saved'>('generate');
 
@@ -402,10 +403,13 @@ const AIRoadmap = () => {
         description: 'They will be notified of your request.',
       });
       setShowAlumniModal(false);
-    } catch (error) {
+      // Refresh connections to update the UI
+      window.location.reload();
+    } catch (error: any) {
+      console.error('Connection request failed:', error);
       toast({
         title: 'Failed to send request',
-        description: 'Please try again.',
+        description: error?.message || 'Please try again.',
         variant: 'destructive',
       });
     }
@@ -754,6 +758,94 @@ const AIRoadmap = () => {
                     Generate Your First Roadmap
                   </Button>
                 </Card>
+              ) : viewingSavedRoadmap ? (
+                // Viewing saved roadmap details
+                <div className="space-y-6">
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => setViewingSavedRoadmap(null)}
+                    className="gap-2"
+                  >
+                    <ArrowRight className="w-4 h-4 rotate-180" />
+                    Back to My Roadmaps
+                  </Button>
+                  
+                  <Card className="p-5 sm:p-6 border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-purple-500/5 rounded-xl">
+                    <h2 className="text-xl sm:text-2xl font-bold mb-2">{viewingSavedRoadmap.title}</h2>
+                    <p className="text-muted-foreground mb-4">{viewingSavedRoadmap.summary}</p>
+                    <div className="flex flex-wrap gap-3 text-sm">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-4 h-4 text-primary" />
+                        <span>{viewingSavedRoadmap.estimated_duration}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Target className="w-4 h-4 text-primary" />
+                        <span>{viewingSavedRoadmap.milestones.length} milestones</span>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Milestones */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                      <Target className="w-5 h-5" />
+                      Career Milestones
+                    </h3>
+                    {viewingSavedRoadmap.milestones.map((milestone, index) => (
+                      <Card key={milestone.id} className="p-4 sm:p-5 rounded-xl">
+                        <div className="flex gap-3">
+                          <div className="mt-0.5 flex-shrink-0">
+                            <Circle className="w-6 h-6 text-muted-foreground" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge variant="outline" className="text-xs">
+                                Step {index + 1}
+                              </Badge>
+                              <Badge variant="secondary" className="text-xs">
+                                <Clock className="w-3 h-3 mr-1" />
+                                {milestone.duration}
+                              </Badge>
+                            </div>
+                            <h4 className="font-semibold">{milestone.title}</h4>
+                            <p className="text-sm text-muted-foreground mt-2">
+                              {milestone.description}
+                            </p>
+                            {milestone.skills.length > 0 && (
+                              <div className="mt-3">
+                                <p className="text-sm font-medium mb-2">Skills:</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {milestone.skills.map((skill, i) => (
+                                    <Badge key={i} variant="outline" className="text-xs">
+                                      {skill}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+
+                  {/* Skills Required */}
+                  {viewingSavedRoadmap.skills_required.length > 0 && (
+                    <Card className="p-5 sm:p-6 rounded-xl">
+                      <h3 className="font-semibold mb-3 flex items-center gap-2">
+                        <Award className="w-5 h-5" />
+                        Skills You'll Need
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {viewingSavedRoadmap.skills_required.map((skill, index) => (
+                          <Badge key={index} variant="secondary">
+                            {skill}
+                          </Badge>
+                        ))}
+                      </div>
+                    </Card>
+                  )}
+                </div>
               ) : (
                 <div className="grid gap-4">
                   {savedRoadmaps.map((roadmap) => (
@@ -781,7 +873,11 @@ const AIRoadmap = () => {
                             </div>
                           </div>
                         </div>
-                        <Button variant="outline" className="gap-2">
+                        <Button 
+                          variant="outline" 
+                          className="gap-2"
+                          onClick={() => setViewingSavedRoadmap(roadmap)}
+                        >
                           View Details
                           <ArrowRight className="w-4 h-4" />
                         </Button>
