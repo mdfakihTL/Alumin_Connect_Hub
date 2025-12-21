@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sparkles, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -25,6 +25,13 @@ export const RoadmapForm = ({ onSubmit, isLoading = false, initialGoal = '' }: R
   const [yearsExperience, setYearsExperience] = useState<number>(1);
   const [additionalContext, setAdditionalContext] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Update careerGoal when initialGoal prop changes (e.g., from "Use Template")
+  useEffect(() => {
+    if (initialGoal) {
+      setCareerGoal(initialGoal);
+    }
+  }, [initialGoal]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
