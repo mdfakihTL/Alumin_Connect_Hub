@@ -133,7 +133,7 @@ const FALLBACK_CAREER_PATHS: CareerPath[] = [
 
 const AIRoadmap = () => {
   const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const { sendConnectionRequest, hasPendingRequest, isConnected } = useConnections();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -157,17 +157,19 @@ const AIRoadmap = () => {
   // Fetch popular paths and saved roadmaps on mount
   useEffect(() => {
     fetchPopularPaths();
-    if (token) {
+    const authToken = localStorage.getItem('auth_token');
+    if (authToken) {
       fetchSavedRoadmaps();
     }
-  }, [token]);
+  }, [user]);
 
   const fetchPopularPaths = async () => {
     setIsLoadingPaths(true);
     try {
       const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+      const authToken = localStorage.getItem('auth_token');
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
       }
       
       const response = await fetch(`${API_BASE_URL}/career-roadmap/popular`, { headers });
@@ -205,9 +207,12 @@ const AIRoadmap = () => {
 
   const fetchSavedRoadmaps = async () => {
     try {
+      const authToken = localStorage.getItem('auth_token');
+      if (!authToken) return;
+      
       const response = await fetch(`${API_BASE_URL}/career-roadmap/my-roadmaps`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${authToken}`,
         },
       });
       if (response.ok) {
@@ -225,8 +230,11 @@ const AIRoadmap = () => {
     yearsExperience: number;
     additionalContext: string;
   }) => {
+    // Get fresh token from localStorage
+    const authToken = localStorage.getItem('auth_token');
+    
     // Check if user is logged in
-    if (!user || !token) {
+    if (!authToken) {
       toast({
         title: 'Login Required',
         description: 'Please log in to generate a personalized career roadmap.',
@@ -240,11 +248,13 @@ const AIRoadmap = () => {
     setGeneratedRoadmap(null);
 
     try {
+      console.log('Generating roadmap for:', formData.careerGoal);
+      
       const response = await fetch(`${API_BASE_URL}/career-roadmap/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${authToken}`,
         },
         body: JSON.stringify({
           career_goal: formData.careerGoal,
@@ -253,6 +263,8 @@ const AIRoadmap = () => {
           additional_context: formData.additionalContext || undefined,
         }),
       });
+
+      console.log('Response status:', response.status);
 
       if (response.status === 401) {
         toast({
@@ -265,6 +277,8 @@ const AIRoadmap = () => {
       }
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Generate error:', errorText);
         throw new Error('Failed to generate roadmap');
       }
 
@@ -301,6 +315,16 @@ const AIRoadmap = () => {
   const saveRoadmap = async () => {
     if (!generatedRoadmap) return;
 
+    const authToken = localStorage.getItem('auth_token');
+    if (!authToken) {
+      toast({
+        title: 'Login Required',
+        description: 'Please log in to save your roadmap.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -308,7 +332,7 @@ const AIRoadmap = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${authToken}`,
         },
         body: JSON.stringify({
           career_goal: selectedGoal,
