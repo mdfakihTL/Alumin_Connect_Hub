@@ -409,16 +409,14 @@ const AIRoadmap = () => {
     }
 
     try {
-      console.log('Sending connection request to:', alumniId);
       await sendConnectionRequest(alumniId);
       toast({
         title: 'Connection request sent!',
-        description: 'Check your Connections page to see sent requests.',
+        description: 'They will be notified of your request.',
       });
       setShowAlumniModal(false);
     } catch (error: any) {
       console.error('Connection request failed:', error);
-      // Check if it's a "already connected" or "request exists" error
       const errorMsg = error?.message?.toLowerCase() || '';
       if (errorMsg.includes('already') || errorMsg.includes('exists') || errorMsg.includes('pending')) {
         toast({
