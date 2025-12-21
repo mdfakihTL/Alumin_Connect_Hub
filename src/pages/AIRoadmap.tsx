@@ -396,22 +396,43 @@ const AIRoadmap = () => {
   };
 
   const handleConnectAlumni = async (alumniId: string) => {
+    // Check if user is logged in
+    const authToken = localStorage.getItem('auth_token');
+    if (!authToken) {
+      toast({
+        title: 'Login Required',
+        description: 'Please log in to connect with alumni.',
+        variant: 'destructive',
+      });
+      navigate('/login');
+      return;
+    }
+
     try {
+      console.log('Sending connection request to:', alumniId);
       await sendConnectionRequest(alumniId);
       toast({
         title: 'Connection request sent!',
-        description: 'They will be notified of your request.',
+        description: 'Check your Connections page to see sent requests.',
       });
       setShowAlumniModal(false);
-      // Refresh connections to update the UI
-      window.location.reload();
     } catch (error: any) {
       console.error('Connection request failed:', error);
-      toast({
-        title: 'Failed to send request',
-        description: error?.message || 'Please try again.',
-        variant: 'destructive',
-      });
+      // Check if it's a "already connected" or "request exists" error
+      const errorMsg = error?.message?.toLowerCase() || '';
+      if (errorMsg.includes('already') || errorMsg.includes('exists') || errorMsg.includes('pending')) {
+        toast({
+          title: 'Request Already Sent',
+          description: 'You have already sent a connection request to this person.',
+        });
+        setShowAlumniModal(false);
+      } else {
+        toast({
+          title: 'Failed to send request',
+          description: error?.message || 'Please try again.',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
