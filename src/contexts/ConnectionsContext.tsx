@@ -94,11 +94,27 @@ export const ConnectionsProvider = ({ children }: { children: ReactNode }) => {
         connectionsApi.getSentRequests(),
       ]);
       
+      // Debug logging
+      console.log('[Connections] Raw API responses:', {
+        connections: connectionsRes,
+        received: receivedRes,
+        sent: sentRes
+      });
+      
       setConnections((connectionsRes?.connections || []).map(transformConnection));
       
       // Backend returns arrays directly
-      setReceivedRequests((receivedRes || []).map(transformRequest));
-      setSentRequests((sentRes || []).map(transformRequest));
+      const receivedArray = receivedRes || [];
+      const sentArray = sentRes || [];
+      
+      console.log('[Connections] Processed arrays:', {
+        receivedCount: receivedArray.length,
+        sentCount: sentArray.length,
+        sentData: sentArray
+      });
+      
+      setReceivedRequests(receivedArray.map(transformRequest));
+      setSentRequests(sentArray.map(transformRequest));
     } catch (err) {
       console.error('Failed to fetch connections:', err);
       setError('Failed to load connections');
