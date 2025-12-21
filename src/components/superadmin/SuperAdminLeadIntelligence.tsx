@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { 
   ChartContainer, 
@@ -17,16 +16,16 @@ import {
   type ChartConfig 
 } from '@/components/ui/chart';
 import {
-  BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
+  BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, RadarChart, PolarGrid,
   PolarAngleAxis, PolarRadiusAxis, Radar
 } from 'recharts';
 import { 
   Flame, Thermometer, Snowflake, TrendingUp, Users, Target,
-  MousePointerClick, GraduationCap, Award, Building2,
-  Search, Filter, Download, RefreshCcw, ChevronRight, Mail,
-  Sparkles, BarChart3, PieChart as PieChartIcon,
-  Activity, Star, Crown, BookOpen, Briefcase, DollarSign,
+  GraduationCap, Award, Building2,
+  Search, Filter, Download, ChevronRight, Mail,
+  BarChart3, PieChart as PieChartIcon,
+  Activity, Star, Crown, BookOpen,
   Clock, Percent, Brain, Zap, CheckCircle, AlertCircle,
   FileText, School
 } from 'lucide-react';
@@ -37,7 +36,6 @@ import {
   type CourseLead,
   type CourseRecommendation,
   getCourseTypeLabel,
-  getCourseTypeColor,
 } from '@/api/courseIntelligence';
 
 import { leadIntelligenceApi, type University } from '@/api/leadIntelligence';
@@ -113,6 +111,80 @@ const ScoreBar = ({ score, label, color }: { score: number; label: string; color
   </div>
 );
 
+// Generate demo leads with proper course types
+const generateDemoLeads = (count: number = 24): CourseLead[] => {
+  const names = [
+    'Sarah Chen', 'Michael Johnson', 'Emily Williams', 'David Brown', 
+    'Jessica Garcia', 'James Miller', 'Amanda Davis', 'Robert Rodriguez',
+    'Lisa Anderson', 'William Taylor', 'Jennifer Thomas', 'Christopher Lee',
+    'Maria Martinez', 'Daniel Wilson', 'Ashley Moore', 'Matthew Jackson',
+    'Sophia White', 'Andrew Harris', 'Emma Clark', 'Joshua Lewis',
+    'Olivia Walker', 'Ryan Hall', 'Isabella Young', 'Nicholas King'
+  ];
+  
+  const coursesByType: Record<string, { name: string; type: string }[]> = {
+    pg: [
+      { name: 'Master of Business Administration (MBA)', type: 'pg' },
+      { name: 'MS Data Science', type: 'pg' },
+      { name: 'MS Computer Science', type: 'pg' },
+      { name: 'Master of Finance', type: 'pg' },
+    ],
+    ug: [
+      { name: "Bachelor's Completion - Business", type: 'ug' },
+      { name: "Bachelor's in Computer Science", type: 'ug' },
+    ],
+    executive: [
+      { name: 'Executive MBA', type: 'executive' },
+      { name: 'Senior Leadership Program', type: 'executive' },
+      { name: 'Digital Transformation Leadership', type: 'executive' },
+    ],
+    certificate: [
+      { name: 'Professional Certificate in Machine Learning', type: 'certificate' },
+      { name: 'Product Management Certificate', type: 'certificate' },
+      { name: 'Digital Marketing Certificate', type: 'certificate' },
+    ],
+    bootcamp: [
+      { name: 'Full Stack Web Development Bootcamp', type: 'bootcamp' },
+      { name: 'Data Analytics Bootcamp', type: 'bootcamp' },
+      { name: 'UX/UI Design Bootcamp', type: 'bootcamp' },
+    ],
+  };
+  
+  const allCourses = Object.values(coursesByType).flat();
+  
+  return Array.from({ length: count }, (_, i) => {
+    const name = names[i % names.length];
+    const course = allCourses[i % allCourses.length];
+    const score = Math.random() * 60 + 30;
+    const temp: 'hot' | 'warm' | 'cold' = score >= 70 ? 'hot' : score >= 40 ? 'warm' : 'cold';
+    
+    return {
+      lead_id: `lead_${i}_${Date.now()}`,
+      user_id: `user_${i}`,
+      user_name: name,
+      user_email: `${name.toLowerCase().replace(' ', '.')}@email.com`,
+      education_level: i % 3 === 0 ? 'ug' : 'pg',
+      years_experience: Math.floor(Math.random() * 12) + 1,
+      course_id: `course_${i}`,
+      course_name: course.name,
+      course_type: course.type,
+      overall_score: score,
+      interest_score: Math.random() * 40 + 40,
+      fit_score: Math.random() * 40 + 40,
+      intent_score: Math.random() * 40 + 30,
+      lead_temperature: temp,
+      purchase_probability: score / 100 * 0.8,
+      ad_clicks: Math.floor(Math.random() * 15),
+      recommendation_reasons: [
+        'Matches your experience level',
+        'Aligns with your career goals',
+        'Popular among similar profiles',
+      ],
+      last_interaction_at: new Date(Date.now() - Math.random() * 14 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+  });
+};
+
 const SuperAdminLeadIntelligence = () => {
   const { toast } = useToast();
   
@@ -120,44 +192,46 @@ const SuperAdminLeadIntelligence = () => {
   const [universities, setUniversities] = useState<University[]>([]);
   const [selectedUniversity, setSelectedUniversity] = useState<string>('all');
   const [activeTab, setActiveTab] = useState('overview');
-  const [activeCourseType, setActiveCourseType] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isGeneratingData, setIsGeneratingData] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   
   // Analytics state
   const [analytics, setAnalytics] = useState<CourseAnalytics | null>(null);
   
-  // Leads state
-  const [leads, setLeads] = useState<CourseLead[]>([]);
-  const [leadsTotal, setLeadsTotal] = useState(0);
-  const [leadsPage, setLeadsPage] = useState(1);
+  // Leads state - store ALL leads, filter client-side
+  const [allLeads, setAllLeads] = useState<CourseLead[]>([]);
   
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [temperatureFilter, setTemperatureFilter] = useState<'all' | 'hot' | 'warm' | 'cold'>('all');
+  const [courseTypeFilter, setCourseTypeFilter] = useState<string>('all');
   
   // Modal state
   const [selectedLead, setSelectedLead] = useState<CourseLead | null>(null);
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [recommendations, setRecommendations] = useState<CourseRecommendation[]>([]);
 
-  // Load analytics
-  const loadAnalytics = async () => {
+  // Load all data
+  const loadData = async () => {
     setIsLoading(true);
     try {
       const universityId = selectedUniversity === 'all' ? undefined : selectedUniversity;
       
-      const [analyticsData, universitiesData] = await Promise.all([
+      const [analyticsData, universitiesData, leadsData] = await Promise.all([
         courseIntelligenceApi.getAnalytics({ university_id: universityId }),
         leadIntelligenceApi.getUniversities(),
+        courseIntelligenceApi.getAllLeads({ 
+          university_id: universityId,
+          page_size: 100 
+        }),
       ]);
       
       setAnalytics(analyticsData);
       setUniversities(universitiesData);
+      setAllLeads(leadsData.leads || []);
       
     } catch (error) {
-      console.error('Failed to load analytics:', error);
+      console.error('Failed to load data:', error);
       // Use demo data
       loadDemoData();
     } finally {
@@ -165,33 +239,7 @@ const SuperAdminLeadIntelligence = () => {
     }
   };
 
-  // Load leads
-  const loadLeads = async () => {
-    try {
-      const universityId = selectedUniversity === 'all' ? undefined : selectedUniversity;
-      const courseType = activeCourseType === 'all' ? undefined : activeCourseType;
-      const temperature = temperatureFilter === 'all' ? undefined : temperatureFilter;
-      
-      const response = await courseIntelligenceApi.getAllLeads({
-        university_id: universityId,
-        course_type: courseType,
-        temperature,
-        search: searchQuery || undefined,
-        page: leadsPage,
-        page_size: 12,
-      });
-      
-      setLeads(response.leads);
-      setLeadsTotal(response.total);
-    } catch (error) {
-      console.error('Failed to load leads:', error);
-      // Use demo leads
-      setLeads(generateDemoLeads());
-      setLeadsTotal(50);
-    }
-  };
-
-  // Demo data
+  // Demo data fallback
   const loadDemoData = () => {
     setAnalytics({
       total_leads: 847,
@@ -220,101 +268,130 @@ const SuperAdminLeadIntelligence = () => {
       { id: '2', name: 'Stanford University' },
       { id: '3', name: 'Harvard University' },
     ]);
-  };
-
-  const generateDemoLeads = (): CourseLead[] => {
-    const names = ['Sarah Chen', 'Michael Johnson', 'Emily Williams', 'David Brown', 'Jessica Garcia', 'James Miller', 'Amanda Davis', 'Robert Rodriguez'];
-    const courses = [
-      { name: 'MBA', type: 'pg' },
-      { name: 'MS Data Science', type: 'pg' },
-      { name: 'Executive MBA', type: 'executive' },
-      { name: 'ML Certificate', type: 'certificate' },
-      { name: 'Web Dev Bootcamp', type: 'bootcamp' },
-      { name: "Bachelor's Completion", type: 'ug' },
-    ];
     
-    return names.map((name, i) => {
-      const course = courses[i % courses.length];
-      const score = Math.random() * 60 + 30;
-      const temp = score >= 70 ? 'hot' : score >= 40 ? 'warm' : 'cold';
-      
-      return {
-        lead_id: `lead_${i}`,
-        user_id: `user_${i}`,
-        user_name: name,
-        user_email: `${name.toLowerCase().replace(' ', '.')}@email.com`,
-        education_level: i % 3 === 0 ? 'ug' : 'pg',
-        years_experience: Math.floor(Math.random() * 12) + 1,
-        course_id: `course_${i}`,
-        course_name: course.name,
-        course_type: course.type,
-        overall_score: score,
-        interest_score: Math.random() * 40 + 40,
-        fit_score: Math.random() * 40 + 40,
-        intent_score: Math.random() * 40 + 30,
-        lead_temperature: temp as 'hot' | 'warm' | 'cold',
-        purchase_probability: score / 100 * 0.8,
-        ad_clicks: Math.floor(Math.random() * 15),
-        recommendation_reasons: [
-          'Matches your experience level',
-          'Aligns with your career goals',
-          'Popular among similar profiles',
-        ],
-        last_interaction_at: new Date(Date.now() - Math.random() * 14 * 24 * 60 * 60 * 1000).toISOString(),
-      };
-    });
+    setAllLeads(generateDemoLeads(24));
   };
 
   // Effects
   useEffect(() => {
-    loadAnalytics();
+    loadData();
   }, [selectedUniversity]);
 
-  useEffect(() => {
-    if (activeTab === 'leads' || activeTab === 'ug' || activeTab === 'pg' || activeTab === 'executive') {
-      loadLeads();
+  // Filter leads based on current filters
+  const filteredLeads = useMemo(() => {
+    let result = [...allLeads];
+    
+    // Filter by course type
+    if (courseTypeFilter !== 'all') {
+      result = result.filter(lead => lead.course_type === courseTypeFilter);
     }
-  }, [activeTab, activeCourseType, temperatureFilter, searchQuery, leadsPage, selectedUniversity]);
+    
+    // Filter by temperature
+    if (temperatureFilter !== 'all') {
+      result = result.filter(lead => lead.lead_temperature === temperatureFilter);
+    }
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(lead => 
+        lead.user_name.toLowerCase().includes(query) ||
+        lead.user_email.toLowerCase().includes(query) ||
+        lead.course_name.toLowerCase().includes(query)
+      );
+    }
+    
+    return result;
+  }, [allLeads, courseTypeFilter, temperatureFilter, searchQuery]);
 
-  // Handlers
-  const handleGenerateSeedData = async () => {
-    setIsGeneratingData(true);
-    try {
-      const result = await courseIntelligenceApi.generateSeedData();
-      toast({
-        title: 'Seed Data Generated',
-        description: `Created ${result.counts.leads} leads, ${result.counts.courses} courses`,
-      });
-      await loadAnalytics();
-      await loadLeads();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to generate seed data',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsGeneratingData(false);
+  // Get leads by course type for specific tabs
+  const getLeadsByType = (type: string): CourseLead[] => {
+    let result = allLeads.filter(lead => lead.course_type === type);
+    
+    // Apply temperature filter
+    if (temperatureFilter !== 'all') {
+      result = result.filter(lead => lead.lead_temperature === temperatureFilter);
     }
+    
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(lead => 
+        lead.user_name.toLowerCase().includes(query) ||
+        lead.user_email.toLowerCase().includes(query)
+      );
+    }
+    
+    return result;
   };
 
+  // Export to CSV - client-side generation
   const handleExportLeads = async () => {
+    setIsExporting(true);
     try {
-      const blob = await courseIntelligenceApi.exportLeadsCSV({
-        course_type: activeCourseType === 'all' ? undefined : activeCourseType,
-        temperature: temperatureFilter === 'all' ? undefined : temperatureFilter,
-      });
+      const leadsToExport = courseTypeFilter !== 'all' ? filteredLeads : allLeads;
       
+      if (leadsToExport.length === 0) {
+        toast({ title: 'No leads to export', variant: 'destructive' });
+        return;
+      }
+      
+      // Generate CSV content
+      const headers = [
+        'Name', 'Email', 'Education Level', 'Years Experience',
+        'Course Name', 'Course Type', 'Overall Score', 
+        'Interest Score', 'Fit Score', 'Intent Score',
+        'Lead Temperature', 'Purchase Probability', 'Ad Clicks', 
+        'Recommendation Reasons', 'Last Interaction'
+      ];
+      
+      const rows = leadsToExport.map(lead => [
+        lead.user_name,
+        lead.user_email,
+        lead.education_level?.toUpperCase() || '',
+        lead.years_experience?.toString() || '',
+        lead.course_name,
+        lead.course_type.toUpperCase(),
+        lead.overall_score.toFixed(1),
+        lead.interest_score.toFixed(1),
+        lead.fit_score.toFixed(1),
+        lead.intent_score.toFixed(1),
+        lead.lead_temperature.toUpperCase(),
+        `${(lead.purchase_probability * 100).toFixed(1)}%`,
+        lead.ad_clicks.toString(),
+        (lead.recommendation_reasons || []).join('; '),
+        lead.last_interaction_at ? new Date(lead.last_interaction_at).toLocaleDateString() : '',
+      ]);
+      
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ].join('\n');
+      
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `course-leads-${activeCourseType}-${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `course-leads-${courseTypeFilter}-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       URL.revokeObjectURL(url);
       
-      toast({ title: 'Export Successful', description: 'Leads exported to CSV.' });
+      toast({ 
+        title: 'Export Successful', 
+        description: `Exported ${leadsToExport.length} leads to CSV.` 
+      });
     } catch (error) {
-      toast({ title: 'Export Failed', variant: 'destructive' });
+      console.error('Export failed:', error);
+      toast({ 
+        title: 'Export Failed', 
+        description: 'Could not export leads. Please try again.',
+        variant: 'destructive' 
+      });
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -354,6 +431,126 @@ const SuperAdminLeadIntelligence = () => {
     { subject: 'Certificate', A: analytics.by_course_type.certificate?.total || 0 },
     { subject: 'Bootcamp', A: analytics.by_course_type.bootcamp?.total || 0 },
   ] : [];
+
+  // Render leads grid
+  const renderLeadsGrid = (leadsToShow: CourseLead[]) => (
+    <>
+      {leadsToShow.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {leadsToShow.map(lead => (
+            <Card 
+              key={lead.lead_id} 
+              className="p-4 hover:shadow-lg transition-all cursor-pointer group"
+              onClick={() => handleViewLead(lead)}
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-white ${
+                    lead.lead_temperature === 'hot' ? 'bg-gradient-to-br from-red-500 to-orange-500' :
+                    lead.lead_temperature === 'warm' ? 'bg-gradient-to-br from-amber-500 to-yellow-500' :
+                    'bg-gradient-to-br from-blue-500 to-cyan-500'
+                  }`}>
+                    {lead.user_name.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">{lead.user_name}</h4>
+                    <p className="text-xs text-muted-foreground">{lead.education_level?.toUpperCase()} • {lead.years_experience}y exp</p>
+                  </div>
+                </div>
+                <LeadTemperatureBadge temperature={lead.lead_temperature} />
+              </div>
+              
+              <div className="mb-3 p-2 rounded-lg bg-muted/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Interested in:</span>
+                  <CourseTypeBadge type={lead.course_type} />
+                </div>
+                <p className="font-medium text-sm mt-1 truncate">{lead.course_name}</p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 pt-3 border-t border-border">
+                <div className="text-center">
+                  <p className="text-lg font-bold text-primary">{lead.overall_score.toFixed(0)}</p>
+                  <p className="text-[10px] text-muted-foreground">Score</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-green-600">{(lead.purchase_probability * 100).toFixed(0)}%</p>
+                  <p className="text-[10px] text-muted-foreground">Probability</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-orange-500">{lead.ad_clicks}</p>
+                  <p className="text-[10px] text-muted-foreground">Ad Clicks</p>
+                </div>
+              </div>
+
+              <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {lead.last_interaction_at ? new Date(lead.last_interaction_at).toLocaleDateString() : 'No activity'}
+                </span>
+                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="p-12 text-center">
+          <AlertCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+          <h3 className="font-semibold mb-2">No Leads Found</h3>
+          <p className="text-muted-foreground">
+            {searchQuery || temperatureFilter !== 'all' 
+              ? 'Try adjusting your filters'
+              : 'No leads available for this course type'}
+          </p>
+        </Card>
+      )}
+    </>
+  );
+
+  // Render filter bar
+  const renderFilterBar = (showCourseTypeFilter: boolean = true) => (
+    <Card className="p-4">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by name, email, or course..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <Select value={temperatureFilter} onValueChange={(v: any) => setTemperatureFilter(v)}>
+          <SelectTrigger className="w-full sm:w-[150px]">
+            <Filter className="w-4 h-4 mr-2" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Leads</SelectItem>
+            <SelectItem value="hot">🔥 Hot Leads</SelectItem>
+            <SelectItem value="warm">🌡️ Warm Leads</SelectItem>
+            <SelectItem value="cold">❄️ Cold Leads</SelectItem>
+          </SelectContent>
+        </Select>
+        {showCourseTypeFilter && (
+          <Select value={courseTypeFilter} onValueChange={setCourseTypeFilter}>
+            <SelectTrigger className="w-full sm:w-[150px]">
+              <BookOpen className="w-4 h-4 mr-2" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="ug">UG Courses</SelectItem>
+              <SelectItem value="pg">PG Courses</SelectItem>
+              <SelectItem value="executive">Executive</SelectItem>
+              <SelectItem value="certificate">Certificate</SelectItem>
+              <SelectItem value="bootcamp">Bootcamp</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+    </Card>
+  );
 
   // Loading state
   if (isLoading) {
@@ -412,22 +609,9 @@ const SuperAdminLeadIntelligence = () => {
               </SelectContent>
             </Select>
             
-            <Button 
-              variant="outline" 
-              onClick={handleGenerateSeedData}
-              disabled={isGeneratingData}
-            >
-              {isGeneratingData ? (
-                <RefreshCcw className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Sparkles className="w-4 h-4 mr-2" />
-              )}
-              Generate Data
-            </Button>
-            
-            <Button variant="outline" onClick={handleExportLeads}>
-              <Download className="w-4 h-4 mr-2" />
-              Export
+            <Button variant="outline" onClick={handleExportLeads} disabled={isExporting}>
+              <Download className={`w-4 h-4 mr-2 ${isExporting ? 'animate-pulse' : ''}`} />
+              {isExporting ? 'Exporting...' : 'Export CSV'}
             </Button>
           </div>
         </div>
@@ -437,7 +621,10 @@ const SuperAdminLeadIntelligence = () => {
       {analytics && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           {/* Total Leads */}
-          <Card className="p-4 border-l-4 border-l-primary hover:shadow-lg transition-all cursor-pointer" onClick={() => setActiveTab('leads')}>
+          <Card 
+            className="p-4 border-l-4 border-l-primary hover:shadow-lg transition-all cursor-pointer" 
+            onClick={() => { setCourseTypeFilter('all'); setActiveTab('leads'); }}
+          >
             <div className="flex items-center justify-between mb-2">
               <Users className="w-5 h-5 text-primary" />
               <Badge variant="secondary" className="text-[10px]">Total</Badge>
@@ -449,7 +636,7 @@ const SuperAdminLeadIntelligence = () => {
           {/* Hot Leads */}
           <Card 
             className="p-4 border-l-4 border-l-red-500 hover:shadow-lg transition-all cursor-pointer"
-            onClick={() => { setTemperatureFilter('hot'); setActiveTab('leads'); }}
+            onClick={() => { setTemperatureFilter('hot'); setCourseTypeFilter('all'); setActiveTab('leads'); }}
           >
             <div className="flex items-center justify-between mb-2">
               <Flame className="w-5 h-5 text-red-500" />
@@ -464,7 +651,7 @@ const SuperAdminLeadIntelligence = () => {
           {/* PG Leads */}
           <Card 
             className="p-4 border-l-4 border-l-purple-500 hover:shadow-lg transition-all cursor-pointer"
-            onClick={() => { setActiveCourseType('pg'); setActiveTab('pg'); }}
+            onClick={() => { setCourseTypeFilter('pg'); setActiveTab('pg'); }}
           >
             <div className="flex items-center justify-between mb-2">
               <GraduationCap className="w-5 h-5 text-purple-500" />
@@ -477,7 +664,7 @@ const SuperAdminLeadIntelligence = () => {
           {/* UG Leads */}
           <Card 
             className="p-4 border-l-4 border-l-blue-500 hover:shadow-lg transition-all cursor-pointer"
-            onClick={() => { setActiveCourseType('ug'); setActiveTab('ug'); }}
+            onClick={() => { setCourseTypeFilter('ug'); setActiveTab('ug'); }}
           >
             <div className="flex items-center justify-between mb-2">
               <School className="w-5 h-5 text-blue-500" />
@@ -490,7 +677,7 @@ const SuperAdminLeadIntelligence = () => {
           {/* Executive Leads */}
           <Card 
             className="p-4 border-l-4 border-l-amber-500 hover:shadow-lg transition-all cursor-pointer"
-            onClick={() => { setActiveCourseType('executive'); setActiveTab('executive'); }}
+            onClick={() => { setCourseTypeFilter('executive'); setActiveTab('executive'); }}
           >
             <div className="flex items-center justify-between mb-2">
               <Crown className="w-5 h-5 text-amber-500" />
@@ -686,12 +873,13 @@ const SuperAdminLeadIntelligence = () => {
                 <p className="text-sm text-muted-foreground">MBA, Masters, Graduate Programs - For UG graduates seeking career advancement</p>
               </div>
               <div className="ml-auto text-right">
-                <p className="text-2xl font-bold text-purple-600">{analytics?.by_course_type.pg?.total || 0}</p>
-                <p className="text-xs text-muted-foreground">Total PG Leads</p>
+                <p className="text-2xl font-bold text-purple-600">{getLeadsByType('pg').length}</p>
+                <p className="text-xs text-muted-foreground">Filtered Leads</p>
               </div>
             </div>
           </Card>
-          {renderLeadsList('pg')}
+          {renderFilterBar(false)}
+          {renderLeadsGrid(getLeadsByType('pg'))}
         </TabsContent>
 
         {/* UG Courses Tab */}
@@ -706,12 +894,13 @@ const SuperAdminLeadIntelligence = () => {
                 <p className="text-sm text-muted-foreground">Bachelor's completions, Bridge programs - For career changers & degree completers</p>
               </div>
               <div className="ml-auto text-right">
-                <p className="text-2xl font-bold text-blue-600">{analytics?.by_course_type.ug?.total || 0}</p>
-                <p className="text-xs text-muted-foreground">Total UG Leads</p>
+                <p className="text-2xl font-bold text-blue-600">{getLeadsByType('ug').length}</p>
+                <p className="text-xs text-muted-foreground">Filtered Leads</p>
               </div>
             </div>
           </Card>
-          {renderLeadsList('ug')}
+          {renderFilterBar(false)}
+          {renderLeadsGrid(getLeadsByType('ug'))}
         </TabsContent>
 
         {/* Executive Tab */}
@@ -726,17 +915,19 @@ const SuperAdminLeadIntelligence = () => {
                 <p className="text-sm text-muted-foreground">EMBA, Leadership Programs - For senior professionals with 8+ years experience</p>
               </div>
               <div className="ml-auto text-right">
-                <p className="text-2xl font-bold text-amber-600">{analytics?.by_course_type.executive?.total || 0}</p>
-                <p className="text-xs text-muted-foreground">Total Executive Leads</p>
+                <p className="text-2xl font-bold text-amber-600">{getLeadsByType('executive').length}</p>
+                <p className="text-xs text-muted-foreground">Filtered Leads</p>
               </div>
             </div>
           </Card>
-          {renderLeadsList('executive')}
+          {renderFilterBar(false)}
+          {renderLeadsGrid(getLeadsByType('executive'))}
         </TabsContent>
 
         {/* All Leads Tab */}
         <TabsContent value="leads" className="space-y-4">
-          {renderLeadsList('all')}
+          {renderFilterBar(true)}
+          {renderLeadsGrid(filteredLeads)}
         </TabsContent>
       </Tabs>
 
@@ -890,144 +1081,6 @@ const SuperAdminLeadIntelligence = () => {
       </Dialog>
     </div>
   );
-
-  // Helper function to render leads list
-  function renderLeadsList(courseType: string) {
-    const filteredLeads = courseType === 'all' 
-      ? leads 
-      : leads.filter(l => l.course_type === courseType);
-
-    return (
-      <>
-        {/* Filters */}
-        <Card className="p-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name or email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Select value={temperatureFilter} onValueChange={(v: any) => setTemperatureFilter(v)}>
-              <SelectTrigger className="w-full sm:w-[150px]">
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Leads</SelectItem>
-                <SelectItem value="hot">🔥 Hot Leads</SelectItem>
-                <SelectItem value="warm">🌡️ Warm Leads</SelectItem>
-                <SelectItem value="cold">❄️ Cold Leads</SelectItem>
-              </SelectContent>
-            </Select>
-            {courseType === 'all' && (
-              <Select value={activeCourseType} onValueChange={setActiveCourseType}>
-                <SelectTrigger className="w-full sm:w-[150px]">
-                  <BookOpen className="w-4 h-4 mr-2" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="ug">UG Courses</SelectItem>
-                  <SelectItem value="pg">PG Courses</SelectItem>
-                  <SelectItem value="executive">Executive</SelectItem>
-                  <SelectItem value="certificate">Certificate</SelectItem>
-                  <SelectItem value="bootcamp">Bootcamp</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        </Card>
-
-        {/* Lead Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {(courseType === 'all' ? leads : leads.filter(l => l.course_type === courseType)).map(lead => (
-            <Card 
-              key={lead.lead_id} 
-              className="p-4 hover:shadow-lg transition-all cursor-pointer group"
-              onClick={() => handleViewLead(lead)}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-white ${
-                    lead.lead_temperature === 'hot' ? 'bg-gradient-to-br from-red-500 to-orange-500' :
-                    lead.lead_temperature === 'warm' ? 'bg-gradient-to-br from-amber-500 to-yellow-500' :
-                    'bg-gradient-to-br from-blue-500 to-cyan-500'
-                  }`}>
-                    {lead.user_name.split(' ').map(n => n[0]).join('').substring(0, 2)}
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-sm group-hover:text-primary transition-colors">{lead.user_name}</h4>
-                    <p className="text-xs text-muted-foreground">{lead.education_level?.toUpperCase()} • {lead.years_experience}y exp</p>
-                  </div>
-                </div>
-                <LeadTemperatureBadge temperature={lead.lead_temperature} />
-              </div>
-              
-              <div className="mb-3 p-2 rounded-lg bg-muted/50">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Interested in:</span>
-                  <CourseTypeBadge type={lead.course_type} />
-                </div>
-                <p className="font-medium text-sm mt-1 truncate">{lead.course_name}</p>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 pt-3 border-t border-border">
-                <div className="text-center">
-                  <p className="text-lg font-bold text-primary">{lead.overall_score.toFixed(0)}</p>
-                  <p className="text-[10px] text-muted-foreground">Score</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-lg font-bold text-green-600">{(lead.purchase_probability * 100).toFixed(0)}%</p>
-                  <p className="text-[10px] text-muted-foreground">Probability</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-lg font-bold text-orange-500">{lead.ad_clicks}</p>
-                  <p className="text-[10px] text-muted-foreground">Ad Clicks</p>
-                </div>
-              </div>
-
-              <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {lead.last_interaction_at ? new Date(lead.last_interaction_at).toLocaleDateString() : 'No activity'}
-                </span>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-              </div>
-            </Card>
-          ))}
-        </div>
-
-        {leads.length === 0 && (
-          <Card className="p-12 text-center">
-            <AlertCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="font-semibold mb-2">No Leads Found</h3>
-            <p className="text-muted-foreground mb-4">
-              {searchQuery || temperatureFilter !== 'all' 
-                ? 'Try adjusting your filters'
-                : 'Click "Generate Data" to create sample leads'}
-            </p>
-            <Button onClick={handleGenerateSeedData} disabled={isGeneratingData}>
-              <Sparkles className="w-4 h-4 mr-2" />
-              Generate Sample Data
-            </Button>
-          </Card>
-        )}
-
-        {leadsTotal > 12 && (
-          <div className="text-center">
-            <Button variant="outline" className="gap-2" onClick={() => setLeadsPage(p => p + 1)}>
-              Load More ({leadsTotal - leads.length} remaining)
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-        )}
-      </>
-    );
-  }
 };
 
 export default SuperAdminLeadIntelligence;
