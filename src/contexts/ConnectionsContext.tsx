@@ -97,11 +97,11 @@ export const ConnectionsProvider = ({ children }: { children: ReactNode }) => {
       ]);
       
       // Add null checks for API responses
-      const connections = connectionsRes?.connections || [];
+      const connectionsList = connectionsRes?.connections || [];
       const receivedRequests = receivedRes?.requests || receivedRes || [];
       const sentRequests = sentRes?.requests || sentRes || [];
       
-      setConnections(Array.isArray(connections) ? connections.map(transformConnection) : []);
+      setConnections(Array.isArray(connectionsList) ? connectionsList.map(transformConnection) : []);
       setReceivedRequests(Array.isArray(receivedRequests) ? receivedRequests.map(transformRequest) : []);
       setSentRequests(Array.isArray(sentRequests) ? sentRequests.map(transformRequest) : []);
     } catch (err) {
@@ -136,8 +136,12 @@ export const ConnectionsProvider = ({ children }: { children: ReactNode }) => {
       await connectionsApi.sendRequest(userId);
       // Refresh to get the new request
       await refreshConnections();
-    } catch (err) {
-      handleApiError(err, 'Failed to send connection request');
+    } catch (err: any) {
+      // Only log unexpected errors, not "already exists" which is expected
+      const errorMsg = (err?.detail || '').toLowerCase();
+      if (!errorMsg.includes('already') && !errorMsg.includes('exists')) {
+        console.error('[ConnectionsContext] Send request failed:', err);
+      }
       throw err;
     }
   };
@@ -151,6 +155,7 @@ export const ConnectionsProvider = ({ children }: { children: ReactNode }) => {
       if (request) {
         const newConnection: Connection = {
           id: request.from.id,
+          userId: request.from.id,
           name: request.from.name,
           avatar: request.from.avatar,
           university: request.from.university,

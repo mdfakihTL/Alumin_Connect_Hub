@@ -13,7 +13,8 @@ from app.api.routes import (
     admin,
     superadmin,
     universities,
-    lead_intelligence
+    lead_intelligence,
+    course_intelligence
 )
 
 __all__ = [
@@ -30,5 +31,6 @@ __all__ = [
     "admin",
     "superadmin",
     "universities",
-    "lead_intelligence"
+    "lead_intelligence",
+    "course_intelligence"
 ]

@@ -24,8 +24,21 @@ PORT=8000
 # CORS (add your frontend URL)
 # CORS_ORIGINS=https://your-frontend.com,http://localhost:3000
 
-# OpenAI (if using AI features)
+# ============================================
+# AI ROADMAP GENERATION (Choose ONE - Free options first)
+# ============================================
+
+# Option 1: Groq (RECOMMENDED - 100% FREE, very fast)
+GROQ_API_KEY=gsk_your_groq_key_here
+# GROQ_MODEL=llama-3.3-70b-versatile
+
+# Option 2: Google Gemini (FREE tier - 60 requests/minute)
+# GOOGLE_API_KEY=your_gemini_key_here
+# GEMINI_MODEL=gemini-1.5-flash
+
+# Option 3: OpenAI (PAID)
 # OPENAI_API_KEY=sk-your-openai-api-key
+# OPENAI_MODEL=gpt-3.5-turbo
 
 # Redis (if using cloud Redis like Upstash)
 # REDIS_URL=redis://your-redis-url:6379/0
