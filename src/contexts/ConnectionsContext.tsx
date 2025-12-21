@@ -126,13 +126,15 @@ export const ConnectionsProvider = ({ children }: { children: ReactNode }) => {
 
   const sendConnectionRequest = async (userId: string) => {
     try {
-      console.log('[ConnectionsContext] Sending request to:', userId);
       await connectionsApi.sendRequest(userId);
       // Refresh to get the new request
       await refreshConnections();
-    } catch (err) {
-      console.error('[ConnectionsContext] Send request failed:', err);
-      // Don't show toast here - let the caller handle it
+    } catch (err: any) {
+      // Only log unexpected errors, not "already exists" which is expected
+      const errorMsg = (err?.detail || '').toLowerCase();
+      if (!errorMsg.includes('already') && !errorMsg.includes('exists')) {
+        console.error('[ConnectionsContext] Send request failed:', err);
+      }
       throw err;
     }
   };
