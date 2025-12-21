@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
 from datetime import datetime
+import logging
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user, get_password_hash
@@ -13,6 +14,9 @@ from app.models.notification import Notification, NotificationType
 from app.models.post import Post
 from app.models.event import Event
 from app.models.group import Group
+from app.services.email_service import EmailService
+
+logger = logging.getLogger(__name__)
 from app.schemas.superadmin import (
     SuperAdminDashboardStats, UniversityCreate, UniversityUpdate, UniversityResponse,
     AdminUserCreate, AdminUserResponse, AdminUserListResponse,
@@ -716,17 +720,34 @@ async def reset_admin_password(
             detail="Admin not found"
         )
     
+    # Get university for email context
+    university = db.query(University).filter(University.id == admin.university_id).first()
+    
     admin.hashed_password = get_password_hash(password_data.new_password)
     admin.password_reset_requested = False
     admin.password_reset_requested_at = None
     db.commit()
+    
+    # Send password reset email
+    try:
+        email_service = EmailService()
+        if email_service.enabled:
+            email_service.send_password_reset_email(
+                to_email=admin.email,
+                user_name=admin.name,
+                new_password=password_data.new_password,
+                reset_by="Super Administrator"
+            )
+            logger.info(f"Password reset email sent to admin {admin.email}")
+    except Exception as e:
+        logger.error(f"Failed to send password reset email to admin {admin.email}: {e}")
     
     # Create notification
     notification = Notification(
         user_id=admin_id,
         type=NotificationType.ANNOUNCEMENT,
         title="Password Reset",
-        message="Your password has been reset by the Super Administrator."
+        message="Your password has been reset by the Super Administrator. Check your email for the new password."
     )
     db.add(notification)
     db.commit()

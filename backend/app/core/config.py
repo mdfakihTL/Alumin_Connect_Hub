@@ -35,12 +35,22 @@ class Settings(BaseSettings):
     # AI/LLM Settings
     GROQ_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
-    # Email/SMTP Settings
+    # Gmail SMTP Settings (free and easy - recommended for local/testing)
+    GMAIL_USER: Optional[str] = None  # Your Gmail address (e.g., alumni.portal@gmail.com)
+    GMAIL_APP_PASSWORD: Optional[str] = None  # Gmail App Password (NOT your regular password)
+    
+    # Brevo Email API Settings (for cloud deployment where SMTP is blocked)
+    BREVO_API_KEY: Optional[str] = None
+    BREVO_FROM_EMAIL: Optional[str] = None
+    BREVO_FROM_NAME: str = "Alumni Portal"
+    
+    # Legacy SMTP Settings (for custom SMTP servers)
     SMTP_HOST: Optional[str] = None
-    SMTP_PORT: int = 587  # Use 465 for SSL, 587 for STARTTLS, 2525 as alternative
+    SMTP_PORT: int = 587
     SMTP_USER: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
     SMTP_FROM_EMAIL: Optional[str] = None
+    SMTP_FROM_NAME: str = "Alumni Portal"
     
     class Config:
         env_file = ".env"

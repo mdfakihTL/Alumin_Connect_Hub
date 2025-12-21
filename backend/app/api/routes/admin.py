@@ -459,17 +459,34 @@ async def reset_user_password(
             detail="User not found"
         )
     
+    # Get university for email service
+    university = db.query(University).filter(University.id == current_user.university_id).first()
+    
     user.hashed_password = get_password_hash(password_data.new_password)
     user.password_reset_requested = False
     user.password_reset_requested_at = None
     db.commit()
+    
+    # Send password reset email
+    try:
+        uni_email_service = EmailService.from_university(university) if university else EmailService()
+        if uni_email_service.enabled:
+            uni_email_service.send_password_reset_email(
+                to_email=user.email,
+                user_name=user.name,
+                new_password=password_data.new_password,
+                reset_by=f"{university.name if university else 'University'} Administrator"
+            )
+            logger.info(f"Password reset email sent to {user.email}")
+    except Exception as e:
+        logger.error(f"Failed to send password reset email to {user.email}: {e}")
     
     # Create notification
     notification = Notification(
         user_id=user_id,
         type=NotificationType.ANNOUNCEMENT,
         title="Password Reset",
-        message="Your password has been reset by the administrator."
+        message="Your password has been reset by the administrator. Check your email for the new password."
     )
     db.add(notification)
     db.commit()

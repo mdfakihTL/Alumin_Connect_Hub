@@ -1,57 +1,61 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Key, CheckCircle, XCircle, Clock, Mail, User, Calendar, Shield, Crown } from 'lucide-react';
+import { Key, CheckCircle, Clock, Mail, Calendar, Shield, RefreshCw, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { superadminApi } from '@/api/superadmin';
 
-interface PasswordResetRequest {
+interface AdminPasswordResetRequest {
   id: string;
-  email: string;
-  name: string;
-  type: 'admin' | 'alumni';
-  universityId?: string;
-  universityName?: string;
-  requestDate: string;
-  status: 'pending' | 'approved' | 'rejected';
-  resolvedDate?: string;
-  newPassword?: string;
+  admin_name: string;
+  admin_email: string;
+  university_name: string;
+  requested_at: string;
 }
 
 const SuperAdminPasswordResets = () => {
   const { toast } = useToast();
-  const [requests, setRequests] = useState<PasswordResetRequest[]>([]);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
-  const [selectedRequest, setSelectedRequest] = useState<PasswordResetRequest | null>(null);
+  const [requests, setRequests] = useState<AdminPasswordResetRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<AdminPasswordResetRequest | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newPassword, setNewPassword] = useState('');
+  const [total, setTotal] = useState(0);
+
+  const loadRequests = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await superadminApi.getAdminPasswordResets();
+      setRequests(response.requests || []);
+      setTotal(response.requests?.length || 0);
+    } catch (error) {
+      console.error('Failed to load admin password reset requests:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load password reset requests',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
     loadRequests();
-  }, []);
+  }, [loadRequests]);
 
-  const loadRequests = () => {
-    const stored = localStorage.getItem('super_admin_password_resets');
-    if (stored) {
-      setRequests(JSON.parse(stored));
-    }
-  };
-
-  const saveRequests = (updatedRequests: PasswordResetRequest[]) => {
-    localStorage.setItem('super_admin_password_resets', JSON.stringify(updatedRequests));
-    setRequests(updatedRequests);
-  };
-
-  const handleApprove = (request: PasswordResetRequest) => {
+  const handleApprove = (request: AdminPasswordResetRequest) => {
     setSelectedRequest(request);
     setNewPassword('');
     setIsModalOpen(true);
   };
 
-  const handleConfirmApproval = () => {
+  const handleConfirmApproval = async () => {
     if (!selectedRequest || !newPassword) {
       toast({
         title: 'Error',
@@ -61,58 +65,30 @@ const SuperAdminPasswordResets = () => {
       return;
     }
 
-    const updatedRequests = requests.map(req =>
-      req.id === selectedRequest.id
-        ? {
-            ...req,
-            status: 'approved' as const,
-            resolvedDate: new Date().toISOString(),
-            newPassword,
-          }
-        : req
-    );
-
-    // Update admin credentials if it's an admin request
-    if (selectedRequest.type === 'admin') {
-      const credentials = JSON.parse(localStorage.getItem('admin_credentials') || '{}');
-      credentials[selectedRequest.email] = {
-        password: newPassword,
-        universityId: selectedRequest.universityId,
-        universityName: selectedRequest.universityName,
-      };
-      localStorage.setItem('admin_credentials', JSON.stringify(credentials));
-    }
-
-    saveRequests(updatedRequests);
-    setIsModalOpen(false);
-    setSelectedRequest(null);
-    setNewPassword('');
-
-    toast({
-      title: 'Request approved',
-      description: `New password has been set and email sent to ${selectedRequest.email}`,
-    });
-  };
-
-  const handleReject = (requestId: string) => {
-    if (window.confirm('Are you sure you want to reject this password reset request?')) {
-      const updatedRequests = requests.map(req =>
-        req.id === requestId
-          ? {
-              ...req,
-              status: 'rejected' as const,
-              resolvedDate: new Date().toISOString(),
-            }
-          : req
-      );
-
-      saveRequests(updatedRequests);
-
+    setIsProcessing(true);
+    try {
+      await superadminApi.resetAdminPassword(selectedRequest.id, newPassword);
+      
       toast({
-        title: 'Request rejected',
-        description: 'The user has been notified',
+        title: 'Password Reset Successful',
+        description: `New password has been set for ${selectedRequest.admin_email}`,
+      });
+
+      setIsModalOpen(false);
+      setSelectedRequest(null);
+      setNewPassword('');
+      
+      // Reload the list
+      loadRequests();
+    } catch (error) {
+      console.error('Failed to reset admin password:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to reset password',
         variant: 'destructive',
       });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -126,104 +102,55 @@ const SuperAdminPasswordResets = () => {
     setNewPassword(password);
   };
 
-  const filteredRequests = filter === 'all'
-    ? requests
-    : requests.filter(req => req.status === filter);
-
-  const pendingCount = requests.filter(r => r.status === 'pending').length;
-  const approvedCount = requests.filter(r => r.status === 'approved').length;
-  const rejectedCount = requests.filter(r => r.status === 'rejected').length;
-
-  const getStatusBadge = (status: PasswordResetRequest['status']) => {
-    switch (status) {
-      case 'pending':
-        return (
-          <Badge variant="outline" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20">
-            <Clock className="w-3 h-3 mr-1" />
-            Pending
-          </Badge>
-        );
-      case 'approved':
-        return (
-          <Badge variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
-            <CheckCircle className="w-3 h-3 mr-1" />
-            Approved
-          </Badge>
-        );
-      case 'rejected':
-        return (
-          <Badge variant="outline" className="bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20">
-            <XCircle className="w-3 h-3 mr-1" />
-            Rejected
-          </Badge>
-        );
-    }
-  };
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Card className="p-4">
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <span className="ml-2">Loading requests...</span>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <Card className="p-4">
-        <div className="flex items-center gap-4 mb-4">
+        <div className="flex items-center justify-between gap-4 mb-4">
           <div className="flex-1">
             <h2 className="text-xl font-bold">Admin Password Reset Requests</h2>
             <p className="text-sm text-muted-foreground">
               Manage password reset requests from university administrators
             </p>
           </div>
+          <Button variant="outline" size="sm" onClick={loadRequests} disabled={isLoading}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
 
         {/* Statistics */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <button
-            onClick={() => setFilter('all')}
-            className={`p-3 rounded-lg border transition-all ${
-              filter === 'all'
-                ? 'bg-primary/10 border-primary'
-                : 'bg-card border-border hover:border-primary/50'
-            }`}
-          >
-            <p className="text-xl font-bold">{requests.length}</p>
-            <p className="text-xs text-muted-foreground">Total</p>
-          </button>
-          <button
-            onClick={() => setFilter('pending')}
-            className={`p-3 rounded-lg border transition-all ${
-              filter === 'pending'
-                ? 'bg-yellow-500/10 border-yellow-500'
-                : 'bg-card border-border hover:border-yellow-500/50'
-            }`}
-          >
-            <p className="text-xl font-bold text-yellow-600 dark:text-yellow-400">{pendingCount}</p>
-            <p className="text-xs text-muted-foreground">Pending</p>
-          </button>
-          <button
-            onClick={() => setFilter('approved')}
-            className={`p-3 rounded-lg border transition-all ${
-              filter === 'approved'
-                ? 'bg-green-500/10 border-green-500'
-                : 'bg-card border-border hover:border-green-500/50'
-            }`}
-          >
-            <p className="text-xl font-bold text-green-600 dark:text-green-400">{approvedCount}</p>
-            <p className="text-xs text-muted-foreground">Approved</p>
-          </button>
-          <button
-            onClick={() => setFilter('rejected')}
-            className={`p-3 rounded-lg border transition-all ${
-              filter === 'rejected'
-                ? 'bg-red-500/10 border-red-500'
-                : 'bg-card border-border hover:border-red-500/50'
-            }`}
-          >
-            <p className="text-xl font-bold text-red-600 dark:text-red-400">{rejectedCount}</p>
-            <p className="text-xs text-muted-foreground">Rejected</p>
-          </button>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-3 rounded-lg border bg-primary/10 border-primary">
+            <p className="text-xl font-bold">{total}</p>
+            <p className="text-xs text-muted-foreground">Pending Requests</p>
+          </div>
+          <div className="p-3 rounded-lg border bg-yellow-500/10 border-yellow-500/30">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-yellow-600" />
+              <p className="text-xs text-muted-foreground">
+                {total === 0 ? 'All caught up!' : `${total} admin${total > 1 ? 's' : ''} waiting`}
+              </p>
+            </div>
+          </div>
         </div>
       </Card>
 
       {/* Requests List */}
       <div className="space-y-3">
-        {filteredRequests.length === 0 ? (
+        {requests.length === 0 ? (
           <Card className="p-10 text-center border-dashed border-2 bg-gradient-to-br from-muted/30 via-background to-muted/30">
             <div className="flex flex-col items-center justify-center">
               <div className="relative mb-6">
@@ -236,49 +163,33 @@ const SuperAdminPasswordResets = () => {
                   <CheckCircle className="w-4 h-4 text-green-500" />
                 </div>
               </div>
-              <h3 className="text-lg font-semibold mb-2">
-                {filter === 'all' ? 'No Password Reset Requests' : `No ${filter.charAt(0).toUpperCase() + filter.slice(1)} Requests`}
-              </h3>
+              <h3 className="text-lg font-semibold mb-2">No Pending Requests</h3>
               <p className="text-muted-foreground max-w-md text-sm">
-                {filter === 'all' 
-                  ? 'All password reset requests from admins and alumni will appear here for your review.'
-                  : filter === 'pending'
-                  ? 'Great! There are no pending requests that need your attention right now.'
-                  : filter === 'approved'
-                  ? 'No requests have been approved yet. Pending requests can be approved from the "Pending" tab.'
-                  : 'No requests have been rejected. Rejected requests will appear here for reference.'}
+                Password reset requests from university administrators will appear here for your review.
               </p>
-              {filter !== 'all' && (
-                <Button variant="outline" className="mt-4" onClick={() => setFilter('all')}>
-                  View All Requests
-                </Button>
-              )}
             </div>
           </Card>
         ) : (
-          filteredRequests.map(request => (
+          requests.map(request => (
             <Card key={request.id} className="p-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      {request.type === 'admin' ? (
-                        <Shield className="w-5 h-5 text-primary" />
-                      ) : (
-                        <User className="w-5 h-5 text-primary" />
-                      )}
+                      <Shield className="w-5 h-5 text-primary" />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold">{request.name}</h3>
-                        {getStatusBadge(request.status)}
-                      </div>
-                      <p className="text-sm text-muted-foreground">{request.email}</p>
-                      {request.universityName && (
-                        <Badge variant="secondary" className="mt-1 text-xs">
-                          {request.universityName}
+                        <h3 className="font-semibold">{request.admin_name}</h3>
+                        <Badge variant="outline" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20">
+                          <Clock className="w-3 h-3 mr-1" />
+                          Pending
                         </Badge>
-                      )}
+                      </div>
+                      <p className="text-sm text-muted-foreground">{request.admin_email}</p>
+                      <Badge variant="secondary" className="mt-1 text-xs">
+                        {request.university_name}
+                      </Badge>
                     </div>
                   </div>
 
@@ -287,48 +198,21 @@ const SuperAdminPasswordResets = () => {
                       <Calendar className="w-4 h-4 text-muted-foreground" />
                       <div>
                         <p className="text-xs text-muted-foreground">Request Date:</p>
-                        <p className="text-xs font-medium">{new Date(request.requestDate).toLocaleDateString()}</p>
+                        <p className="text-xs font-medium">
+                          {request.requested_at 
+                            ? new Date(request.requested_at).toLocaleDateString() 
+                            : 'Unknown'}
+                        </p>
                       </div>
                     </div>
-                    {request.resolvedDate && (
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-xs text-muted-foreground">Resolved:</p>
-                          <p className="text-xs font-medium">{new Date(request.resolvedDate).toLocaleDateString()}</p>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
-                  {request.status === 'pending' && (
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => handleApprove(request)}>
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        Approve & Set Password
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleReject(request.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <XCircle className="w-4 h-4 mr-2" />
-                        Reject
-                      </Button>
-                    </div>
-                  )}
-
-                  {request.status === 'approved' && request.newPassword && (
-                    <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
-                      <p className="text-sm text-green-600 dark:text-green-400 font-medium mb-1">
-                        New Password Set:
-                      </p>
-                      <code className="text-xs bg-muted px-2 py-1 rounded">
-                        {request.newPassword}
-                      </code>
-                    </div>
-                  )}
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => handleApprove(request)}>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Approve & Set Password
+                    </Button>
+                  </div>
                 </div>
               </div>
             </Card>
@@ -345,17 +229,11 @@ const SuperAdminPasswordResets = () => {
           <div className="space-y-4 mt-4">
             <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
               <div className="flex items-start gap-2">
-                {selectedRequest?.type === 'admin' ? (
-                  <Shield className="w-4 h-4 text-blue-500 mt-0.5" />
-                ) : (
-                  <User className="w-4 h-4 text-blue-500 mt-0.5" />
-                )}
+                <Shield className="w-4 h-4 text-blue-500 mt-0.5" />
                 <div className="text-sm text-blue-600 dark:text-blue-400">
-                  <p className="font-medium">User: {selectedRequest?.name}</p>
-                  <p className="text-xs">{selectedRequest?.email}</p>
-                  {selectedRequest?.universityName && (
-                    <p className="text-xs">University: {selectedRequest.universityName}</p>
-                  )}
+                  <p className="font-medium">Admin: {selectedRequest?.admin_name}</p>
+                  <p className="text-xs">{selectedRequest?.admin_email}</p>
+                  <p className="text-xs">University: {selectedRequest?.university_name}</p>
                 </div>
               </div>
             </div>
@@ -381,14 +259,21 @@ const SuperAdminPasswordResets = () => {
               <div className="flex items-start gap-2">
                 <Mail className="w-4 h-4 text-yellow-500 mt-0.5 flex-shrink-0" />
                 <p className="text-xs text-yellow-600 dark:text-yellow-400">
-                  The new password will be sent to the {selectedRequest?.type === 'admin' ? 'administrator' : 'user'}'s email address.
+                  The new password will be sent to the administrator's email address.
                 </p>
               </div>
             </div>
 
             <div className="flex gap-2">
-              <Button onClick={handleConfirmApproval} className="flex-1">
-                Approve & Send
+              <Button onClick={handleConfirmApproval} className="flex-1" disabled={isProcessing}>
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  'Approve & Send'
+                )}
               </Button>
               <Button
                 variant="outline"
@@ -398,6 +283,7 @@ const SuperAdminPasswordResets = () => {
                   setNewPassword('');
                 }}
                 className="flex-1"
+                disabled={isProcessing}
               >
                 Cancel
               </Button>
@@ -410,4 +296,3 @@ const SuperAdminPasswordResets = () => {
 };
 
 export default SuperAdminPasswordResets;
-
