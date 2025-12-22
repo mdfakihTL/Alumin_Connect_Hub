@@ -1249,5 +1249,125 @@ export interface MentorResponse {
   expertise?: string[];
 }
 
+// ============ FUNDRAISER TYPES ============
+
+export interface FundraiserResponse {
+  id: string;
+  title: string;
+  description?: string;
+  image?: string;
+  donation_link: string;
+  start_date: string;
+  end_date: string;
+  status: 'draft' | 'active' | 'expired';
+  effective_status: string;
+  total_clicks: number;
+  unique_clicks: number;
+  created_at?: string;
+  // Legacy compatibility
+  goal_amount?: number;
+  current_amount?: number;
+  is_active?: boolean;
+}
+
+export interface FundraiserListResponse {
+  fundraisers: FundraiserResponse[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface FundraiserCreate {
+  title: string;
+  description: string;
+  image?: string;
+  donation_link: string;
+  start_date: string;
+  end_date: string;
+  status?: 'draft' | 'active' | 'expired';
+}
+
+export interface FundraiserUpdate {
+  title?: string;
+  description?: string;
+  image?: string;
+  donation_link?: string;
+  start_date?: string;
+  end_date?: string;
+  status?: 'draft' | 'active' | 'expired';
+}
+
+export interface FundraiserClickResponse {
+  id: string;
+  fundraiser_id: string;
+  user_id?: string;
+  clicked_at: string;
+  redirect_url: string;
+}
+
+export interface FundraiserAnalytics {
+  fundraiser_id: string;
+  title: string;
+  total_clicks: number;
+  unique_alumni_clicks: number;
+  clicks_by_date: Array<{ date: string; clicks: number }>;
+  status: string;
+}
+
+export interface FundraiserAnalyticsSummary {
+  total_fundraisers: number;
+  active_fundraisers: number;
+  total_clicks: number;
+  unique_alumni: number;
+  top_fundraisers: FundraiserAnalytics[];
+}
+
+// ============ FUNDRAISER API ============
+
+export const fundraiserApi = {
+  // Admin endpoints
+  listAdmin: async (params?: { page?: number; page_size?: number; status?: string }): Promise<FundraiserListResponse> => {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.page_size) queryParams.append('page_size', params.page_size.toString());
+    if (params?.status) queryParams.append('status_filter', params.status);
+    const query = queryParams.toString();
+    return apiClient.get(`/fundraisers/admin${query ? `?${query}` : ''}`);
+  },
+
+  create: async (data: FundraiserCreate): Promise<FundraiserResponse> => {
+    return apiClient.post('/fundraisers/admin', data);
+  },
+
+  update: async (id: string, data: FundraiserUpdate): Promise<FundraiserResponse> => {
+    return apiClient.put(`/fundraisers/admin/${id}`, data);
+  },
+
+  delete: async (id: string): Promise<{ message: string; success: boolean }> => {
+    return apiClient.delete(`/fundraisers/admin/${id}`);
+  },
+
+  getAnalyticsSummary: async (): Promise<FundraiserAnalyticsSummary> => {
+    return apiClient.get('/fundraisers/admin/analytics');
+  },
+
+  getAnalytics: async (id: string): Promise<FundraiserAnalytics> => {
+    return apiClient.get(`/fundraisers/admin/${id}/analytics`);
+  },
+
+  // Alumni endpoints
+  listActive: async (): Promise<FundraiserResponse[]> => {
+    return apiClient.get('/fundraisers/active');
+  },
+
+  trackClick: async (fundraiserId: string, sessionId?: string): Promise<FundraiserClickResponse> => {
+    return apiClient.post('/fundraisers/click', { fundraiser_id: fundraiserId, session_id: sessionId });
+  },
+
+  get: async (id: string): Promise<FundraiserResponse> => {
+    return apiClient.get(`/fundraisers/${id}`);
+  },
+};
+
 export const apiClient = new ApiClient(API_BASE_URL);
 

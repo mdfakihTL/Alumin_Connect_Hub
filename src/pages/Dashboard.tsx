@@ -14,6 +14,7 @@ import GlobalSearchDropdown from '@/components/GlobalSearchDropdown';
 import UniversityChatbot from '@/components/UniversityChatbot';
 import PostFilter, { FilterOptions } from '@/components/PostFilter';
 import WorldMapHeatmap from '@/components/WorldMapHeatmap';
+import FundraiserAd from '@/components/FundraiserAd';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -2062,6 +2063,9 @@ const Dashboard = () => {
                     </Card>
                   );
                 })()}
+
+                {/* Fundraiser Campaigns */}
+                <FundraiserAd placement="sidebar" maxItems={3} />
 
                 {/* University AI Assistant */}
                 <UniversityChatbot />

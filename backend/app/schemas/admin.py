@@ -134,35 +134,101 @@ class AdminTicketListResponse(BaseModel):
 
 
 class FundraiserCreate(BaseModel):
+    """Schema for creating a new fundraiser."""
     title: str
-    description: Optional[str] = None
+    description: str
     image: Optional[str] = None
-    goal_amount: int
-    donation_link: Optional[str] = None
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
+    donation_link: str  # Required - external URL
+    start_date: date
+    end_date: date
+    status: Optional[str] = "draft"  # draft, active, expired
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "title": "Annual Alumni Fund 2025",
+                "description": "Help us build a better future for our students",
+                "image": "https://example.com/image.jpg",
+                "donation_link": "https://donate.university.edu/campaign",
+                "start_date": "2025-01-01",
+                "end_date": "2025-12-31",
+                "status": "active"
+            }
+        }
 
 
 class FundraiserUpdate(BaseModel):
+    """Schema for updating a fundraiser."""
     title: Optional[str] = None
     description: Optional[str] = None
     image: Optional[str] = None
-    goal_amount: Optional[int] = None
     donation_link: Optional[str] = None
-    is_active: Optional[bool] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    status: Optional[str] = None  # draft, active, expired
 
 
 class FundraiserResponse(BaseModel):
+    """Schema for fundraiser response."""
     id: str
     title: str
     description: Optional[str] = None
     image: Optional[str] = None
+    donation_link: str
+    start_date: str
+    end_date: str
+    status: str = "draft"
+    effective_status: str = "draft"  # Computed based on dates
+    total_clicks: int = 0
+    unique_clicks: int = 0
+    created_at: Optional[datetime] = None
+    
+    # Legacy fields for backward compatibility
     goal_amount: int = 0
     current_amount: int = 0
-    donation_link: Optional[str] = None
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
     is_active: bool = True
+
+
+class FundraiserListResponse(BaseModel):
+    """Schema for paginated fundraiser list."""
+    fundraisers: List[FundraiserResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class FundraiserClickCreate(BaseModel):
+    """Schema for recording a click."""
+    fundraiser_id: str
+    session_id: Optional[str] = None
+
+
+class FundraiserClickResponse(BaseModel):
+    """Schema for click response."""
+    id: str
+    fundraiser_id: str
+    user_id: Optional[str] = None
+    clicked_at: datetime
+    redirect_url: str
+
+
+class FundraiserAnalyticsResponse(BaseModel):
+    """Schema for fundraiser analytics."""
+    fundraiser_id: str
+    title: str
+    total_clicks: int
+    unique_alumni_clicks: int
+    clicks_by_date: List[dict]  # [{date: "2025-01-01", clicks: 10}, ...]
+    status: str
+
+
+class FundraiserAnalyticsSummary(BaseModel):
+    """Schema for overall analytics summary."""
+    total_fundraisers: int
+    active_fundraisers: int
+    total_clicks: int
+    unique_alumni: int
+    top_fundraisers: List[FundraiserAnalyticsResponse]
 
 
 class AdCreate(BaseModel):

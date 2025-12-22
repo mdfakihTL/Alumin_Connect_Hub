@@ -1,407 +1,679 @@
-import { useState } from 'react';
+/**
+ * AdminFundraiser Component
+ * 
+ * Admin panel for managing fundraiser campaigns.
+ * Features:
+ * - Create, edit, activate, deactivate, delete fundraisers
+ * - View click analytics per campaign
+ * - Track total and unique clicks
+ */
+
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useUniversity } from '@/contexts/UniversityContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { DollarSign, Plus, Edit, Trash2, TrendingUp, Calendar, Target, ExternalLink } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
+import { 
+  DollarSign, Plus, Edit, Trash2, Calendar, ExternalLink, MousePointerClick,
+  Users, TrendingUp, BarChart3, AlertCircle, CheckCircle, Clock, Eye,
+  Loader2, RefreshCw
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Progress } from '@/components/ui/progress';
+import { fundraiserApi, Fundraiser, FundraiserAnalyticsSummary, isValidUrl, getDaysRemaining } from '@/api/fundraiser';
+
+// Status badge colors
+const statusColors: Record<string, string> = {
+  draft: 'bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-500/20',
+  active: 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20',
+  scheduled: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20',
+  expired: 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20',
+};
+
+const statusIcons: Record<string, React.ReactNode> = {
+  draft: <Clock className="w-3 h-3" />,
+  active: <CheckCircle className="w-3 h-3" />,
+  scheduled: <Calendar className="w-3 h-3" />,
+  expired: <AlertCircle className="w-3 h-3" />,
+};
+
+interface FormData {
+  title: string;
+  description: string;
+  image: string;
+  donation_link: string;
+  start_date: string;
+  end_date: string;
+  status: 'draft' | 'active' | 'expired';
+}
+
+const initialFormData: FormData = {
+  title: '',
+  description: '',
+  image: '',
+  donation_link: '',
+  start_date: '',
+  end_date: '',
+  status: 'draft',
+};
 
 const AdminFundraiser = () => {
   const { user } = useAuth();
-  const { fundraisers, addFundraiser, updateFundraiser, deleteFundraiser, getActiveFundraisers } = useUniversity();
   const { toast } = useToast();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingFundraiser, setEditingFundraiser] = useState<any>(null);
   
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    image: '',
-    goalAmount: '',
-    currentAmount: '0',
-    donationLink: '',
-    startDate: '',
-    endDate: '',
-  });
+  // State
+  const [fundraisers, setFundraisers] = useState<Fundraiser[]>([]);
+  const [analytics, setAnalytics] = useState<FundraiserAnalyticsSummary | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingFundraiser, setEditingFundraiser] = useState<Fundraiser | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [formData, setFormData] = useState<FormData>(initialFormData);
+  const [formErrors, setFormErrors] = useState<Partial<Record<keyof FormData, string>>>({});
 
-  const universityFundraisers = fundraisers.filter(f => f.universityId === user?.universityId);
-  const activeFundraisers = getActiveFundraisers(user?.universityId || '');
+  // Load data
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [listRes, analyticsRes] = await Promise.all([
+        fundraiserApi.listAdmin({ 
+          page: 1, 
+          page_size: 100,
+          status_filter: statusFilter !== 'all' ? statusFilter : undefined 
+        }),
+        fundraiserApi.getAnalyticsSummary(),
+      ]);
+      
+      setFundraisers(listRes.fundraisers);
+      setAnalytics(analyticsRes);
+    } catch (error: any) {
+      console.error('[AdminFundraiser] Failed to load data:', error);
+      toast({
+        title: 'Failed to load fundraisers',
+        description: error.message || 'Please try again',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [statusFilter, toast]);
 
+  useEffect(() => {
+    if (user) {
+      loadData();
+    }
+  }, [user, loadData]);
+
+  // Form validation
+  const validateForm = (): boolean => {
+    const errors: Partial<Record<keyof FormData, string>> = {};
+    
+    if (!formData.title.trim()) {
+      errors.title = 'Title is required';
+    }
+    
+    if (!formData.description.trim()) {
+      errors.description = 'Description is required';
+    }
+    
+    if (!formData.donation_link.trim()) {
+      errors.donation_link = 'Donation link is required';
+    } else if (!isValidUrl(formData.donation_link)) {
+      errors.donation_link = 'Please enter a valid URL (starting with http:// or https://)';
+    }
+    
+    if (!formData.start_date) {
+      errors.start_date = 'Start date is required';
+    }
+    
+    if (!formData.end_date) {
+      errors.end_date = 'End date is required';
+    } else if (formData.start_date && new Date(formData.end_date) <= new Date(formData.start_date)) {
+      errors.end_date = 'End date must be after start date';
+    }
+    
+    if (formData.image && !isValidUrl(formData.image)) {
+      errors.image = 'Please enter a valid image URL';
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Reset form
   const resetForm = () => {
-    setFormData({
-      title: '',
-      description: '',
-      image: '',
-      goalAmount: '',
-      currentAmount: '0',
-      donationLink: '',
-      startDate: '',
-      endDate: '',
-    });
+    setFormData(initialFormData);
+    setFormErrors({});
     setEditingFundraiser(null);
   };
 
-  const handleSubmit = () => {
-    if (!formData.title || !formData.goalAmount || !formData.startDate || !formData.endDate) {
+  // Handle form submission
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+    
+    setIsSubmitting(true);
+    try {
+      if (editingFundraiser) {
+        await fundraiserApi.update(editingFundraiser.id, {
+          title: formData.title,
+          description: formData.description,
+          image: formData.image || undefined,
+          donation_link: formData.donation_link,
+          start_date: formData.start_date,
+          end_date: formData.end_date,
+          status: formData.status,
+        });
+        toast({
+          title: 'Fundraiser updated',
+          description: 'The campaign has been updated successfully',
+        });
+      } else {
+        await fundraiserApi.create({
+          title: formData.title,
+          description: formData.description,
+          image: formData.image || undefined,
+          donation_link: formData.donation_link,
+          start_date: formData.start_date,
+          end_date: formData.end_date,
+          status: formData.status,
+        });
+        toast({
+          title: 'Fundraiser created',
+          description: 'The campaign has been created successfully',
+        });
+      }
+      
+      resetForm();
+      setIsModalOpen(false);
+      loadData();
+    } catch (error: any) {
+      console.error('[AdminFundraiser] Submit error:', error);
       toast({
-        title: 'Missing information',
-        description: 'Please fill in all required fields',
+        title: editingFundraiser ? 'Failed to update' : 'Failed to create',
+        description: error.message || 'Please try again',
         variant: 'destructive',
       });
-      return;
+    } finally {
+      setIsSubmitting(false);
     }
-
-    if (editingFundraiser) {
-      updateFundraiser(editingFundraiser.id, {
-        ...formData,
-        goalAmount: parseFloat(formData.goalAmount),
-        currentAmount: parseFloat(formData.currentAmount),
-      });
-      toast({
-        title: 'Fundraiser updated',
-        description: 'The fundraiser has been updated successfully',
-      });
-    } else {
-      addFundraiser({
-        universityId: user?.universityId || '',
-        title: formData.title,
-        description: formData.description,
-        image: formData.image || 'https://images.unsplash.com/photo-1532629345422-7515f3d16bb6?w=800&h=400&fit=crop',
-        goalAmount: parseFloat(formData.goalAmount),
-        currentAmount: parseFloat(formData.currentAmount),
-        donationLink: formData.donationLink,
-        startDate: formData.startDate,
-        endDate: formData.endDate,
-        isActive: true,
-      });
-      toast({
-        title: 'Fundraiser created',
-        description: 'The fundraiser is now visible to alumni',
-      });
-    }
-
-    resetForm();
-    setIsModalOpen(false);
   };
 
-  const handleEdit = (fundraiser: any) => {
+  // Handle edit
+  const handleEdit = (fundraiser: Fundraiser) => {
     setEditingFundraiser(fundraiser);
     setFormData({
       title: fundraiser.title,
-      description: fundraiser.description,
-      image: fundraiser.image,
-      goalAmount: fundraiser.goalAmount.toString(),
-      currentAmount: fundraiser.currentAmount.toString(),
-      donationLink: fundraiser.donationLink,
-      startDate: fundraiser.startDate.split('T')[0],
-      endDate: fundraiser.endDate.split('T')[0],
+      description: fundraiser.description || '',
+      image: fundraiser.image || '',
+      donation_link: fundraiser.donation_link,
+      start_date: fundraiser.start_date,
+      end_date: fundraiser.end_date,
+      status: fundraiser.status,
     });
+    setFormErrors({});
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this fundraiser?')) {
-      deleteFundraiser(id);
+  // Handle delete
+  const handleDelete = async (id: string) => {
+    try {
+      await fundraiserApi.delete(id);
       toast({
         title: 'Fundraiser deleted',
-        description: 'The fundraiser has been removed',
+        description: 'The campaign has been removed',
+      });
+      setDeleteConfirmId(null);
+      loadData();
+    } catch (error: any) {
+      toast({
+        title: 'Failed to delete',
+        description: error.message || 'Please try again',
+        variant: 'destructive',
       });
     }
   };
 
-  const handleToggleActive = (fundraiser: any) => {
-    updateFundraiser(fundraiser.id, {
-      isActive: !fundraiser.isActive,
-    });
-    toast({
-      title: fundraiser.isActive ? 'Fundraiser deactivated' : 'Fundraiser activated',
-      description: fundraiser.isActive 
-        ? 'The fundraiser is no longer visible to alumni' 
-        : 'The fundraiser is now visible to alumni',
-    });
+  // Handle status change
+  const handleStatusChange = async (fundraiser: Fundraiser, newStatus: 'draft' | 'active' | 'expired') => {
+    try {
+      await fundraiserApi.update(fundraiser.id, { status: newStatus });
+      toast({
+        title: 'Status updated',
+        description: `Fundraiser is now ${newStatus}`,
+      });
+      loadData();
+    } catch (error: any) {
+      toast({
+        title: 'Failed to update status',
+        description: error.message || 'Please try again',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const getProgressPercentage = (current: number, goal: number) => {
-    return Math.min((current / goal) * 100, 100);
-  };
+  // Render loading skeleton
+  const renderLoadingSkeleton = () => (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map(i => (
+          <Skeleton key={i} className="h-24 rounded-lg" />
+        ))}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {[1, 2, 3, 4].map(i => (
+          <Skeleton key={i} className="h-64 rounded-lg" />
+        ))}
+      </div>
+    </div>
+  );
 
-  const isActive = (startDate: string, endDate: string) => {
-    const now = new Date();
-    return new Date(startDate) <= now && new Date(endDate) >= now;
+  // Render empty state
+  const renderEmptyState = () => (
+    <Card className="p-10 text-center col-span-full border-dashed border-2 bg-gradient-to-br from-muted/30 via-background to-muted/30">
+      <div className="flex flex-col items-center justify-center">
+        <div className="relative mb-5">
+          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 flex items-center justify-center">
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500/20 to-emerald-500/10 flex items-center justify-center">
+              <DollarSign className="w-7 h-7 text-emerald-500/60" />
+            </div>
+          </div>
+          <div className="absolute -top-1 -right-1 w-7 h-7 rounded-full bg-emerald-500/10 flex items-center justify-center animate-pulse">
+            <Plus className="w-4 h-4 text-emerald-500" />
+          </div>
+        </div>
+        <h3 className="text-lg font-semibold mb-2">No Fundraisers Yet</h3>
+        <p className="text-sm text-muted-foreground max-w-sm mb-5">
+          Create your first fundraising campaign to engage alumni. We'll track clicks on your donation links to measure engagement.
+        </p>
+        <Button onClick={() => { resetForm(); setIsModalOpen(true); }} className="gap-2">
+          <Plus className="w-4 h-4" />
+          Create First Fundraiser
+        </Button>
+      </div>
+    </Card>
+  );
+
+  // Render fundraiser card
+  const renderFundraiserCard = (fundraiser: Fundraiser) => {
+    const daysRemaining = getDaysRemaining(fundraiser.end_date);
+    const effectiveStatus = fundraiser.effective_status;
+    
+    return (
+      <Card key={fundraiser.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+        {/* Image */}
+        {fundraiser.image && (
+          <div className="relative h-36 overflow-hidden">
+            <img 
+              src={fundraiser.image} 
+              alt={fundraiser.title}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute top-2 right-2">
+              <Badge variant="outline" className={`${statusColors[effectiveStatus] || statusColors.draft} flex items-center gap-1`}>
+                {statusIcons[effectiveStatus]}
+                {effectiveStatus.charAt(0).toUpperCase() + effectiveStatus.slice(1)}
+              </Badge>
+            </div>
+          </div>
+        )}
+        
+        <div className="p-5">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-2 mb-3">
+            <h3 className="font-semibold text-lg line-clamp-1">{fundraiser.title}</h3>
+            {!fundraiser.image && (
+              <Badge variant="outline" className={`${statusColors[effectiveStatus] || statusColors.draft} flex items-center gap-1 shrink-0`}>
+                {statusIcons[effectiveStatus]}
+                {effectiveStatus.charAt(0).toUpperCase() + effectiveStatus.slice(1)}
+              </Badge>
+            )}
+          </div>
+          
+          {/* Description */}
+          <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{fundraiser.description}</p>
+          
+          {/* Stats */}
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="p-3 rounded-lg bg-muted/50">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                <MousePointerClick className="w-4 h-4" />
+                Total Clicks
+              </div>
+              <p className="text-xl font-bold">{fundraiser.total_clicks}</p>
+            </div>
+            <div className="p-3 rounded-lg bg-muted/50">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                <Users className="w-4 h-4" />
+                Unique Alumni
+              </div>
+              <p className="text-xl font-bold">{fundraiser.unique_clicks}</p>
+            </div>
+          </div>
+          
+          {/* Date info */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+            <Calendar className="w-4 h-4" />
+            <span>{new Date(fundraiser.start_date).toLocaleDateString()} - {new Date(fundraiser.end_date).toLocaleDateString()}</span>
+            {effectiveStatus === 'active' && daysRemaining > 0 && (
+              <Badge variant="secondary" className="ml-auto">
+                {daysRemaining} days left
+              </Badge>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2 flex-wrap">
+            <Button size="sm" variant="outline" onClick={() => handleEdit(fundraiser)} className="flex-1">
+              <Edit className="w-4 h-4 mr-1" />
+              Edit
+            </Button>
+            
+            <Select
+              value={fundraiser.status}
+              onValueChange={(value: 'draft' | 'active' | 'expired') => handleStatusChange(fundraiser, value)}
+            >
+              <SelectTrigger className="w-[110px] h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="expired">Expired</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={() => setDeleteConfirmId(fundraiser.id)}
+              className="text-destructive hover:text-destructive"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
+          
+          {/* External link */}
+          <Button 
+            size="sm" 
+            variant="link" 
+            className="w-full mt-2 text-primary"
+            onClick={() => window.open(fundraiser.donation_link, '_blank')}
+          >
+            <ExternalLink className="w-4 h-4 mr-2" />
+            View Donation Page
+          </Button>
+        </div>
+      </Card>
+    );
   };
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <Card className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex-1">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+          <div className="flex-1 min-w-[200px]">
             <h2 className="text-2xl font-bold mb-2">Fundraiser Management</h2>
             <p className="text-sm text-muted-foreground">
-              Create and manage donation campaigns shown as ads to alumni
+              Create donation campaigns shown as ads to alumni. Track engagement through click analytics.
             </p>
           </div>
-          <Dialog open={isModalOpen} onOpenChange={(open) => {
-            setIsModalOpen(open);
-            if (!open) resetForm();
-          }}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Create Fundraiser
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editingFundraiser ? 'Edit Fundraiser' : 'Create New Fundraiser'}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 mt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Campaign Title *</Label>
-                  <Input
-                    id="title"
-                    placeholder="Annual Alumni Fund 2025"
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description *</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Help us build a better future for our students..."
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={3}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="image">Image URL</Label>
-                  <Input
-                    id="image"
-                    placeholder="https://example.com/image.jpg"
-                    value={formData.image}
-                    onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="goal">Goal Amount ($) *</Label>
-                    <Input
-                      id="goal"
-                      type="number"
-                      placeholder="100000"
-                      value={formData.goalAmount}
-                      onChange={(e) => setFormData({ ...formData, goalAmount: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="current">Current Amount ($)</Label>
-                    <Input
-                      id="current"
-                      type="number"
-                      placeholder="0"
-                      value={formData.currentAmount}
-                      onChange={(e) => setFormData({ ...formData, currentAmount: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="link">Donation Link *</Label>
-                  <Input
-                    id="link"
-                    placeholder="https://donate.university.edu/campaign"
-                    value={formData.donationLink}
-                    onChange={(e) => setFormData({ ...formData, donationLink: e.target.value })}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="start">Start Date *</Label>
-                    <Input
-                      id="start"
-                      type="date"
-                      value={formData.startDate}
-                      onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="end">End Date *</Label>
-                    <Input
-                      id="end"
-                      type="date"
-                      value={formData.endDate}
-                      onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <Button onClick={handleSubmit} className="w-full">
-                  {editingFundraiser ? 'Update Fundraiser' : 'Create Fundraiser'}
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="icon" onClick={loadData} disabled={isLoading}>
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </Button>
+            <Dialog open={isModalOpen} onOpenChange={(open) => {
+              setIsModalOpen(open);
+              if (!open) resetForm();
+            }}>
+              <DialogTrigger asChild>
+                <Button onClick={() => { resetForm(); setIsModalOpen(true); }}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Fundraiser
                 </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{editingFundraiser ? 'Edit Fundraiser' : 'Create New Fundraiser'}</DialogTitle>
+                  <DialogDescription>
+                    {editingFundraiser 
+                      ? 'Update the campaign details below.' 
+                      : 'Create a new donation campaign. Alumni will see this as an ad.'}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 mt-4">
+                  {/* Title */}
+                  <div className="space-y-2">
+                    <Label htmlFor="title">Campaign Title *</Label>
+                    <Input
+                      id="title"
+                      placeholder="Annual Alumni Fund 2025"
+                      value={formData.title}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      className={formErrors.title ? 'border-destructive' : ''}
+                    />
+                    {formErrors.title && <p className="text-xs text-destructive">{formErrors.title}</p>}
+                  </div>
+                  
+                  {/* Description */}
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Description *</Label>
+                    <Textarea
+                      id="description"
+                      placeholder="Help us build a better future for our students..."
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      rows={3}
+                      className={formErrors.description ? 'border-destructive' : ''}
+                    />
+                    {formErrors.description && <p className="text-xs text-destructive">{formErrors.description}</p>}
+                  </div>
+                  
+                  {/* Image URL */}
+                  <div className="space-y-2">
+                    <Label htmlFor="image">Image URL (optional)</Label>
+                    <Input
+                      id="image"
+                      placeholder="https://example.com/image.jpg"
+                      value={formData.image}
+                      onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                      className={formErrors.image ? 'border-destructive' : ''}
+                    />
+                    {formErrors.image && <p className="text-xs text-destructive">{formErrors.image}</p>}
+                  </div>
+                  
+                  {/* Donation Link */}
+                  <div className="space-y-2">
+                    <Label htmlFor="link">Donation Link *</Label>
+                    <Input
+                      id="link"
+                      placeholder="https://donate.university.edu/campaign"
+                      value={formData.donation_link}
+                      onChange={(e) => setFormData({ ...formData, donation_link: e.target.value })}
+                      className={formErrors.donation_link ? 'border-destructive' : ''}
+                    />
+                    {formErrors.donation_link && <p className="text-xs text-destructive">{formErrors.donation_link}</p>}
+                    <p className="text-xs text-muted-foreground">
+                      External URL where alumni will be redirected when they click "Donate Now"
+                    </p>
+                  </div>
+                  
+                  {/* Dates */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="start">Start Date *</Label>
+                      <Input
+                        id="start"
+                        type="date"
+                        value={formData.start_date}
+                        onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                        className={formErrors.start_date ? 'border-destructive' : ''}
+                      />
+                      {formErrors.start_date && <p className="text-xs text-destructive">{formErrors.start_date}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="end">End Date *</Label>
+                      <Input
+                        id="end"
+                        type="date"
+                        value={formData.end_date}
+                        onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                        className={formErrors.end_date ? 'border-destructive' : ''}
+                      />
+                      {formErrors.end_date && <p className="text-xs text-destructive">{formErrors.end_date}</p>}
+                    </div>
+                  </div>
+                  
+                  {/* Status */}
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select
+                      value={formData.status}
+                      onValueChange={(value: 'draft' | 'active' | 'expired') => setFormData({ ...formData, status: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="draft">
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4" />
+                            Draft - Not visible to alumni
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="active">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            Active - Visible to alumni
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="expired">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-red-500" />
+                            Expired - Campaign ended
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Info box */}
+                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 flex items-start gap-2">
+                    <Eye className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      Only <strong>Active</strong> fundraisers within their date range will be shown to alumni. 
+                      We track clicks on the donation link - not payment amounts.
+                    </p>
+                  </div>
+                </div>
+                
+                <DialogFooter className="mt-4">
+                  <Button variant="outline" onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleSubmit} disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        {editingFundraiser ? 'Updating...' : 'Creating...'}
+                      </>
+                    ) : (
+                      editingFundraiser ? 'Update Fundraiser' : 'Create Fundraiser'
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {/* Statistics */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <div className="p-4 rounded-lg border bg-card">
-            <p className="text-2xl font-bold">{universityFundraisers.length}</p>
-            <p className="text-sm text-muted-foreground">Total Fundraisers</p>
+        {!isLoading && analytics && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
+              <div className="flex items-center gap-2 mb-2">
+                <DollarSign className="w-5 h-5 text-muted-foreground" />
+              </div>
+              <p className="text-2xl font-bold">{analytics.total_fundraisers}</p>
+              <p className="text-sm text-muted-foreground">Total Fundraisers</p>
+            </div>
+            <div className="p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle className="w-5 h-5 text-green-500" />
+              </div>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{analytics.active_fundraisers}</p>
+              <p className="text-sm text-muted-foreground">Active Now</p>
+            </div>
+            <div className="p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
+              <div className="flex items-center gap-2 mb-2">
+                <MousePointerClick className="w-5 h-5 text-blue-500" />
+              </div>
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{analytics.total_clicks}</p>
+              <p className="text-sm text-muted-foreground">Total Clicks</p>
+            </div>
+            <div className="p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
+              <div className="flex items-center gap-2 mb-2">
+                <Users className="w-5 h-5 text-purple-500" />
+              </div>
+              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{analytics.unique_alumni}</p>
+              <p className="text-sm text-muted-foreground">Unique Alumni</p>
+            </div>
           </div>
-          <div className="p-4 rounded-lg border bg-card">
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400">{activeFundraisers.length}</p>
-            <p className="text-sm text-muted-foreground">Active Now</p>
-          </div>
-          <div className="p-4 rounded-lg border bg-card">
-            <p className="text-2xl font-bold">
-              ${universityFundraisers.reduce((sum, f) => sum + f.currentAmount, 0).toLocaleString()}
-            </p>
-            <p className="text-sm text-muted-foreground">Total Raised</p>
-          </div>
-        </div>
+        )}
       </Card>
 
-      {/* Fundraisers List */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {universityFundraisers.length === 0 ? (
-          <Card className="p-10 text-center col-span-full border-dashed border-2 bg-gradient-to-br from-muted/30 via-background to-muted/30">
-            <div className="flex flex-col items-center justify-center">
-              <div className="relative mb-5">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-500/10 to-green-500/5 flex items-center justify-center">
-                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-green-500/20 to-green-500/10 flex items-center justify-center">
-                    <DollarSign className="w-7 h-7 text-green-500/60" />
-                  </div>
-                </div>
-                <div className="absolute -top-1 -right-1 w-7 h-7 rounded-full bg-green-500/10 flex items-center justify-center animate-pulse">
-                  <Plus className="w-4 h-4 text-green-500" />
-                </div>
-              </div>
-              <h3 className="text-lg font-semibold mb-2">No Fundraisers Yet</h3>
-              <p className="text-sm text-muted-foreground max-w-sm mb-5">
-                Create your first fundraising campaign to support university initiatives and engage alumni in giving back.
-              </p>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button className="gap-2">
-                    <Plus className="w-4 h-4" />
-                    Create First Fundraiser
-                  </Button>
-                </DialogTrigger>
-              </Dialog>
+      {/* Filter tabs */}
+      <Tabs value={statusFilter} onValueChange={setStatusFilter}>
+        <TabsList>
+          <TabsTrigger value="all">All</TabsTrigger>
+          <TabsTrigger value="active">Active</TabsTrigger>
+          <TabsTrigger value="draft">Draft</TabsTrigger>
+          <TabsTrigger value="expired">Expired</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value={statusFilter} className="mt-4">
+          {isLoading ? (
+            renderLoadingSkeleton()
+          ) : fundraisers.length === 0 ? (
+            renderEmptyState()
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+              {fundraisers.map(renderFundraiserCard)}
             </div>
-          </Card>
-        ) : (
-          universityFundraisers.map(fundraiser => {
-            const progress = getProgressPercentage(fundraiser.currentAmount, fundraiser.goalAmount);
-            const active = isActive(fundraiser.startDate, fundraiser.endDate);
-            
-            return (
-              <Card key={fundraiser.id} className="p-6 hover:shadow-lg transition-shadow">
-                {fundraiser.image && (
-                  <img 
-                    src={fundraiser.image} 
-                    alt={fundraiser.title}
-                    className="w-full h-32 object-cover rounded-lg mb-4"
-                  />
-                )}
-                
-                <div className="flex items-start justify-between gap-2 mb-3">
-                  <h3 className="font-semibold text-lg flex-1">{fundraiser.title}</h3>
-                  <div className="flex gap-2">
-                    {active && fundraiser.isActive && (
-                      <Badge variant="outline" className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
-                        Active
-                      </Badge>
-                    )}
-                    {!active && (
-                      <Badge variant="outline" className="bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-500/20">
-                        Ended
-                      </Badge>
-                    )}
-                    {!fundraiser.isActive && (
-                      <Badge variant="outline" className="bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20">
-                        Disabled
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                
-                <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{fundraiser.description}</p>
-                
-                <div className="space-y-3 mb-4">
-                  <div>
-                    <div className="flex items-center justify-between text-sm mb-2">
-                      <span className="text-muted-foreground">Progress</span>
-                      <span className="font-semibold">{progress.toFixed(1)}%</span>
-                    </div>
-                    <Progress value={progress} className="h-2" />
-                  </div>
-                  
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-1">
-                      <TrendingUp className="w-4 h-4 text-green-500" />
-                      <span className="font-semibold">${fundraiser.currentAmount.toLocaleString()}</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <Target className="w-4 h-4" />
-                      <span>of ${fundraiser.goalAmount.toLocaleString()}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Calendar className="w-4 h-4" />
-                    <span>{new Date(fundraiser.startDate).toLocaleDateString()} - {new Date(fundraiser.endDate).toLocaleDateString()}</span>
-                  </div>
-                </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => handleEdit(fundraiser)} className="flex-1">
-                    <Edit className="w-4 h-4 mr-2" />
-                    Edit
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => handleToggleActive(fundraiser)}
-                    className="flex-1"
-                  >
-                    {fundraiser.isActive ? 'Disable' : 'Enable'}
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => handleDelete(fundraiser.id)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-                
-                {fundraiser.donationLink && (
-                  <Button 
-                    size="sm" 
-                    variant="link" 
-                    className="w-full mt-2"
-                    onClick={() => window.open(fundraiser.donationLink, '_blank')}
-                  >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    View Donation Page
-                  </Button>
-                )}
-              </Card>
-            );
-          })
-        )}
-      </div>
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteConfirmId} onOpenChange={() => setDeleteConfirmId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Fundraiser?</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. All click analytics for this fundraiser will be permanently deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
 
 export default AdminFundraiser;
-
