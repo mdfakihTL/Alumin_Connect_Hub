@@ -208,8 +208,10 @@ class ApiClient {
       ...options.headers,
     };
 
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+    // Always get fresh token from localStorage to ensure we have the latest
+    const currentToken = localStorage.getItem('auth_token') || this.token;
+    if (currentToken) {
+      headers['Authorization'] = `Bearer ${currentToken}`;
     }
 
     // CRITICAL: Bypass service worker for API calls
@@ -992,11 +994,12 @@ class ApiClient {
   }>): Promise<{
     success_count: number;
     failed_count: number;
-    results: Array<{ email: string; success: boolean; error?: string }>;
+    errors: string[];
   }> {
-    return this.request('/admin/users/bulk', {
+    // Backend expects direct array, not wrapped in { users: [...] }
+    return this.request('/admin/users/bulk-import', {
       method: 'POST',
-      body: JSON.stringify({ users }),
+      body: JSON.stringify(users),
     });
   }
 
@@ -1010,7 +1013,7 @@ class ApiClient {
   }>): Promise<{
     success_count: number;
     failed_count: number;
-    results: Array<{ email: string; success: boolean; error?: string }>;
+    errors: string[];
   }> {
     return this.bulkCreateUsers(users);
   }
