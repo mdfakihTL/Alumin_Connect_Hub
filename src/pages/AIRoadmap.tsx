@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useConnections } from '@/contexts/ConnectionsContext';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
-import { CareerPathCard, CareerPath, RoadmapForm, AlumniPreview } from '@/components/career-roadmap';
+import { RoadmapForm, RoadTimeline, RecommendedCourses } from '@/components/career-roadmap';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -34,10 +34,7 @@ import {
   UserPlus,
   Save,
   Loader2,
-  ChevronDown,
-  ChevronUp,
   Star,
-  Building2,
   Award
 } from 'lucide-react';
 
@@ -101,36 +98,6 @@ interface SavedRoadmap {
   created_at: string;
 }
 
-// Fallback Sample Career Paths (used if API fails)
-const FALLBACK_CAREER_PATHS: CareerPath[] = [
-  {
-    id: '1',
-    title: 'Software Engineer to Tech Lead',
-    alumniCount: 23,
-    successRate: 89,
-    timeline: '2-3 years',
-    keySteps: [
-      'Master system design',
-      'Lead projects',
-      'Mentor juniors',
-      'Drive architecture decisions'
-    ]
-  },
-  {
-    id: '2',
-    title: 'Product Manager Career Path',
-    alumniCount: 17,
-    successRate: 92,
-    timeline: '3-4 years',
-    keySteps: [
-      'Learn product strategy',
-      'Ship features end-to-end',
-      'Build cross-functional skills',
-      'Lead product vision'
-    ]
-  }
-];
-
 const AIRoadmap = () => {
   const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
   const { user } = useAuth();
@@ -142,69 +109,23 @@ const AIRoadmap = () => {
   const [selectedGoal, setSelectedGoal] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isLoadingPaths, setIsLoadingPaths] = useState(true);
   const [generatedRoadmap, setGeneratedRoadmap] = useState<GeneratedRoadmap | null>(null);
   const [savedRoadmaps, setSavedRoadmaps] = useState<SavedRoadmap[]>([]);
-  const [popularPaths, setPopularPaths] = useState<CareerPath[]>(FALLBACK_CAREER_PATHS);
   
   const [selectedAlumni, setSelectedAlumni] = useState<RelatedAlumni | null>(null);
   const [showAlumniModal, setShowAlumniModal] = useState(false);
-  const [expandedMilestone, setExpandedMilestone] = useState<number | null>(null);
   const [completedMilestones, setCompletedMilestones] = useState<Set<number>>(new Set());
   const [viewingSavedRoadmap, setViewingSavedRoadmap] = useState<SavedRoadmap | null>(null);
   
   const [activeTab, setActiveTab] = useState<'generate' | 'saved'>('generate');
 
-  // Fetch popular paths and saved roadmaps on mount
+  // Fetch saved roadmaps on mount
   useEffect(() => {
-    fetchPopularPaths();
     const authToken = localStorage.getItem('auth_token');
     if (authToken) {
       fetchSavedRoadmaps();
     }
   }, [user]);
-
-  const fetchPopularPaths = async () => {
-    setIsLoadingPaths(true);
-    try {
-      const headers: Record<string, string> = {};
-      const authToken = localStorage.getItem('auth_token');
-      if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
-      }
-      
-      const response = await fetch(`${API_BASE_URL}/career-roadmap/popular`, { headers });
-      
-      if (response.ok) {
-        const data = await response.json();
-        // Transform API response to match CareerPath interface
-        const paths: CareerPath[] = data.map((item: any) => ({
-          id: item.id,
-          title: item.title,
-          alumniCount: item.alumni_count,
-          successRate: item.success_rate,
-          timeline: item.estimated_duration,
-          keySteps: item.key_steps,
-          topCompanies: item.top_companies,
-          alumniPreview: item.alumni_preview?.map((a: any) => ({
-            id: a.id,
-            name: a.name,
-            avatar: a.avatar,
-            job_title: a.job_title,
-            company: a.company,
-            is_mentor: a.is_mentor
-          })),
-          hasMentors: item.has_mentors
-        }));
-        setPopularPaths(paths);
-      }
-    } catch (error) {
-      console.error('Failed to fetch popular paths:', error);
-      // Keep fallback data
-    } finally {
-      setIsLoadingPaths(false);
-    }
-  };
 
   const fetchSavedRoadmaps = async () => {
     try {
@@ -367,27 +288,6 @@ const AIRoadmap = () => {
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const handleUseTemplate = (careerPath: CareerPath) => {
-    setSelectedGoal(careerPath.title);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleAlumniPreviewClick = (alumni: AlumniPreview) => {
-    // Convert AlumniPreview to RelatedAlumni format for the modal
-    setSelectedAlumni({
-      id: alumni.id,
-      name: alumni.name,
-      avatar: alumni.avatar,
-      job_title: alumni.job_title,
-      company: alumni.company,
-      is_mentor: alumni.is_mentor,
-      match_reason: alumni.is_mentor 
-        ? "Mentor available for guidance" 
-        : `Works as ${alumni.job_title || 'professional'}`
-    });
-    setShowAlumniModal(true);
   };
 
   const handleAlumniClick = (alumni: RelatedAlumni) => {
@@ -617,107 +517,13 @@ const AIRoadmap = () => {
                     </Card>
                   )}
 
-                  {/* Milestones */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold flex items-center gap-2">
-                      <Target className="w-5 h-5" />
-                      Career Milestones
-                    </h3>
-                    {generatedRoadmap.milestones.map((milestone, index) => (
-                      <Card
-                        key={milestone.id}
-                        className={`p-4 sm:p-5 rounded-xl transition-all ${
-                          completedMilestones.has(milestone.id)
-                            ? 'border-green-500/50 bg-green-500/5'
-                            : 'hover:border-primary/30'
-                        }`}
-                      >
-                        <div className="flex gap-3">
-                          <button
-                            onClick={() => toggleMilestoneComplete(milestone.id)}
-                            className="mt-0.5 flex-shrink-0"
-                          >
-                            {completedMilestones.has(milestone.id) ? (
-                              <CheckCircle2 className="w-6 h-6 text-green-500" />
-                            ) : (
-                              <Circle className="w-6 h-6 text-muted-foreground hover:text-primary" />
-                            )}
-                          </button>
-                          <div className="flex-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                  <Badge variant="outline" className="text-xs">
-                                    Step {index + 1}
-                                  </Badge>
-                                  <Badge variant="secondary" className="text-xs">
-                                    <Clock className="w-3 h-3 mr-1" />
-                                    {milestone.duration}
-                                  </Badge>
-                                </div>
-                                <h4 className={`font-semibold ${completedMilestones.has(milestone.id) ? 'line-through text-muted-foreground' : ''}`}>
-                                  {milestone.title}
-                                </h4>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setExpandedMilestone(
-                                  expandedMilestone === milestone.id ? null : milestone.id
-                                )}
-                              >
-                                {expandedMilestone === milestone.id ? (
-                                  <ChevronUp className="w-4 h-4" />
-                                ) : (
-                                  <ChevronDown className="w-4 h-4" />
-                                )}
-                              </Button>
-                            </div>
-                            <p className="text-sm text-muted-foreground mt-2">
-                              {milestone.description}
-                            </p>
-
-                            {expandedMilestone === milestone.id && (
-                              <div className="mt-4 pt-4 border-t border-border space-y-4 animate-in fade-in slide-in-from-top-2">
-                                {milestone.skills.length > 0 && (
-                                  <div>
-                                    <p className="text-sm font-medium mb-2">Skills to develop:</p>
-                                    <div className="flex flex-wrap gap-2">
-                                      {milestone.skills.map((skill, i) => (
-                                        <Badge key={i} variant="outline" className="text-xs">
-                                          {skill}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                                {milestone.resources.length > 0 && (
-                                  <div>
-                                    <p className="text-sm font-medium mb-2">Resources:</p>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      {milestone.resources.map((resource, i) => (
-                                        <li key={i} className="flex items-center gap-2">
-                                          <BookOpen className="w-3 h-3" />
-                                          {resource}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                )}
-                                {milestone.tips && (
-                                  <div className="p-3 bg-primary/5 rounded-lg">
-                                    <p className="text-sm">
-                                      <span className="font-medium">💡 Tip:</span> {milestone.tips}
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
+                  {/* Road Timeline - Visual Career Path */}
+                  <RoadTimeline
+                    milestones={generatedRoadmap.milestones}
+                    completedMilestones={completedMilestones}
+                    onToggleComplete={toggleMilestoneComplete}
+                    goalTitle={generatedRoadmap.title}
+                  />
 
                   {/* Skills Required */}
                   {generatedRoadmap.skills_required.length > 0 && (
@@ -736,6 +542,13 @@ const AIRoadmap = () => {
                     </Card>
                   )}
 
+                  {/* Recommended Courses from TeamLease EdTech */}
+                  <RecommendedCourses
+                    skills={generatedRoadmap.skills_required}
+                    careerGoal={generatedRoadmap.title}
+                    maxCourses={4}
+                  />
+
                   {/* Market Insights */}
                   {generatedRoadmap.market_insights && (
                     <Card className="p-5 sm:p-6 bg-gradient-to-br from-blue-500/5 to-cyan-500/5 border-blue-500/20 rounded-xl">
@@ -751,28 +564,6 @@ const AIRoadmap = () => {
                 </div>
               )}
 
-              {/* Popular Career Paths Section */}
-              <div className="pt-4">
-                <div className="flex items-center justify-between mb-5">
-                  <h2 className="text-xl sm:text-2xl font-bold">Popular Career Paths</h2>
-                  {isLoadingPaths && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Loading real-time data...
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-4">
-                  {popularPaths.map((path) => (
-                    <CareerPathCard
-                      key={path.id}
-                      careerPath={path}
-                      onUseTemplate={handleUseTemplate}
-                      onAlumniClick={handleAlumniPreviewClick}
-                    />
-                  ))}
-                </div>
-              </div>
             </>
           )}
 
