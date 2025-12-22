@@ -10,12 +10,20 @@ from app.models.document import DocumentRequest, GeneratedDocument, DocumentStat
 from app.models.support import SupportTicket, TicketResponse, TicketStatus, TicketPriority, TicketCategory
 from app.models.notification import Notification, NotificationType
 from app.models.mentor import Mentor, MentorMatch
-from app.models.fundraiser import Fundraiser
+from app.models.fundraiser import Fundraiser, FundraiserClick, FundraiserStatus
 from app.models.ad import Ad
-from app.models.lead_intelligence import AdClick, AdImpression, CareerRoadmapRequest, CareerRoadmapView
+from app.models.lead_intelligence import (
+    AdClick, AdImpression, CareerRoadmapRequest, CareerRoadmapView,
+    UserEngagementEvent, LeadScore, DailyAnalytics, AIInsight,
+    EventType, LeadCategory
+)
 from app.models.media import Media
 from app.models.career_roadmap import SavedRoadmap, RoadmapProgress
 from app.models.knowledge_base import KnowledgeBaseDocument
+from app.models.admin_management import (
+    AdminPasswordResetRequest, AdminAuditLog,
+    PasswordResetStatus, AuditAction
+)
 
 __all__ = [
     "User", "UserProfile", "UserRole",
@@ -29,10 +37,14 @@ __all__ = [
     "SupportTicket", "TicketResponse", "TicketStatus", "TicketPriority", "TicketCategory",
     "Notification", "NotificationType",
     "Mentor", "MentorMatch",
-    "Fundraiser",
+    "Fundraiser", "FundraiserClick", "FundraiserStatus",
     "Ad",
     "AdClick", "AdImpression", "CareerRoadmapRequest", "CareerRoadmapView",
+    "UserEngagementEvent", "LeadScore", "DailyAnalytics", "AIInsight",
+    "EventType", "LeadCategory",
     "Media",
     "SavedRoadmap", "RoadmapProgress"
-    "KnowledgeBaseDocument"
+    "KnowledgeBaseDocument",
+    "AdminPasswordResetRequest", "AdminAuditLog",
+    "PasswordResetStatus", "AuditAction"
 ]

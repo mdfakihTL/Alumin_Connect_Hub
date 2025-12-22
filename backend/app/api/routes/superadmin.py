@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
@@ -14,6 +14,10 @@ from app.models.notification import Notification, NotificationType
 from app.models.post import Post
 from app.models.event import Event
 from app.models.group import Group
+from app.models.admin_management import (
+    AdminPasswordResetRequest as AdminPasswordResetRequestModel,
+    AdminAuditLog, PasswordResetStatus, AuditAction
+)
 from app.services.email_service import EmailService
 
 logger = logging.getLogger(__name__)
@@ -22,12 +26,21 @@ from app.schemas.superadmin import (
     AdminUserCreate, AdminUserResponse, AdminUserListResponse,
     GlobalAdCreate, GlobalAdUpdate, GlobalAdResponse, AdListResponse,
     AdminPasswordResetRequest, AdminPasswordResetListResponse,
+    AdminPasswordResetRequestFull, AdminPasswordResetListResponseFull,
+    RejectPasswordResetRequest, AuditLogResponse, AuditLogListResponse,
     GlobalUserResponse, GlobalUserListResponse, GlobalUserCreate
 )
 from app.schemas.admin import PasswordResetBody
+from app.services.admin_management_service import (
+    create_admin_user, request_password_reset, approve_password_reset,
+    reject_password_reset, toggle_admin_status, get_password_reset_stats,
+    create_audit_log
+)
 import json
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def require_superadmin(current_user: User = Depends(get_current_active_user)):
@@ -317,21 +330,33 @@ async def delete_university(
 @router.get("/admins", response_model=AdminUserListResponse)
 async def list_admins(
     university_id: Optional[str] = None,
+    search: Optional[str] = None,
+    is_active: Optional[bool] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     current_user: User = Depends(require_superadmin),
     db: Session = Depends(get_db)
 ):
     """
-    List all admin users.
+    List all admin users with filtering options.
     """
     query = db.query(User).filter(User.role == UserRole.ADMIN)
     
     if university_id:
         query = query.filter(User.university_id == university_id)
     
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            (User.name.ilike(search_term)) |
+            (User.email.ilike(search_term))
+        )
+    
+    if is_active is not None:
+        query = query.filter(User.is_active == is_active)
+    
     total = query.count()
-    admins = query.offset((page - 1) * page_size).limit(page_size).all()
+    admins = query.order_by(User.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
     
     admin_responses = []
     for admin in admins:
@@ -344,6 +369,8 @@ async def list_admins(
             university_id=admin.university_id,
             university_name=university.name if university else "Unassigned",
             is_active=admin.is_active if admin.is_active is not None else True,
+            force_password_reset=admin.force_password_reset or False,
+            temp_password_expires_at=admin.temp_password_expires_at,
             created_at=admin.created_at
         ))
     
@@ -358,55 +385,52 @@ async def list_admins(
 @router.post("/admins", response_model=AdminUserResponse, status_code=status.HTTP_201_CREATED)
 async def create_admin(
     admin_data: AdminUserCreate,
+    request: Request,
     current_user: User = Depends(require_superadmin),
     db: Session = Depends(get_db)
 ):
     """
     Create a new admin user.
+    - Auto-generates secure password if not provided
+    - Sets force_password_reset=True for first login
+    - Sends credentials email to admin
+    - Creates audit log
     """
-    # Check if email exists
-    existing = db.query(User).filter(User.email == admin_data.email).first()
-    if existing:
+    try:
+        # Get client IP
+        ip_address = request.client.host if request.client else None
+        
+        admin, plain_password = create_admin_user(
+            db=db,
+            email=admin_data.email,
+            name=admin_data.name,
+            university_id=admin_data.university_id,
+            created_by=current_user.id,
+            password=admin_data.password,
+            send_email=True,
+            ip_address=ip_address
+        )
+        
+        university = db.query(University).filter(University.id == admin.university_id).first()
+        
+        return AdminUserResponse(
+            id=admin.id,
+            name=admin.name,
+            email=admin.email,
+            avatar=admin.avatar,
+            university_id=admin.university_id,
+            university_name=university.name if university else "Unassigned",
+            is_active=admin.is_active if admin.is_active is not None else True,
+            force_password_reset=admin.force_password_reset or False,
+            temp_password_expires_at=admin.temp_password_expires_at,
+            created_at=admin.created_at
+        )
+        
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+            detail=str(e)
         )
-    
-    # Verify university exists
-    university = db.query(University).filter(University.id == admin_data.university_id).first()
-    if not university:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="University not found"
-        )
-    
-    admin = User(
-        email=admin_data.email,
-        hashed_password=get_password_hash(admin_data.password),
-        name=admin_data.name,
-        university_id=admin_data.university_id,
-        role=UserRole.ADMIN
-    )
-    
-    db.add(admin)
-    db.commit()
-    db.refresh(admin)
-    
-    # Create profile
-    profile = UserProfile(user_id=admin.id)
-    db.add(profile)
-    db.commit()
-    
-    return AdminUserResponse(
-        id=admin.id,
-        name=admin.name,
-        email=admin.email,
-        avatar=admin.avatar,
-        university_id=admin.university_id,
-        university_name=university.name,
-        is_active=admin.is_active,
-        created_at=admin.created_at
-    )
 
 
 @router.delete("/admins/{admin_id}")
@@ -662,15 +686,77 @@ async def delete_global_user(
 
 
 # Admin Password Resets
-@router.get("/password-resets", response_model=AdminPasswordResetListResponse)
+@router.get("/password-resets", response_model=AdminPasswordResetListResponseFull)
 async def list_admin_password_resets(
+    status_filter: Optional[str] = None,  # pending, approved, rejected
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     current_user: User = Depends(require_superadmin),
     db: Session = Depends(get_db)
 ):
     """
-    List pending admin password reset requests.
+    List admin password reset requests with full status tracking.
+    """
+    query = db.query(AdminPasswordResetRequestModel)
+    
+    # Apply status filter
+    if status_filter:
+        try:
+            status_enum = PasswordResetStatus(status_filter.lower())
+            query = query.filter(AdminPasswordResetRequestModel.status == status_enum)
+        except ValueError:
+            pass
+    
+    total = query.count()
+    
+    # Get stats
+    stats = get_password_reset_stats(db)
+    
+    # Get requests with pagination
+    reset_requests = query.order_by(
+        AdminPasswordResetRequestModel.requested_at.desc()
+    ).offset((page - 1) * page_size).limit(page_size).all()
+    
+    requests = []
+    for req in reset_requests:
+        admin = db.query(User).filter(User.id == req.admin_id).first()
+        university = db.query(University).filter(University.id == admin.university_id).first() if admin else None
+        processor = db.query(User).filter(User.id == req.processed_by).first() if req.processed_by else None
+        
+        requests.append(AdminPasswordResetRequestFull(
+            id=req.id,
+            admin_id=req.admin_id,
+            admin_name=admin.name if admin else "Unknown",
+            admin_email=admin.email if admin else "Unknown",
+            university_id=admin.university_id if admin else None,
+            university_name=university.name if university else "Unknown",
+            status=req.status.value,
+            requested_at=req.requested_at,
+            processed_at=req.processed_at,
+            processed_by_name=processor.name if processor else None,
+            rejection_reason=req.rejection_reason
+        ))
+    
+    return AdminPasswordResetListResponseFull(
+        requests=requests,
+        total=total,
+        pending_count=stats["pending"],
+        approved_count=stats["approved"],
+        rejected_count=stats["rejected"],
+        page=page,
+        page_size=page_size
+    )
+
+
+@router.get("/password-resets/legacy", response_model=AdminPasswordResetListResponse)
+async def list_admin_password_resets_legacy(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(require_superadmin),
+    db: Session = Depends(get_db)
+):
+    """
+    Legacy: List pending admin password reset requests (uses User.password_reset_requested flag).
     """
     query = db.query(User).filter(
         User.role == UserRole.ADMIN,
@@ -699,15 +785,91 @@ async def list_admin_password_resets(
     )
 
 
-@router.post("/password-resets/{admin_id}/reset")
-async def reset_admin_password(
-    admin_id: str,
-    password_data: PasswordResetBody,
+@router.post("/password-resets/{request_id}/approve")
+async def approve_admin_password_reset(
+    request_id: str,
+    request: Request,
     current_user: User = Depends(require_superadmin),
     db: Session = Depends(get_db)
 ):
     """
-    Reset an admin's password.
+    Approve a password reset request.
+    - Generates new temporary password
+    - Sends email to admin with new credentials
+    - Creates audit log
+    """
+    try:
+        ip_address = request.client.host if request.client else None
+        
+        reset_request, new_password = approve_password_reset(
+            db=db,
+            request_id=request_id,
+            approved_by=current_user.id,
+            send_email=True,
+            ip_address=ip_address
+        )
+        
+        return {
+            "message": "Password reset approved. New credentials sent to admin.",
+            "success": True,
+            "request_id": reset_request.id
+        }
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.post("/password-resets/{request_id}/reject")
+async def reject_admin_password_reset(
+    request_id: str,
+    rejection_data: RejectPasswordResetRequest,
+    request: Request,
+    current_user: User = Depends(require_superadmin),
+    db: Session = Depends(get_db)
+):
+    """
+    Reject a password reset request.
+    - Sends notification to admin
+    - Creates audit log
+    """
+    try:
+        ip_address = request.client.host if request.client else None
+        
+        reset_request = reject_password_reset(
+            db=db,
+            request_id=request_id,
+            rejected_by=current_user.id,
+            reason=rejection_data.reason,
+            send_email=True,
+            ip_address=ip_address
+        )
+        
+        return {
+            "message": "Password reset request rejected.",
+            "success": True,
+            "request_id": reset_request.id
+        }
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.post("/password-resets/{admin_id}/reset")
+async def reset_admin_password(
+    admin_id: str,
+    password_data: PasswordResetBody,
+    request: Request,
+    current_user: User = Depends(require_superadmin),
+    db: Session = Depends(get_db)
+):
+    """
+    Legacy: Directly reset an admin's password (manual password set).
     """
     admin = db.query(User).filter(
         User.id == admin_id,
@@ -720,13 +882,26 @@ async def reset_admin_password(
             detail="Admin not found"
         )
     
+    ip_address = request.client.host if request.client else None
+    
     # Get university for email context
     university = db.query(University).filter(University.id == admin.university_id).first()
     
     admin.hashed_password = get_password_hash(password_data.new_password)
     admin.password_reset_requested = False
     admin.password_reset_requested_at = None
+    admin.force_password_reset = True  # Force change on next login
     db.commit()
+    
+    # Create audit log
+    create_audit_log(
+        db=db,
+        action=AuditAction.PASSWORD_RESET_APPROVED,
+        performed_by=current_user.id,
+        target_user_id=admin_id,
+        details={"method": "manual_reset"},
+        ip_address=ip_address
+    )
     
     # Send password reset email
     try:
@@ -753,6 +928,93 @@ async def reset_admin_password(
     db.commit()
     
     return {"message": "Admin password reset successfully", "success": True}
+
+
+# Audit Logs
+@router.get("/audit-logs", response_model=AuditLogListResponse)
+async def list_audit_logs(
+    action_filter: Optional[str] = None,
+    target_user_id: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    current_user: User = Depends(require_superadmin),
+    db: Session = Depends(get_db)
+):
+    """
+    List audit logs for admin actions.
+    """
+    query = db.query(AdminAuditLog)
+    
+    if action_filter:
+        try:
+            action_enum = AuditAction(action_filter)
+            query = query.filter(AdminAuditLog.action == action_enum)
+        except ValueError:
+            pass
+    
+    if target_user_id:
+        query = query.filter(AdminAuditLog.target_user_id == target_user_id)
+    
+    total = query.count()
+    
+    logs = query.order_by(
+        AdminAuditLog.created_at.desc()
+    ).offset((page - 1) * page_size).limit(page_size).all()
+    
+    log_responses = []
+    for log in logs:
+        performer = db.query(User).filter(User.id == log.performed_by).first()
+        target = db.query(User).filter(User.id == log.target_user_id).first() if log.target_user_id else None
+        
+        log_responses.append(AuditLogResponse(
+            id=log.id,
+            action=log.action.value,
+            performed_by_name=performer.name if performer else "Unknown",
+            target_user_name=target.name if target else None,
+            details=log.details,
+            ip_address=log.ip_address,
+            created_at=log.created_at
+        ))
+    
+    return AuditLogListResponse(
+        logs=log_responses,
+        total=total,
+        page=page,
+        page_size=page_size
+    )
+
+
+@router.put("/admins/{admin_id}/toggle-status")
+async def toggle_admin_status_endpoint(
+    admin_id: str,
+    request: Request,
+    current_user: User = Depends(require_superadmin),
+    db: Session = Depends(get_db)
+):
+    """
+    Toggle an admin's active status.
+    """
+    try:
+        ip_address = request.client.host if request.client else None
+        
+        admin = toggle_admin_status(
+            db=db,
+            admin_id=admin_id,
+            toggled_by=current_user.id,
+            ip_address=ip_address
+        )
+        
+        return {
+            "message": f"Admin {'activated' if admin.is_active else 'deactivated'}",
+            "success": True,
+            "is_active": admin.is_active
+        }
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 
 # Global Ad Management

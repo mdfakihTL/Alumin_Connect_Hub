@@ -92,20 +92,39 @@ const AdminUserManagement = () => {
       return;
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newUser.email)) {
+      toast({
+        title: 'Invalid email',
+        description: 'Please enter a valid email address',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     
     try {
       // Generate a random password for the new user
       const password = generatePassword();
       
+      console.log('[AdminUserManagement] Creating user:', { 
+        name: newUser.name, 
+        email: newUser.email,
+        graduation_year: newUser.graduationYear ? parseInt(newUser.graduationYear) : undefined,
+      });
+      
       // Call backend API to create user - this will also send welcome email
-      await apiClient.createAdminUser({
+      const result = await apiClient.createAdminUser({
         name: newUser.name,
         email: newUser.email,
         password: password,
         graduation_year: newUser.graduationYear ? parseInt(newUser.graduationYear) : undefined,
         major: newUser.major || undefined,
       });
+
+      console.log('[AdminUserManagement] User created successfully:', result);
 
       toast({
         title: 'User added successfully!',
@@ -125,9 +144,23 @@ const AdminUserManagement = () => {
       // Refresh the user list
       loadAllUsers();
     } catch (error: any) {
+      console.error('[AdminUserManagement] Failed to create user:', error);
+      
+      // Check for specific error messages
+      const errorMessage = error.message || 'Please try again';
+      let title = 'Failed to add user';
+      
+      if (errorMessage.toLowerCase().includes('already registered') || 
+          errorMessage.toLowerCase().includes('already exists')) {
+        title = 'Email already registered';
+      } else if (errorMessage.toLowerCase().includes('unauthorized') ||
+                 errorMessage.toLowerCase().includes('not authenticated')) {
+        title = 'Session expired';
+      }
+      
       toast({
-        title: 'Failed to add user',
-        description: error.message || 'Please try again',
+        title,
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -173,20 +206,37 @@ const AdminUserManagement = () => {
         major?: string;
       }> = [];
       
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const skippedRows: string[] = [];
+      
       for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',').map(v => v.trim());
         if (values.length === 0 || !values[0]) continue;
 
-        const userData: any = {};
+        const userData: Record<string, string> = {};
         headers.forEach((header, index) => {
           userData[header] = values[index] || '';
         });
+
+        // Validate email
+        if (!userData.email || !emailRegex.test(userData.email)) {
+          skippedRows.push(`Row ${i + 1}: Invalid email`);
+          continue;
+        }
+
+        // Validate name
+        if (!userData.name) {
+          skippedRows.push(`Row ${i + 1}: Missing name`);
+          continue;
+        }
+
+        const gradYear = userData.graduationyear || userData.graduation_year || userData.year;
 
         usersToImport.push({
           name: userData.name,
           email: userData.email,
           password: generatePassword(), // Generate unique password for each user
-          graduation_year: userData.graduationyear || userData.year ? parseInt(userData.graduationyear || userData.year) : undefined,
+          graduation_year: gradYear ? parseInt(gradYear) : undefined,
           major: userData.major || undefined,
         });
       }
@@ -194,15 +244,21 @@ const AdminUserManagement = () => {
       if (usersToImport.length === 0) {
         toast({
           title: 'No valid users found',
-          description: 'Please check your CSV data',
+          description: skippedRows.length > 0 
+            ? `Skipped: ${skippedRows.slice(0, 3).join('; ')}${skippedRows.length > 3 ? '...' : ''}`
+            : 'Please check your CSV data',
           variant: 'destructive',
         });
         setIsSubmitting(false);
         return;
       }
 
+      console.log('[AdminUserManagement] Bulk importing users:', usersToImport.length);
+
       // Call backend API for bulk import
       const result = await apiClient.bulkImportUsers(usersToImport);
+
+      console.log('[AdminUserManagement] Bulk import result:', result);
 
       if (result.success_count > 0) {
         toast({
@@ -214,11 +270,12 @@ const AdminUserManagement = () => {
       } else {
         toast({
           title: 'Upload failed',
-          description: result.errors.join(', ') || 'All users failed to import',
+          description: result.errors?.join(', ') || 'All users failed to import',
           variant: 'destructive',
         });
       }
     } catch (error: any) {
+      console.error('[AdminUserManagement] Bulk upload error:', error);
       toast({
         title: 'Upload failed',
         description: error.message || 'Please check your CSV format and try again',
@@ -242,15 +299,20 @@ const AdminUserManagement = () => {
 
   // Load all users for the university
   useEffect(() => {
-    loadAllUsers();
-  }, [user?.universityId, currentPage]);
+    // Load users when user is available or page changes
+    if (user) {
+      loadAllUsers();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, currentPage]);
 
   const loadAllUsers = async () => {
-    if (!user?.universityId) return;
-
+    // Don't require universityId - superadmins may not have one
     setIsLoading(true);
     
     try {
+      console.log('[AdminUserManagement] Loading users for page:', currentPage);
+      
       // Call backend API to get users
       const response = await apiClient.getAdminUsers({
         page: currentPage,
@@ -258,27 +320,39 @@ const AdminUserManagement = () => {
         search: filters.name || filters.email || undefined,
       });
 
+      console.log('[AdminUserManagement] API response:', response);
+
+      if (!response || !response.users) {
+        console.warn('[AdminUserManagement] Invalid response format:', response);
+        setAllUsers([]);
+        setTotalUsers(0);
+        return;
+      }
+
       const users: AllUser[] = response.users.map((u) => ({
         id: u.id,
-        name: u.name,
-        email: u.email,
+        name: u.name || 'Unknown',
+        email: u.email || '',
         phone: '', // Profile data if available
         location: '', // Profile data if available
         graduationYear: u.graduation_year?.toString() || '',
         major: u.major || '',
-        userType: u.is_mentor ? 'mentor' : 'alumni',
-        isMentor: u.is_mentor,
+        userType: u.role === 'admin' ? 'admin' : (u.is_mentor ? 'mentor' : 'alumni'),
+        isMentor: u.is_mentor || false,
       }));
 
+      console.log('[AdminUserManagement] Processed users:', users.length);
       setAllUsers(users);
-      setTotalUsers(response.total);
+      setTotalUsers(response.total || 0);
     } catch (error: any) {
-      console.error('Failed to load users:', error);
+      console.error('[AdminUserManagement] Failed to load users:', error);
       toast({
         title: 'Failed to load users',
         description: error.message || 'Please try again',
         variant: 'destructive',
       });
+      setAllUsers([]);
+      setTotalUsers(0);
     } finally {
       setIsLoading(false);
     }

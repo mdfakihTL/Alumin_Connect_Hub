@@ -115,6 +115,8 @@ class Token(BaseModel):
     university: Optional[UniversityBrandingResponse] = None
     # For super admin - list of all universities to choose from
     universities: Optional[List[UniversityBrandingResponse]] = None
+    # If true, user must change password before accessing the app
+    force_password_reset: bool = False
 
 
 class TokenData(BaseModel):

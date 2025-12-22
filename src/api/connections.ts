@@ -28,13 +28,13 @@ export const connectionsApi = {
     return apiClient.post<MessageResponse>('/connections/request', { to_user_id: toUserId });
   },
 
-  // Get received requests
-  getReceivedRequests: async (): Promise<{ requests: ConnectionRequestResponse[] }> => {
+  // Get received requests (backend returns array directly)
+  getReceivedRequests: async (): Promise<ConnectionRequestResponse[]> => {
     return apiClient.get('/connections/requests/received');
   },
 
-  // Get sent requests
-  getSentRequests: async (): Promise<{ requests: ConnectionRequestResponse[] }> => {
+  // Get sent requests (backend returns array directly)
+  getSentRequests: async (): Promise<ConnectionRequestResponse[]> => {
     return apiClient.get('/connections/requests/sent');
   },
 

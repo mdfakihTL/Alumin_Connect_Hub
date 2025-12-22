@@ -129,14 +129,27 @@ class RoadmapListResponse(BaseModel):
     page_size: int
 
 
+class AlumniPreview(BaseModel):
+    """Brief alumni preview for popular roadmaps"""
+    id: str
+    name: str
+    avatar: Optional[str] = None
+    job_title: Optional[str] = None
+    company: Optional[str] = None
+    is_mentor: bool = False
+
+
 class PopularRoadmapResponse(BaseModel):
-    """Popular/trending roadmap template"""
+    """Popular/trending roadmap template with real alumni data"""
     id: str
     title: str
     career_goal: str
     estimated_duration: str
-    alumni_count: int  # Number of alumni who followed this path
+    alumni_count: int  # Real count from database
     success_rate: int  # Percentage
     key_steps: List[str]
     top_companies: List[str] = []
+    # Real-time alumni data
+    alumni_preview: List[AlumniPreview] = []  # Up to 3 alumni previews
+    has_mentors: bool = False  # Whether mentors are available for this path
 

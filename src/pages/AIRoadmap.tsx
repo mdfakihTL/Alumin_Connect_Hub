@@ -5,11 +5,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useConnections } from '@/contexts/ConnectionsContext';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
+import { CareerPathCard, CareerPath, RoadmapForm, AlumniPreview } from '@/components/career-roadmap';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -33,12 +32,10 @@ import {
   Briefcase,
   GraduationCap,
   UserPlus,
-  MessageCircle,
   Save,
   Loader2,
   ChevronDown,
   ChevronUp,
-  X,
   Star,
   Building2,
   Award
@@ -104,16 +101,35 @@ interface SavedRoadmap {
   created_at: string;
 }
 
-interface PopularRoadmap {
-  id: string;
-  title: string;
-  career_goal: string;
-  estimated_duration: string;
-  alumni_count: number;
-  success_rate: number;
-  key_steps: string[];
-  top_companies: string[];
-}
+// Fallback Sample Career Paths (used if API fails)
+const FALLBACK_CAREER_PATHS: CareerPath[] = [
+  {
+    id: '1',
+    title: 'Software Engineer to Tech Lead',
+    alumniCount: 23,
+    successRate: 89,
+    timeline: '2-3 years',
+    keySteps: [
+      'Master system design',
+      'Lead projects',
+      'Mentor juniors',
+      'Drive architecture decisions'
+    ]
+  },
+  {
+    id: '2',
+    title: 'Product Manager Career Path',
+    alumniCount: 17,
+    successRate: 92,
+    timeline: '3-4 years',
+    keySteps: [
+      'Learn product strategy',
+      'Ship features end-to-end',
+      'Build cross-functional skills',
+      'Lead product vision'
+    ]
+  }
+];
 
 const AIRoadmap = () => {
   const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
@@ -122,54 +138,82 @@ const AIRoadmap = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  // Get auth token from localStorage
-  const getToken = () => localStorage.getItem('auth_token') || localStorage.getItem('access_token');
-  
   // State
-  const [goal, setGoal] = useState('');
-  const [currentRole, setCurrentRole] = useState('');
-  const [yearsExperience, setYearsExperience] = useState<number>(0);
-  const [additionalContext, setAdditionalContext] = useState('');
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  
+  const [selectedGoal, setSelectedGoal] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingPaths, setIsLoadingPaths] = useState(true);
   const [generatedRoadmap, setGeneratedRoadmap] = useState<GeneratedRoadmap | null>(null);
   const [savedRoadmaps, setSavedRoadmaps] = useState<SavedRoadmap[]>([]);
-  const [popularRoadmaps, setPopularRoadmaps] = useState<PopularRoadmap[]>([]);
+  const [popularPaths, setPopularPaths] = useState<CareerPath[]>(FALLBACK_CAREER_PATHS);
   
   const [selectedAlumni, setSelectedAlumni] = useState<RelatedAlumni | null>(null);
   const [showAlumniModal, setShowAlumniModal] = useState(false);
   const [expandedMilestone, setExpandedMilestone] = useState<number | null>(null);
   const [completedMilestones, setCompletedMilestones] = useState<Set<number>>(new Set());
+  const [viewingSavedRoadmap, setViewingSavedRoadmap] = useState<SavedRoadmap | null>(null);
   
   const [activeTab, setActiveTab] = useState<'generate' | 'saved'>('generate');
 
-  // Fetch popular roadmaps and saved roadmaps on mount
+  // Fetch popular paths and saved roadmaps on mount
   useEffect(() => {
-    fetchPopularRoadmaps();
-    if (getToken()) {
+    fetchPopularPaths();
+    const authToken = localStorage.getItem('auth_token');
+    if (authToken) {
       fetchSavedRoadmaps();
     }
   }, [user]);
 
-  const fetchPopularRoadmaps = async () => {
+  const fetchPopularPaths = async () => {
+    setIsLoadingPaths(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/career-roadmap/popular`);
+      const headers: Record<string, string> = {};
+      const authToken = localStorage.getItem('auth_token');
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/career-roadmap/popular`, { headers });
+      
       if (response.ok) {
         const data = await response.json();
-        setPopularRoadmaps(data);
+        // Transform API response to match CareerPath interface
+        const paths: CareerPath[] = data.map((item: any) => ({
+          id: item.id,
+          title: item.title,
+          alumniCount: item.alumni_count,
+          successRate: item.success_rate,
+          timeline: item.estimated_duration,
+          keySteps: item.key_steps,
+          topCompanies: item.top_companies,
+          alumniPreview: item.alumni_preview?.map((a: any) => ({
+            id: a.id,
+            name: a.name,
+            avatar: a.avatar,
+            job_title: a.job_title,
+            company: a.company,
+            is_mentor: a.is_mentor
+          })),
+          hasMentors: item.has_mentors
+        }));
+        setPopularPaths(paths);
       }
     } catch (error) {
-      console.error('Failed to fetch popular roadmaps:', error);
+      console.error('Failed to fetch popular paths:', error);
+      // Keep fallback data
+    } finally {
+      setIsLoadingPaths(false);
     }
   };
 
   const fetchSavedRoadmaps = async () => {
     try {
+      const authToken = localStorage.getItem('auth_token');
+      if (!authToken) return;
+      
       const response = await fetch(`${API_BASE_URL}/career-roadmap/my-roadmaps`, {
         headers: {
-          'Authorization': `Bearer ${getToken()}`,
+          'Authorization': `Bearer ${authToken}`,
         },
       });
       if (response.ok) {
@@ -181,12 +225,23 @@ const AIRoadmap = () => {
     }
   };
 
-  const generateRoadmap = async () => {
-    if (!goal.trim()) {
+  const generateRoadmap = async (formData: {
+    careerGoal: string;
+    currentRole: string;
+    yearsExperience: number;
+    additionalContext: string;
+  }) => {
+    // Get fresh token from localStorage
+    const authToken = localStorage.getItem('auth_token');
+    
+    // Check if user is logged in
+    if (!authToken) {
       toast({
-        title: 'Please enter your career goal',
+        title: 'Login Required',
+        description: 'Please log in to generate a personalized career roadmap.',
         variant: 'destructive',
       });
+      navigate('/login');
       return;
     }
 
@@ -194,21 +249,37 @@ const AIRoadmap = () => {
     setGeneratedRoadmap(null);
 
     try {
+      console.log('Generating roadmap for:', formData.careerGoal);
+      
       const response = await fetch(`${API_BASE_URL}/career-roadmap/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getToken()}`,
+          'Authorization': `Bearer ${authToken}`,
         },
         body: JSON.stringify({
-          career_goal: goal,
-          current_role: currentRole || undefined,
-          years_experience: yearsExperience,
-          additional_context: additionalContext || undefined,
+          career_goal: formData.careerGoal,
+          current_role: formData.currentRole || undefined,
+          years_experience: formData.yearsExperience,
+          additional_context: formData.additionalContext || undefined,
         }),
       });
 
+      console.log('Response status:', response.status);
+
+      if (response.status === 401) {
+        toast({
+          title: 'Session Expired',
+          description: 'Please log in again to continue.',
+          variant: 'destructive',
+        });
+        navigate('/login');
+        return;
+      }
+
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Generate error:', errorText);
         throw new Error('Failed to generate roadmap');
       }
 
@@ -221,7 +292,6 @@ const AIRoadmap = () => {
         description: 'Your personalized career roadmap is ready.',
       });
 
-      // If there are related alumni, show a hint
       if (data.related_alumni && data.related_alumni.length > 0) {
         setTimeout(() => {
           toast({
@@ -246,6 +316,16 @@ const AIRoadmap = () => {
   const saveRoadmap = async () => {
     if (!generatedRoadmap) return;
 
+    const authToken = localStorage.getItem('auth_token');
+    if (!authToken) {
+      toast({
+        title: 'Login Required',
+        description: 'Please log in to save your roadmap.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -253,12 +333,10 @@ const AIRoadmap = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getToken()}`,
+          'Authorization': `Bearer ${authToken}`,
         },
         body: JSON.stringify({
-          career_goal: goal,
-          current_role: currentRole || undefined,
-          years_experience: yearsExperience,
+          career_goal: selectedGoal,
           title: generatedRoadmap.title,
           summary: generatedRoadmap.summary,
           estimated_duration: generatedRoadmap.estimated_duration,
@@ -277,7 +355,6 @@ const AIRoadmap = () => {
         description: 'You can find it in "My Roadmaps" tab.',
       });
 
-      // Refresh saved roadmaps
       fetchSavedRoadmaps();
 
     } catch (error) {
@@ -292,12 +369,45 @@ const AIRoadmap = () => {
     }
   };
 
+  const handleUseTemplate = (careerPath: CareerPath) => {
+    setSelectedGoal(careerPath.title);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleAlumniPreviewClick = (alumni: AlumniPreview) => {
+    // Convert AlumniPreview to RelatedAlumni format for the modal
+    setSelectedAlumni({
+      id: alumni.id,
+      name: alumni.name,
+      avatar: alumni.avatar,
+      job_title: alumni.job_title,
+      company: alumni.company,
+      is_mentor: alumni.is_mentor,
+      match_reason: alumni.is_mentor 
+        ? "Mentor available for guidance" 
+        : `Works as ${alumni.job_title || 'professional'}`
+    });
+    setShowAlumniModal(true);
+  };
+
   const handleAlumniClick = (alumni: RelatedAlumni) => {
     setSelectedAlumni(alumni);
     setShowAlumniModal(true);
   };
 
   const handleConnectAlumni = async (alumniId: string) => {
+    // Check if user is logged in
+    const authToken = localStorage.getItem('auth_token');
+    if (!authToken) {
+      toast({
+        title: 'Login Required',
+        description: 'Please log in to connect with alumni.',
+        variant: 'destructive',
+      });
+      navigate('/login');
+      return;
+    }
+
     try {
       await sendConnectionRequest(alumniId);
       toast({
@@ -305,12 +415,36 @@ const AIRoadmap = () => {
         description: 'They will be notified of your request.',
       });
       setShowAlumniModal(false);
-    } catch (error) {
-      toast({
-        title: 'Failed to send request',
-        description: 'Please try again.',
-        variant: 'destructive',
-      });
+    } catch (error: any) {
+      // API errors have 'detail' property, not 'message'
+      const errorMsg = (error?.detail || error?.message || '').toLowerCase();
+      
+      // Handle "already exists" as a non-error - just inform the user
+      if (errorMsg.includes('already') || errorMsg.includes('exists') || errorMsg.includes('pending') || errorMsg.includes('connected')) {
+        toast({
+          title: 'Request Pending',
+          description: 'You already have a pending request with this person.',
+        });
+        setShowAlumniModal(false);
+        return; // Don't treat as error
+      }
+      
+      // Only log actual errors
+      console.error('Connection request failed:', error);
+      
+      if (errorMsg.includes('not found')) {
+        toast({
+          title: 'User Not Found',
+          description: 'This alumni profile could not be found.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Failed to send request',
+          description: error?.detail || error?.message || 'Please try again.',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
@@ -340,7 +474,7 @@ const AIRoadmap = () => {
       <DesktopNav />
       
       <main className={`min-h-screen pb-20 md:pb-0 transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'md:ml-0'}`}>
-        <div className="max-w-5xl mx-auto p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
+        <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
           {/* Mobile Menu Button */}
           <div className="md:hidden">
             <Button
@@ -353,21 +487,10 @@ const AIRoadmap = () => {
             </Button>
           </div>
 
-          {/* Header */}
-          <div className="text-center py-6 sm:py-8">
-            <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-primary to-purple-600 mb-4">
-              <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-primary-foreground" />
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-bold mb-3">AI Career Roadmap</h1>
-            <p className="text-muted-foreground text-base sm:text-lg max-w-2xl mx-auto">
-              Get personalized career guidance powered by AI and connect with alumni who've walked the path
-            </p>
-          </div>
-
           {/* Tabs */}
-          <div className="flex gap-2 border-b border-border pb-2">
+          <div className="flex gap-2">
             <Button
-              variant={activeTab === 'generate' ? 'default' : 'ghost'}
+              variant={activeTab === 'generate' ? 'default' : 'outline'}
               onClick={() => setActiveTab('generate')}
               className="gap-2"
             >
@@ -375,7 +498,7 @@ const AIRoadmap = () => {
               Generate New
             </Button>
             <Button
-              variant={activeTab === 'saved' ? 'default' : 'ghost'}
+              variant={activeTab === 'saved' ? 'default' : 'outline'}
               onClick={() => setActiveTab('saved')}
               className="gap-2"
             >
@@ -386,92 +509,21 @@ const AIRoadmap = () => {
 
           {activeTab === 'generate' && (
             <>
-              {/* Input Section */}
-              <Card className="p-4 sm:p-6">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      What's your dream career goal? *
-                    </label>
-                    <Input
-                      placeholder="e.g., Become a Senior Product Manager at a top tech company"
-                      value={goal}
-                      onChange={(e) => setGoal(e.target.value)}
-                      className="text-base"
-                    />
-                  </div>
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowAdvanced(!showAdvanced)}
-                    className="gap-1 text-muted-foreground"
-                  >
-                    {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    {showAdvanced ? 'Hide' : 'Show'} more options
-                  </Button>
-
-                  {showAdvanced && (
-                    <div className="space-y-4 pt-2 border-t border-border">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium mb-2">Current Role</label>
-                          <Input
-                            placeholder="e.g., Software Engineer"
-                            value={currentRole}
-                            onChange={(e) => setCurrentRole(e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium mb-2">Years of Experience</label>
-                          <Input
-                            type="number"
-                            min={0}
-                            max={50}
-                            placeholder="0"
-                            value={yearsExperience}
-                            onChange={(e) => setYearsExperience(parseInt(e.target.value) || 0)}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Additional Context</label>
-                        <Textarea
-                          placeholder="Any specific skills, interests, or constraints? e.g., 'I have a technical background and prefer remote work'"
-                          value={additionalContext}
-                          onChange={(e) => setAdditionalContext(e.target.value)}
-                          rows={3}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <Button
-                    onClick={generateRoadmap}
-                    disabled={isGenerating || !goal.trim()}
-                    className="w-full sm:w-auto gap-2"
-                    size="lg"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4" />
-                        Generate My Roadmap
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </Card>
+              {/* Roadmap Form */}
+              <RoadmapForm
+                onSubmit={(data) => {
+                  setSelectedGoal(data.careerGoal);
+                  generateRoadmap(data);
+                }}
+                isLoading={isGenerating}
+                initialGoal={selectedGoal}
+              />
 
               {/* Generated Roadmap */}
               {generatedRoadmap && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   {/* Roadmap Header */}
-                  <Card className="p-4 sm:p-6 border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-purple-500/5">
+                  <Card className="p-5 sm:p-6 border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-purple-500/5 rounded-xl">
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                       <div className="flex-1">
                         <h2 className="text-xl sm:text-2xl font-bold mb-2">{generatedRoadmap.title}</h2>
@@ -524,7 +576,7 @@ const AIRoadmap = () => {
 
                   {/* Related Alumni Section */}
                   {generatedRoadmap.related_alumni && generatedRoadmap.related_alumni.length > 0 && (
-                    <Card className="p-4 sm:p-6 border-2 border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-orange-500/5">
+                    <Card className="p-5 sm:p-6 border-2 border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-orange-500/5 rounded-xl">
                       <div className="flex items-center gap-2 mb-4">
                         <Users className="w-5 h-5 text-amber-600" />
                         <h3 className="font-semibold text-lg">Alumni Who Can Help</h3>
@@ -574,7 +626,7 @@ const AIRoadmap = () => {
                     {generatedRoadmap.milestones.map((milestone, index) => (
                       <Card
                         key={milestone.id}
-                        className={`p-4 sm:p-5 transition-all ${
+                        className={`p-4 sm:p-5 rounded-xl transition-all ${
                           completedMilestones.has(milestone.id)
                             ? 'border-green-500/50 bg-green-500/5'
                             : 'hover:border-primary/30'
@@ -669,7 +721,7 @@ const AIRoadmap = () => {
 
                   {/* Skills Required */}
                   {generatedRoadmap.skills_required.length > 0 && (
-                    <Card className="p-4 sm:p-6">
+                    <Card className="p-5 sm:p-6 rounded-xl">
                       <h3 className="font-semibold mb-3 flex items-center gap-2">
                         <Award className="w-5 h-5" />
                         Skills You'll Need
@@ -686,7 +738,7 @@ const AIRoadmap = () => {
 
                   {/* Market Insights */}
                   {generatedRoadmap.market_insights && (
-                    <Card className="p-4 sm:p-6 bg-gradient-to-br from-blue-500/5 to-cyan-500/5 border-blue-500/20">
+                    <Card className="p-5 sm:p-6 bg-gradient-to-br from-blue-500/5 to-cyan-500/5 border-blue-500/20 rounded-xl">
                       <h3 className="font-semibold mb-2 flex items-center gap-2">
                         <TrendingUp className="w-5 h-5 text-blue-600" />
                         Market Insights
@@ -699,64 +751,28 @@ const AIRoadmap = () => {
                 </div>
               )}
 
-              {/* Popular Roadmaps (when no generated roadmap) */}
-              {!generatedRoadmap && popularRoadmaps.length > 0 && (
-                <div>
-                  <h2 className="text-xl sm:text-2xl font-bold mb-4">Popular Career Paths</h2>
-                  <div className="grid gap-4">
-                    {popularRoadmaps.map((roadmap) => (
-                      <Card
-                        key={roadmap.id}
-                        className="p-4 sm:p-6 hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer"
-                        onClick={() => {
-                          setGoal(roadmap.career_goal);
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }}
-                      >
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex-1">
-                            <h3 className="text-lg sm:text-xl font-semibold mb-2">{roadmap.title}</h3>
-                            <div className="flex flex-wrap gap-3 text-sm">
-                              <div className="flex items-center gap-1 text-muted-foreground">
-                                <Users className="w-4 h-4" />
-                                {roadmap.alumni_count} alumni followed
-                              </div>
-                              <div className="flex items-center gap-1 text-muted-foreground">
-                                <TrendingUp className="w-4 h-4" />
-                                {roadmap.success_rate}% success rate
-                              </div>
-                              <Badge variant="secondary">{roadmap.estimated_duration}</Badge>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2 mb-4">
-                          <p className="text-sm font-medium">Key Steps:</p>
-                          <div className="flex flex-wrap gap-2">
-                            {roadmap.key_steps.map((step, idx) => (
-                              <Badge key={idx} variant="outline">
-                                {idx + 1}. {step}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-
-                        {roadmap.top_companies.length > 0 && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Building2 className="w-4 h-4" />
-                            <span>Top companies: {roadmap.top_companies.join(', ')}</span>
-                          </div>
-                        )}
-
-                        <Button variant="outline" className="w-full mt-4 gap-2">
-                          Use This Template
-                          <ArrowRight className="w-4 h-4" />
-                        </Button>
-                      </Card>
-                    ))}
-                  </div>
+              {/* Popular Career Paths Section */}
+              <div className="pt-4">
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-xl sm:text-2xl font-bold">Popular Career Paths</h2>
+                  {isLoadingPaths && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading real-time data...
+                    </div>
+                  )}
                 </div>
-              )}
+                <div className="space-y-4">
+                  {popularPaths.map((path) => (
+                    <CareerPathCard
+                      key={path.id}
+                      careerPath={path}
+                      onUseTemplate={handleUseTemplate}
+                      onAlumniClick={handleAlumniPreviewClick}
+                    />
+                  ))}
+                </div>
+              </div>
             </>
           )}
 
@@ -764,7 +780,7 @@ const AIRoadmap = () => {
           {activeTab === 'saved' && (
             <div>
               {savedRoadmaps.length === 0 ? (
-                <Card className="p-8 text-center">
+                <Card className="p-8 text-center rounded-xl">
                   <BookOpen className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                   <h3 className="font-semibold text-lg mb-2">No saved roadmaps yet</h3>
                   <p className="text-muted-foreground mb-4">
@@ -775,10 +791,98 @@ const AIRoadmap = () => {
                     Generate Your First Roadmap
                   </Button>
                 </Card>
+              ) : viewingSavedRoadmap ? (
+                // Viewing saved roadmap details
+                <div className="space-y-6">
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => setViewingSavedRoadmap(null)}
+                    className="gap-2"
+                  >
+                    <ArrowRight className="w-4 h-4 rotate-180" />
+                    Back to My Roadmaps
+                  </Button>
+                  
+                  <Card className="p-5 sm:p-6 border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-purple-500/5 rounded-xl">
+                    <h2 className="text-xl sm:text-2xl font-bold mb-2">{viewingSavedRoadmap.title}</h2>
+                    <p className="text-muted-foreground mb-4">{viewingSavedRoadmap.summary}</p>
+                    <div className="flex flex-wrap gap-3 text-sm">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-4 h-4 text-primary" />
+                        <span>{viewingSavedRoadmap.estimated_duration}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Target className="w-4 h-4 text-primary" />
+                        <span>{viewingSavedRoadmap.milestones.length} milestones</span>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Milestones */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                      <Target className="w-5 h-5" />
+                      Career Milestones
+                    </h3>
+                    {viewingSavedRoadmap.milestones.map((milestone, index) => (
+                      <Card key={milestone.id} className="p-4 sm:p-5 rounded-xl">
+                        <div className="flex gap-3">
+                          <div className="mt-0.5 flex-shrink-0">
+                            <Circle className="w-6 h-6 text-muted-foreground" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge variant="outline" className="text-xs">
+                                Step {index + 1}
+                              </Badge>
+                              <Badge variant="secondary" className="text-xs">
+                                <Clock className="w-3 h-3 mr-1" />
+                                {milestone.duration}
+                              </Badge>
+                            </div>
+                            <h4 className="font-semibold">{milestone.title}</h4>
+                            <p className="text-sm text-muted-foreground mt-2">
+                              {milestone.description}
+                            </p>
+                            {milestone.skills.length > 0 && (
+                              <div className="mt-3">
+                                <p className="text-sm font-medium mb-2">Skills:</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {milestone.skills.map((skill, i) => (
+                                    <Badge key={i} variant="outline" className="text-xs">
+                                      {skill}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+
+                  {/* Skills Required */}
+                  {viewingSavedRoadmap.skills_required.length > 0 && (
+                    <Card className="p-5 sm:p-6 rounded-xl">
+                      <h3 className="font-semibold mb-3 flex items-center gap-2">
+                        <Award className="w-5 h-5" />
+                        Skills You'll Need
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {viewingSavedRoadmap.skills_required.map((skill, index) => (
+                          <Badge key={index} variant="secondary">
+                            {skill}
+                          </Badge>
+                        ))}
+                      </div>
+                    </Card>
+                  )}
+                </div>
               ) : (
                 <div className="grid gap-4">
                   {savedRoadmaps.map((roadmap) => (
-                    <Card key={roadmap.id} className="p-4 sm:p-6">
+                    <Card key={roadmap.id} className="p-5 sm:p-6 rounded-xl">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
                           <h3 className="font-semibold text-lg mb-1">{roadmap.title}</h3>
@@ -802,7 +906,11 @@ const AIRoadmap = () => {
                             </div>
                           </div>
                         </div>
-                        <Button variant="outline" className="gap-2">
+                        <Button 
+                          variant="outline" 
+                          className="gap-2"
+                          onClick={() => setViewingSavedRoadmap(roadmap)}
+                        >
                           View Details
                           <ArrowRight className="w-4 h-4" />
                         </Button>

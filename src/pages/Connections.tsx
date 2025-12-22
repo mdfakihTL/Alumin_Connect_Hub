@@ -305,11 +305,22 @@ const Connections = () => {
 
                 {/* Sent Requests */}
                 <TabsContent value="sent" className="space-y-4">
+                  <div className="flex justify-end mb-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => refreshConnections()}
+                      className="gap-2"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Refresh
+                    </Button>
+                  </div>
                   {sentRequests.filter(r => r.status === 'pending').length === 0 ? (
                     <EmptyState 
                       icon={Users}
                       title="No pending requests"
-                      description="You haven't sent any connection requests"
+                      description="You haven't sent any connection requests yet. Connect with alumni from the Roadmap page or user profiles."
                     />
                   ) : (
                     <div className="space-y-3">
@@ -321,13 +332,15 @@ const Connections = () => {
                                 <Users className="w-6 h-6 text-primary" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <h3 className="font-semibold text-base truncate">Request to {request.to}</h3>
+                                <h3 className="font-semibold text-base truncate">Connection Request Sent</h3>
                                 <p className="text-sm text-muted-foreground">
-                                  Sent {new Date(request.date).toLocaleDateString()}
+                                  Sent on {new Date(request.date).toLocaleDateString()}
                                 </p>
                               </div>
                             </div>
-                            <Badge variant="secondary">Pending</Badge>
+                            <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                              Awaiting Response
+                            </Badge>
                           </div>
                         </Card>
                       ))}

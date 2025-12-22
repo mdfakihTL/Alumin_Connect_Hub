@@ -127,53 +127,72 @@ async def list_users(
     """
     List all alumni users for the university.
     """
-    query = db.query(User).filter(
-        User.university_id == current_user.university_id,
-        User.role == UserRole.ALUMNI
-    )
-    
-    if search:
-        search_term = f"%{search}%"
-        query = query.filter(
-            (User.name.ilike(search_term)) |
-            (User.email.ilike(search_term))
+    try:
+        logger.info(f"Admin {current_user.email} fetching users for university {current_user.university_id}")
+        
+        # Build base query - filter by university if admin, show all if superadmin
+        if current_user.role == UserRole.SUPERADMIN:
+            query = db.query(User).filter(User.role == UserRole.ALUMNI)
+        else:
+            query = db.query(User).filter(
+                User.university_id == current_user.university_id,
+                User.role == UserRole.ALUMNI
+            )
+        
+        if search:
+            search_term = f"%{search}%"
+            query = query.filter(
+                (User.name.ilike(search_term)) |
+                (User.email.ilike(search_term))
+            )
+        
+        if graduation_year:
+            query = query.filter(User.graduation_year == graduation_year)
+        
+        if major:
+            query = query.filter(User.major.ilike(f"%{major}%"))
+        
+        if is_mentor is not None:
+            query = query.filter(User.is_mentor == is_mentor)
+        
+        total = query.count()
+        users = query.order_by(User.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+        
+        logger.info(f"Found {total} total users, returning page {page} with {len(users)} users")
+        
+        user_responses = []
+        for user in users:
+            profile = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
+            user_responses.append(AlumniUserResponse(
+                id=user.id,
+                name=user.name,
+                email=user.email,
+                avatar=user.avatar,
+                university_id=user.university_id,
+                graduation_year=user.graduation_year,
+                major=user.major,
+                role=user.role.value if user.role else "alumni",
+                is_mentor=user.is_mentor or False,
+                is_active=user.is_active if user.is_active is not None else True,
+                job_title=profile.job_title if profile else None,
+                company=profile.company if profile else None,
+                created_at=user.created_at
+            ))
+        
+        return AlumniUserListResponse(
+            users=user_responses,
+            total=total,
+            page=page,
+            page_size=page_size
         )
-    
-    if graduation_year:
-        query = query.filter(User.graduation_year == graduation_year)
-    
-    if major:
-        query = query.filter(User.major.ilike(f"%{major}%"))
-    
-    if is_mentor is not None:
-        query = query.filter(User.is_mentor == is_mentor)
-    
-    total = query.count()
-    users = query.offset((page - 1) * page_size).limit(page_size).all()
-    
-    user_responses = []
-    for user in users:
-        profile = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
-        user_responses.append(AlumniUserResponse(
-            id=user.id,
-            name=user.name,
-            email=user.email,
-            avatar=user.avatar,
-            graduation_year=user.graduation_year,
-            major=user.major,
-            is_mentor=user.is_mentor,
-            is_active=user.is_active,
-            job_title=profile.job_title if profile else None,
-            company=profile.company if profile else None,
-            created_at=user.created_at
-        ))
-    
-    return AlumniUserListResponse(
-        users=user_responses,
-        total=total,
-        page=page,
-        page_size=page_size
-    )
+    except Exception as e:
+        logger.error(f"Error listing users: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list users: {str(e)}"
+        )
 
 
 @router.post("/users", response_model=AlumniUserResponse, status_code=status.HTTP_201_CREATED)
@@ -251,10 +270,12 @@ async def create_user(
             name=user.name,
             email=user.email,
             avatar=user.avatar,
+            university_id=user.university_id,
             graduation_year=user.graduation_year,
             major=user.major,
-            is_mentor=user.is_mentor,
-            is_active=user.is_active,
+            role=user.role.value if user.role else "alumni",
+            is_mentor=user.is_mentor or False,
+            is_active=user.is_active if user.is_active is not None else True,
             job_title=profile.job_title if profile else None,
             company=profile.company if profile else None,
             created_at=user.created_at

@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import datetime
+from pydantic import BaseModel
+from typing import Optional
 import json
 
 from app.core.database import get_db
@@ -15,6 +17,20 @@ from app.schemas.user import (
     UserProfileResponse, Token, PasswordResetRequest, PasswordResetResponse,
     UniversityBrandingResponse, UniversityBrandingTheme, UniversityBrandingColors
 )
+
+
+class ForcePasswordChangeRequest(BaseModel):
+    """Request body for forced password change on first login"""
+    new_password: str
+    confirm_password: str
+
+
+class ForcePasswordChangeResponse(BaseModel):
+    """Response for forced password change"""
+    success: bool
+    message: str
+    access_token: Optional[str] = None
+
 
 router = APIRouter()
 
@@ -134,6 +150,7 @@ async def login(
     Response includes:
     - For Alumni/Admin: their university branding
     - For Super Admin: list of all universities to manage/switch between
+    - force_password_reset: true if user must change password on first login
     """
     user = db.query(User).filter(User.email == login_data.email).first()
     
@@ -148,6 +165,13 @@ async def login(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User account is deactivated"
+        )
+    
+    # Check if temporary password has expired
+    if user.temp_password_expires_at and datetime.utcnow() > user.temp_password_expires_at:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Your temporary password has expired. Please request a new password reset."
         )
     
     # Get university for non-superadmin users
@@ -176,6 +200,9 @@ async def login(
     # Generate token
     access_token = create_access_token(data={"sub": user.id})
     
+    # Check if force password reset is required
+    force_password_reset = user.force_password_reset or False
+    
     return Token(
         access_token=access_token,
         user=UserResponse(
@@ -192,7 +219,48 @@ async def login(
             created_at=user.created_at
         ),
         university=university_branding,
-        universities=universities_list  # Only populated for superadmin
+        universities=universities_list,  # Only populated for superadmin
+        force_password_reset=force_password_reset
+    )
+
+
+@router.post("/force-password-change", response_model=ForcePasswordChangeResponse)
+async def force_password_change(
+    password_data: ForcePasswordChangeRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Change password for users who are required to change password on first login.
+    This endpoint is used when force_password_reset is True.
+    """
+    if password_data.new_password != password_data.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Passwords do not match"
+        )
+    
+    if len(password_data.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters long"
+        )
+    
+    # Update password
+    current_user.hashed_password = get_password_hash(password_data.new_password)
+    current_user.force_password_reset = False
+    current_user.temp_password_expires_at = None
+    current_user.last_password_change = datetime.utcnow()
+    
+    db.commit()
+    
+    # Generate new token
+    access_token = create_access_token(data={"sub": current_user.id})
+    
+    return ForcePasswordChangeResponse(
+        success=True,
+        message="Password changed successfully",
+        access_token=access_token
     )
 
 

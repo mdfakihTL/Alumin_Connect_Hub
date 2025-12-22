@@ -70,8 +70,9 @@ class UniversityResponse(BaseModel):
 
 
 class AdminUserCreate(BaseModel):
+    """Create admin - password auto-generated if not provided"""
     email: EmailStr
-    password: str
+    password: Optional[str] = None  # Auto-generated if not provided
     name: str
     university_id: str
 
@@ -84,6 +85,8 @@ class AdminUserResponse(BaseModel):
     university_id: Optional[str] = None
     university_name: str = "Unassigned"
     is_active: bool = True
+    force_password_reset: bool = False
+    temp_password_expires_at: Optional[datetime] = None
     created_at: datetime
 
     class Config:
@@ -97,7 +100,15 @@ class AdminUserListResponse(BaseModel):
     page_size: int
 
 
+class PasswordResetRequestStatus(BaseModel):
+    """Status enum for password reset requests"""
+    pending: str = "pending"
+    approved: str = "approved"
+    rejected: str = "rejected"
+
+
 class AdminPasswordResetRequest(BaseModel):
+    """Legacy - simple password reset request"""
     id: str
     admin_name: str
     admin_email: str
@@ -105,8 +116,69 @@ class AdminPasswordResetRequest(BaseModel):
     requested_at: Optional[datetime] = None
 
 
+class AdminPasswordResetRequestFull(BaseModel):
+    """Full password reset request with status tracking"""
+    id: str
+    admin_id: str
+    admin_name: str
+    admin_email: str
+    university_id: Optional[str] = None
+    university_name: str
+    status: str  # pending, approved, rejected
+    requested_at: datetime
+    processed_at: Optional[datetime] = None
+    processed_by_name: Optional[str] = None
+    rejection_reason: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class AdminPasswordResetListResponse(BaseModel):
     requests: List[AdminPasswordResetRequest]
+    total: int
+    page: int
+    page_size: int
+
+
+class AdminPasswordResetListResponseFull(BaseModel):
+    """Full response with all statuses"""
+    requests: List[AdminPasswordResetRequestFull]
+    total: int
+    pending_count: int
+    approved_count: int
+    rejected_count: int
+    page: int
+    page_size: int
+
+
+class ApprovePasswordResetRequest(BaseModel):
+    """Approve a password reset - generates new temp password"""
+    pass  # No body needed, generates password automatically
+
+
+class RejectPasswordResetRequest(BaseModel):
+    """Reject a password reset with reason"""
+    reason: Optional[str] = None
+
+
+class AuditLogResponse(BaseModel):
+    """Audit log entry response"""
+    id: str
+    action: str
+    performed_by_name: str
+    target_user_name: Optional[str] = None
+    details: Optional[str] = None
+    ip_address: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AuditLogListResponse(BaseModel):
+    """Paginated audit logs"""
+    logs: List[AuditLogResponse]
     total: int
     page: int
     page_size: int

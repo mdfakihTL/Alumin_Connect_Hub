@@ -36,6 +36,11 @@ class User(Base):
     password_reset_requested = Column(Boolean, default=False)
     password_reset_requested_at = Column(DateTime, nullable=True)
     
+    # First login / force password reset
+    force_password_reset = Column(Boolean, default=False)  # If True, user must change password on login
+    temp_password_expires_at = Column(DateTime, nullable=True)  # When temporary password expires
+    last_password_change = Column(DateTime, nullable=True)  # Track password changes
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -52,12 +57,24 @@ class UserProfile(Base):
     
     bio = Column(Text, default=None)
     phone = Column(String, default=None)
-    location = Column(String, default=None)
+    location = Column(String, default=None)  # City, Country text
     job_title = Column(String, default=None)
     company = Column(String, default=None)
     linkedin = Column(String, default=None)
     website = Column(String, default=None)
     banner = Column(String, default=None)
+    
+    # Geolocation for heat map
+    latitude = Column(String, default=None)  # Stored as string for precision
+    longitude = Column(String, default=None)
+    city = Column(String, default=None)
+    country = Column(String, default=None)
+    country_code = Column(String(3), default=None)  # ISO 3166-1 alpha-2/3
+    geohash = Column(String(12), default=None, index=True)  # For efficient geo queries
+    
+    # Privacy settings
+    is_discoverable = Column(Boolean, default=True)  # Show on heat map
+    show_exact_location = Column(Boolean, default=False)  # Show exact vs city-level
     
     # Stats
     connections_count = Column(Integer, default=0)

@@ -287,15 +287,41 @@ async def update_progress(
 # ==============================================================================
 
 @router.get("/popular", response_model=List[PopularRoadmapResponse])
-async def get_popular_roadmap_templates():
+async def get_popular_roadmap_templates(
+    db: Session = Depends(get_db)
+):
     """
-    Get popular/trending career roadmap templates.
+    Get popular/trending career roadmap templates with REAL alumni data.
     
-    These are pre-defined templates based on common career paths
-    that alumni have successfully followed.
+    Returns templates enriched with:
+    - Actual alumni count from database
+    - Preview of alumni who work in these roles
+    
+    Note: This endpoint is public (no auth required) for browsing.
     """
-    templates = get_popular_roadmaps()
+    from app.services.career_roadmap_service import get_popular_roadmaps_with_alumni
+    
+    templates = get_popular_roadmaps_with_alumni(db, university_id=None)
     return [PopularRoadmapResponse(**t) for t in templates]
+
+
+@router.get("/popular-with-alumni")
+async def get_popular_with_alumni_details(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get popular roadmaps with full alumni details for each path.
+    
+    Returns real-time data including:
+    - Alumni who achieved this career goal
+    - Their current companies
+    - Success metrics
+    """
+    from app.services.career_roadmap_service import get_popular_roadmaps_with_alumni
+    
+    templates = get_popular_roadmaps_with_alumni(db, current_user.university_id, include_alumni_details=True)
+    return templates
 
 
 @router.get("/related-alumni", response_model=List[RelatedAlumni])

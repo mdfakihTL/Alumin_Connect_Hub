@@ -342,6 +342,234 @@ Alumni Portal Team
         
         return self.send_email(to_email, subject, body, html_body)
 
+    def send_admin_credentials_email(
+        self,
+        to_email: str,
+        admin_name: str,
+        password: str,
+        university_name: str,
+        expires_in_hours: int = 24,
+        login_url: Optional[str] = None
+    ) -> bool:
+        """Send admin credentials email with temporary password"""
+        login_url = login_url or "https://alumni-portal-hazel-tau.vercel.app/login"
+        
+        subject = f"Your Admin Account for {university_name} Alumni Portal"
+        
+        body = f"""
+Dear {admin_name},
+
+You have been assigned as an administrator for {university_name} Alumni Portal.
+
+Your login credentials:
+Email: {to_email}
+Temporary Password: {password}
+
+IMPORTANT: This temporary password expires in {expires_in_hours} hours. 
+You will be required to change your password on first login.
+
+Please log in at: {login_url}
+
+If you did not expect this email, please contact the Super Administrator immediately.
+
+Best regards,
+Alumni Portal Team
+"""
+        
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }}
+        .content {{ background-color: #f9f9f9; padding: 30px; border-radius: 0 0 12px 12px; }}
+        .credentials {{ background-color: #fff; padding: 20px; border-left: 4px solid #667eea; margin: 20px 0; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }}
+        .warning {{ background-color: #fef3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 8px; margin: 20px 0; }}
+        .warning-icon {{ font-size: 20px; margin-right: 10px; }}
+        .button {{ display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; }}
+        .footer {{ text-align: center; color: #666; font-size: 12px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }}
+        .badge {{ display: inline-block; background: #667eea; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; margin-bottom: 10px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <span class="badge">🔐 Admin Access</span>
+            <h1>Welcome, Administrator!</h1>
+            <p>{university_name} Alumni Portal</p>
+        </div>
+        <div class="content">
+            <p>Dear <strong>{admin_name}</strong>,</p>
+            <p>You have been assigned as an administrator for <strong>{university_name}</strong> Alumni Portal.</p>
+            
+            <div class="credentials">
+                <h3 style="margin-top: 0; color: #667eea;">📧 Your Login Credentials</h3>
+                <p><strong>Email:</strong> {to_email}</p>
+                <p><strong>Temporary Password:</strong> <code style="background: #e5e7eb; padding: 4px 12px; border-radius: 4px; font-size: 16px;">{password}</code></p>
+            </div>
+            
+            <div class="warning">
+                <span class="warning-icon">⚠️</span>
+                <strong>Important Security Notice:</strong>
+                <ul style="margin-bottom: 0;">
+                    <li>This temporary password expires in <strong>{expires_in_hours} hours</strong></li>
+                    <li>You will be required to change your password on first login</li>
+                    <li>Please keep your credentials secure</li>
+                </ul>
+            </div>
+            
+            <center>
+                <a href="{login_url}" class="button">🚀 Log In to Admin Panel</a>
+            </center>
+            
+            <p style="color: #666; font-size: 14px;">If you did not expect this email, please contact the Super Administrator immediately.</p>
+        </div>
+        <div class="footer">
+            <p>Best regards,<br><strong>Alumni Portal Team</strong></p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+        
+        return self.send_email(to_email, subject, body, html_body)
+
+    def send_password_reset_approved_email(
+        self,
+        to_email: str,
+        admin_name: str,
+        new_password: str,
+        expires_in_hours: int = 24,
+        login_url: Optional[str] = None
+    ) -> bool:
+        """Send email when password reset request is approved"""
+        login_url = login_url or "https://alumni-portal-hazel-tau.vercel.app/login"
+        
+        subject = "Your Password Reset Request Has Been Approved"
+        
+        body = f"""
+Dear {admin_name},
+
+Your password reset request has been approved by the Super Administrator.
+
+Your new login credentials:
+Email: {to_email}
+New Temporary Password: {new_password}
+
+This temporary password expires in {expires_in_hours} hours.
+You will be required to change your password on login.
+
+Please log in at: {login_url}
+
+Best regards,
+Alumni Portal Team
+"""
+        
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }}
+        .content {{ background-color: #f9f9f9; padding: 30px; border-radius: 0 0 12px 12px; }}
+        .credentials {{ background-color: #fff; padding: 20px; border-left: 4px solid #10b981; margin: 20px 0; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }}
+        .button {{ display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; }}
+        .footer {{ text-align: center; color: #666; font-size: 12px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✅ Password Reset Approved</h1>
+        </div>
+        <div class="content">
+            <p>Dear <strong>{admin_name}</strong>,</p>
+            <p>Great news! Your password reset request has been <strong>approved</strong> by the Super Administrator.</p>
+            
+            <div class="credentials">
+                <h3 style="margin-top: 0; color: #10b981;">🔑 Your New Credentials</h3>
+                <p><strong>Email:</strong> {to_email}</p>
+                <p><strong>New Temporary Password:</strong> <code style="background: #e5e7eb; padding: 4px 12px; border-radius: 4px; font-size: 16px;">{new_password}</code></p>
+                <p style="color: #666; font-size: 13px;">⏰ Expires in {expires_in_hours} hours</p>
+            </div>
+            
+            <center>
+                <a href="{login_url}" class="button">🚀 Log In Now</a>
+            </center>
+        </div>
+        <div class="footer">
+            <p>Best regards,<br><strong>Alumni Portal Team</strong></p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+        
+        return self.send_email(to_email, subject, body, html_body)
+
+    def send_password_reset_rejected_email(
+        self,
+        to_email: str,
+        admin_name: str,
+        reason: Optional[str] = None
+    ) -> bool:
+        """Send email when password reset request is rejected"""
+        
+        subject = "Your Password Reset Request Has Been Declined"
+        
+        reason_text = f"\n\nReason: {reason}" if reason else ""
+        
+        body = f"""
+Dear {admin_name},
+
+Your password reset request has been reviewed and declined by the Super Administrator.{reason_text}
+
+If you believe this is an error or need further assistance, please contact the Super Administrator directly.
+
+Best regards,
+Alumni Portal Team
+"""
+        
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }}
+        .content {{ background-color: #f9f9f9; padding: 30px; border-radius: 0 0 12px 12px; }}
+        .reason-box {{ background-color: #fef2f2; border: 1px solid #fecaca; padding: 15px; border-radius: 8px; margin: 20px 0; }}
+        .footer {{ text-align: center; color: #666; font-size: 12px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>❌ Password Reset Declined</h1>
+        </div>
+        <div class="content">
+            <p>Dear <strong>{admin_name}</strong>,</p>
+            <p>Your password reset request has been reviewed and <strong>declined</strong> by the Super Administrator.</p>
+            
+            {"<div class='reason-box'><strong>Reason:</strong><p style='margin-bottom: 0;'>" + reason + "</p></div>" if reason else ""}
+            
+            <p>If you believe this is an error or need further assistance, please contact the Super Administrator directly.</p>
+        </div>
+        <div class="footer">
+            <p>Best regards,<br><strong>Alumni Portal Team</strong></p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+        
+        return self.send_email(to_email, subject, body, html_body)
+
 
 # Create singleton instance
 email_service = EmailService()
