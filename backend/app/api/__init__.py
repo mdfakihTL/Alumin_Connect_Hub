@@ -4,7 +4,7 @@ from app.api.routes import (
     auth, users, posts, events, groups,
     connections, messages, documents, support,
     notifications, admin, superadmin, universities, lead_intelligence,
-    knowledge_base, ads
+    knowledge_base, ads, career_roadmap
 )
 
 # Create main API router
@@ -31,3 +31,6 @@ api_router.include_router(knowledge_base.knowledge_base_router, tags=["Knowledge
 
 # Ads routes (for alumni to view ads)
 api_router.include_router(ads.router, prefix="/ads", tags=["Ads"])
+
+# Career Roadmap routes (AI-powered career planning)
+api_router.include_router(career_roadmap.router, tags=["Career Roadmap"])
