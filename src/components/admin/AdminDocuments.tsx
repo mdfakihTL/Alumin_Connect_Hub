@@ -4,7 +4,7 @@ import { apiClient } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileText, CheckCircle, XCircle, Clock, Download, Eye, RefreshCw } from 'lucide-react';
+import { FileText, CheckCircle, XCircle, Clock, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface DocumentRequest {
@@ -300,19 +300,9 @@ const AdminDocuments = () => {
                         <XCircle className="w-4 h-4 mr-2" />
                         Reject
                       </Button>
-                      <Button size="sm" variant="outline">
-                        <Eye className="w-4 h-4 mr-2" />
-                        View Details
-                      </Button>
                     </div>
                   )}
 
-                  {(request.status === 'approved' || request.status === 'completed') && (
-                    <Button size="sm" variant="outline" className="mt-4">
-                      <Download className="w-4 h-4 mr-2" />
-                      Download Document
-                    </Button>
-                  )}
                 </div>
               </div>
             </Card>

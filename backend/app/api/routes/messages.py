@@ -154,17 +154,18 @@ async def create_or_get_conversation(
     message_responses = []
     for msg in messages:
         sender = db.query(User).filter(User.id == msg.sender_id).first()
+        # Send ISO timestamp for frontend to convert to local time
         message_responses.append(MessageResponse(
             id=msg.id,
             content=msg.content,
             sender=sender.name if sender else "Unknown",
-            timestamp=msg.created_at.strftime("%I:%M %p"),
+            timestamp=msg.created_at.isoformat() if msg.created_at else "",
             is_own=msg.sender_id == current_user.id
         ))
     
     time_str = None
     if conversation.last_message_time:
-        time_str = conversation.last_message_time.strftime("%I:%M %p")
+        time_str = conversation.last_message_time.isoformat()
     
     return ConversationMessagesResponse(
         conversation=ConversationResponse(
@@ -234,17 +235,18 @@ async def get_or_create_conversation(
     message_responses = []
     for msg in messages:
         sender = db.query(User).filter(User.id == msg.sender_id).first()
+        # Send ISO timestamp for frontend to convert to local time
         message_responses.append(MessageResponse(
             id=msg.id,
             content=msg.content,
             sender=sender.name if sender else "Unknown",
-            timestamp=msg.created_at.strftime("%I:%M %p"),
+            timestamp=msg.created_at.isoformat() if msg.created_at else "",
             is_own=msg.sender_id == current_user.id
         ))
     
     time_str = None
     if conversation.last_message_time:
-        time_str = conversation.last_message_time.strftime("%I:%M %p")
+        time_str = conversation.last_message_time.isoformat()
     
     return ConversationMessagesResponse(
         conversation=ConversationResponse(
@@ -287,27 +289,49 @@ async def send_message_old(
             detail="Conversation not found"
         )
     
-    # Create message
+    # Get current timestamp
+    now = datetime.utcnow()
+    
+    # Create message with current timestamp
     message = Message(
         conversation_id=conversation_id,
         sender_id=current_user.id,
-        content=message_data.content
+        content=message_data.content,
+        created_at=now
     )
     
     db.add(message)
     
     # Update conversation
     conversation.last_message = message_data.content
-    conversation.last_message_time = datetime.utcnow()
+    conversation.last_message_time = now
+    
+    # Find the recipient and send notification
+    recipient_id = conversation.user2_id if conversation.user1_id == current_user.id else conversation.user1_id
+    
+    from app.models.notification import Notification, NotificationType
+    message_preview = message_data.content[:50] + "..." if len(message_data.content) > 50 else message_data.content
+    
+    notification = Notification(
+        user_id=recipient_id,
+        type=NotificationType.MESSAGE,
+        title="New Message",
+        message=f"{current_user.name}: {message_preview}",
+        avatar=current_user.avatar,
+        action_url="/chat",
+        related_id=conversation_id
+    )
+    db.add(notification)
     
     db.commit()
     db.refresh(message)
     
+    # Send ISO timestamp - frontend will convert to local time
     return MessageResponse(
         id=message.id,
         content=message.content,
         sender=current_user.name,
-        timestamp=message.created_at.strftime("%I:%M %p"),
+        timestamp=now.isoformat(),
         is_own=True
     )
 
@@ -336,27 +360,54 @@ async def send_message(
             detail="Conversation not found"
         )
     
-    # Create message
+    # Get current timestamp
+    now = datetime.utcnow()
+    
+    # Create message with current timestamp
     message = Message(
         conversation_id=conversation_id,
         sender_id=current_user.id,
-        content=message_data.content
+        content=message_data.content,
+        created_at=now
     )
     
     db.add(message)
     
     # Update conversation
     conversation.last_message = message_data.content
-    conversation.last_message_time = datetime.utcnow()
+    conversation.last_message_time = now
+    
+    # Find the recipient (the other user in the conversation)
+    recipient_id = conversation.user2_id if conversation.user1_id == current_user.id else conversation.user1_id
+    
+    # Create notification for the recipient
+    from app.models.notification import Notification, NotificationType
+    
+    # Truncate message for notification preview
+    message_preview = message_data.content[:50] + "..." if len(message_data.content) > 50 else message_data.content
+    
+    notification = Notification(
+        user_id=recipient_id,
+        type=NotificationType.MESSAGE,
+        title="New Message",
+        message=f"{current_user.name}: {message_preview}",
+        avatar=current_user.avatar,
+        action_url="/chat",
+        related_id=conversation_id
+    )
+    db.add(notification)
     
     db.commit()
     db.refresh(message)
+    
+    # Send ISO timestamp - frontend will convert to local time
+    timestamp_str = now.isoformat()  # Add Z to indicate UTC
     
     return MessageResponse(
         id=message.id,
         content=message.content,
         sender=current_user.name,
-        timestamp=message.created_at.strftime("%I:%M %p"),
+        timestamp=timestamp_str,
         is_own=True
     )
 
@@ -415,7 +466,6 @@ async def send_message_to_user(
         )
     
     # Check if they are connected
-    from app.models.connection import Connection
     connection = db.query(Connection).filter(
         or_(
             and_(Connection.user_id == current_user.id, Connection.connected_user_id == user_id),
@@ -446,27 +496,47 @@ async def send_message_to_user(
         db.commit()
         db.refresh(conversation)
     
-    # Create message
+    # Get current timestamp
+    now = datetime.utcnow()
+    
+    # Create message with current timestamp
     message = Message(
         conversation_id=conversation.id,
         sender_id=current_user.id,
-        content=message_data.content
+        content=message_data.content,
+        created_at=now
     )
     
     db.add(message)
     
     # Update conversation
     conversation.last_message = message_data.content
-    conversation.last_message_time = datetime.utcnow()
+    conversation.last_message_time = now
+    
+    # Send notification to recipient
+    from app.models.notification import Notification, NotificationType
+    message_preview = message_data.content[:50] + "..." if len(message_data.content) > 50 else message_data.content
+    
+    notification = Notification(
+        user_id=user_id,
+        type=NotificationType.MESSAGE,
+        title="New Message",
+        message=f"{current_user.name}: {message_preview}",
+        avatar=current_user.avatar,
+        action_url="/chat",
+        related_id=conversation.id
+    )
+    db.add(notification)
     
     db.commit()
     db.refresh(message)
     
+    # Send ISO timestamp - frontend will convert to local time
     return MessageResponse(
         id=message.id,
         content=message.content,
         sender=current_user.name,
-        timestamp=message.created_at.strftime("%I:%M %p"),
+        timestamp=now.isoformat(),
         is_own=True
     )
 

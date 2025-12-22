@@ -20,7 +20,7 @@ import {
   EyeOff, 
   Loader2, 
   RefreshCw,
-  Video,
+  Upload,
   ExternalLink,
   BarChart3,
   LayoutGrid,
@@ -33,6 +33,7 @@ interface University {
   name: string;
   logo?: string;
   is_enabled: boolean;
+  alumni_count?: number;
 }
 
 const SuperAdminAds = () => {
@@ -42,15 +43,15 @@ const SuperAdminAds = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAd, setEditingAd] = useState<AdResponse | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    media_url: '',
-    media_type: 'image' as 'image' | 'video',
-    link_url: '',
+    image: '',
+    link: '',
     placement: 'feed' as 'left-sidebar' | 'right-sidebar' | 'feed',
     targetAll: true,
     selectedUniversities: [] as string[],
@@ -85,10 +86,10 @@ const SuperAdminAds = () => {
   };
 
   const handleCreate = async () => {
-    if (!formData.title || !formData.media_url) {
+    if (!formData.title || !formData.image) {
       toast({
         title: 'Missing information',
-        description: 'Please fill in title and media URL',
+        description: 'Please fill in title and image URL',
         variant: 'destructive',
       });
       return;
@@ -99,9 +100,8 @@ const SuperAdminAds = () => {
       const newAd = await apiClient.createAd({
         title: formData.title,
         description: formData.description || undefined,
-        media_url: formData.media_url,
-        media_type: formData.media_type,
-        link_url: formData.link_url || undefined,
+        image: formData.image,
+        link: formData.link || undefined,
         placement: formData.placement,
         target_universities: formData.targetAll ? ['all'] : formData.selectedUniversities,
       });
@@ -129,12 +129,11 @@ const SuperAdminAds = () => {
     setFormData({
       title: ad.title,
       description: ad.description || '',
-      media_url: ad.media_url,
-      media_type: ad.media_type,
-      link_url: ad.link_url || '',
+      image: ad.image || ad.media_url || '',
+      link: ad.link || ad.link_url || '',
       placement: ad.placement,
-      targetAll: ad.target_universities.includes('all'),
-      selectedUniversities: ad.target_universities.filter(id => id !== 'all'),
+      targetAll: (ad.target_universities || []).includes('all'),
+      selectedUniversities: (ad.target_universities || []).filter(id => id !== 'all'),
     });
     setIsModalOpen(true);
   };
@@ -147,9 +146,8 @@ const SuperAdminAds = () => {
       const updatedAd = await apiClient.updateAd(editingAd.id, {
         title: formData.title,
         description: formData.description || undefined,
-        media_url: formData.media_url,
-        media_type: formData.media_type,
-        link_url: formData.link_url || undefined,
+        image: formData.image,
+        link: formData.link || undefined,
         placement: formData.placement,
         target_universities: formData.targetAll ? ['all'] : formData.selectedUniversities,
       });
@@ -216,9 +214,8 @@ const SuperAdminAds = () => {
     setFormData({
       title: '',
       description: '',
-      media_url: '',
-      media_type: 'image',
-      link_url: '',
+      image: '',
+      link: '',
       placement: 'feed',
       targetAll: true,
       selectedUniversities: [],
@@ -570,25 +567,16 @@ const SuperAdminAds = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {ads.map(ad => (
             <Card key={ad.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-              {/* Media Preview */}
+              {/* Image Preview */}
               <div className="relative aspect-video bg-muted">
-                {ad.media_type === 'video' ? (
-                  <div className="w-full h-full flex items-center justify-center bg-black/10">
-                    <Video className="w-12 h-12 text-muted-foreground" />
-                    <span className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                      Video
-                    </span>
-                  </div>
-                ) : (
-                  <img 
-                    src={ad.media_url} 
-                    alt={ad.title} 
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.src = 'https://via.placeholder.com/400x225?text=Image+Not+Found';
-                    }}
-                  />
-                )}
+                <img 
+                  src={ad.image || ad.media_url} 
+                  alt={ad.title} 
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src = 'https://via.placeholder.com/400x225?text=Image+Not+Found';
+                  }}
+                />
                 <Badge 
                   variant={ad.is_active ? 'default' : 'secondary'} 
                   className="absolute top-2 right-2"
@@ -704,20 +692,14 @@ const SuperAdminAds = () => {
                     {/* Preview */}
                     <TableCell className="p-2">
                       <div className="w-16 h-10 rounded overflow-hidden bg-muted relative">
-                        {ad.media_type === 'video' ? (
-                          <div className="w-full h-full flex items-center justify-center bg-black/10">
-                            <Video className="w-4 h-4 text-muted-foreground" />
-                          </div>
-                        ) : (
-                          <img 
-                            src={ad.media_url} 
-                            alt={ad.title} 
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.currentTarget.src = 'https://via.placeholder.com/64x40?text=N/A';
-                            }}
-                          />
-                        )}
+                        <img 
+                          src={ad.image || ad.media_url} 
+                          alt={ad.title} 
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.src = 'https://via.placeholder.com/64x40?text=N/A';
+                          }}
+                        />
                       </div>
                     </TableCell>
                     
@@ -743,11 +725,7 @@ const SuperAdminAds = () => {
                     {/* Type */}
                     <TableCell>
                       <div className="flex items-center gap-1 text-xs">
-                        {ad.media_type === 'video' ? (
-                          <><Video className="w-3 h-3" /> Video</>
-                        ) : (
-                          <><Image className="w-3 h-3" /> Image</>
-                        )}
+                        <Image className="w-3 h-3" /> Image
                       </div>
                     </TableCell>
                     
@@ -880,57 +858,105 @@ const SuperAdminAds = () => {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="mediaType">Media Type *</Label>
-                <Select 
-                  value={formData.media_type} 
-                  onValueChange={(value: 'image' | 'video') => setFormData({ ...formData, media_type: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="image">Image</SelectItem>
-                    <SelectItem value="video">Video</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="placement">Placement *</Label>
-                <Select 
-                  value={formData.placement} 
-                  onValueChange={(value: 'left-sidebar' | 'right-sidebar' | 'feed') => setFormData({ ...formData, placement: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="left-sidebar">Left Sidebar</SelectItem>
-                    <SelectItem value="right-sidebar">Right Sidebar</SelectItem>
-                    <SelectItem value="feed">In Feed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="placement">Placement *</Label>
+              <Select 
+                value={formData.placement} 
+                onValueChange={(value: 'left-sidebar' | 'right-sidebar' | 'feed') => setFormData({ ...formData, placement: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="left-sidebar">Left Sidebar</SelectItem>
+                  <SelectItem value="right-sidebar">Right Sidebar</SelectItem>
+                  <SelectItem value="feed">In Feed</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="mediaUrl">
-                {formData.media_type === 'video' ? 'Video' : 'Image'} URL *
-              </Label>
-              <Input
-                id="mediaUrl"
-                placeholder={formData.media_type === 'video' 
-                  ? 'https://example.com/video.mp4' 
-                  : 'https://example.com/image.jpg'}
-                value={formData.media_url}
-                onChange={(e) => setFormData({ ...formData, media_url: e.target.value })}
-              />
-              {formData.media_url && formData.media_type === 'image' && (
+              <Label>Ad Image *</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="image"
+                  placeholder="https://example.com/image.jpg"
+                  value={formData.image}
+                  onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                  className="flex-1"
+                />
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      
+                      // Validate file size (10MB max)
+                      if (file.size > 10 * 1024 * 1024) {
+                        toast({
+                          title: 'File too large',
+                          description: 'Maximum file size is 10MB',
+                          variant: 'destructive',
+                        });
+                        return;
+                      }
+                      
+                      setIsUploading(true);
+                      try {
+                        const formDataUpload = new FormData();
+                        formDataUpload.append('file', file);
+                        
+                        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}/admin/ads/upload-image`, {
+                          method: 'POST',
+                          headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('auth_token') || localStorage.getItem('access_token')}`,
+                          },
+                          body: formDataUpload,
+                        });
+                        
+                        if (!response.ok) {
+                          throw new Error('Upload failed');
+                        }
+                        
+                        const data = await response.json();
+                        setFormData(prev => ({ ...prev, image: data.url }));
+                        toast({
+                          title: 'Image uploaded',
+                          description: 'Your image has been uploaded successfully',
+                        });
+                      } catch (error) {
+                        console.error('Upload error:', error);
+                        toast({
+                          title: 'Upload failed',
+                          description: 'Failed to upload image. Please try again.',
+                          variant: 'destructive',
+                        });
+                      } finally {
+                        setIsUploading(false);
+                      }
+                    }}
+                  />
+                  <Button type="button" variant="outline" disabled={isUploading} asChild>
+                    <span>
+                      {isUploading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Upload className="w-4 h-4" />
+                      )}
+                    </span>
+                  </Button>
+                </label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Enter image URL or click upload button to select an image (max 10MB)
+              </p>
+              {formData.image && (
                 <div className="mt-2 rounded-lg overflow-hidden border">
                   <img 
-                    src={formData.media_url} 
+                    src={formData.image} 
                     alt="Preview" 
                     className="w-full h-32 object-cover"
                     onError={(e) => {
@@ -942,12 +968,12 @@ const SuperAdminAds = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="linkUrl">Link URL (Learn More Target)</Label>
+              <Label htmlFor="link">Link URL (Learn More Target)</Label>
               <Input
-                id="linkUrl"
+                id="link"
                 placeholder="https://example.com/offer"
-                value={formData.link_url}
-                onChange={(e) => setFormData({ ...formData, link_url: e.target.value })}
+                value={formData.link}
+                onChange={(e) => setFormData({ ...formData, link: e.target.value })}
               />
               <p className="text-xs text-muted-foreground">
                 This URL opens when user clicks "Learn More"
@@ -973,21 +999,31 @@ const SuperAdminAds = () => {
 
               {!formData.targetAll && (
                 <div className="space-y-2 pl-6 max-h-48 overflow-y-auto border rounded-lg p-3">
-                  {universities.length === 0 ? (
+                  {isLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading universities...
+                    </div>
+                  ) : universities.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No universities found</p>
                   ) : (
                     universities.map(uni => (
-                      <div key={uni.id} className="flex items-center space-x-2">
+                      <div key={uni.id} className="flex items-center space-x-2 py-1">
                         <Checkbox
                           id={uni.id}
                           checked={formData.selectedUniversities.includes(uni.id)}
                           onCheckedChange={() => toggleUniversity(uni.id)}
                         />
-                        <label htmlFor={uni.id} className="text-sm cursor-pointer flex items-center gap-2">
+                        <label htmlFor={uni.id} className="text-sm cursor-pointer flex items-center gap-2 flex-1">
                           {uni.logo && (
-                            <img src={uni.logo} alt="" className="w-4 h-4 rounded" />
+                            <img src={uni.logo} alt="" className="w-5 h-5 rounded object-cover" />
                           )}
-                          {uni.name}
+                          <span className="flex-1">{uni.name}</span>
+                          {uni.alumni_count !== undefined && (
+                            <span className="text-xs text-muted-foreground">
+                              {uni.alumni_count} alumni
+                            </span>
+                          )}
                           {!uni.is_enabled && (
                             <Badge variant="secondary" className="text-xs">Disabled</Badge>
                           )}
@@ -1011,7 +1047,7 @@ const SuperAdminAds = () => {
             </Button>
             <Button 
               onClick={editingAd ? handleUpdate : handleCreate} 
-              disabled={isSaving || !formData.title || !formData.media_url || (!formData.targetAll && formData.selectedUniversities.length === 0)}
+              disabled={isSaving || !formData.title || !formData.image || (!formData.targetAll && formData.selectedUniversities.length === 0)}
             >
               {isSaving ? (
                 <>

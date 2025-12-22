@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -31,31 +32,6 @@ const SuperAdminPasswordResets = () => {
   const { toast } = useToast();
   const [requests, setRequests] = useState<AdminPasswordResetRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<AdminPasswordResetRequest | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [total, setTotal] = useState(0);
-
-  const loadRequests = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const response = await superadminApi.getAdminPasswordResets();
-      setRequests(response.requests || []);
-      setTotal(response.requests?.length || 0);
-    } catch (error) {
-      console.error('Failed to load admin password reset requests:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load password reset requests',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [toast]);
-  const [requests, setRequests] = useState<PasswordResetRequest[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Stats
@@ -72,10 +48,16 @@ const SuperAdminPasswordResets = () => {
   const pageSize = 20;
   
   // Modals
-  const [selectedRequest, setSelectedRequest] = useState<PasswordResetRequest | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<AdminPasswordResetRequest | null>(null);
   const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [isPasswordResultModalOpen, setIsPasswordResultModalOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [approvedPasswordInfo, setApprovedPasswordInfo] = useState<{
+    email: string;
+    password: string;
+  } | null>(null);
 
   const loadRequests = useCallback(async () => {
     setIsLoading(true);
@@ -115,20 +97,37 @@ const SuperAdminPasswordResets = () => {
     setIsApproveModalOpen(true);
   };
 
-  const handleReject = (request: PasswordResetRequest) => {
+  const handleReject = (request: AdminPasswordResetRequest) => {
     setSelectedRequest(request);
     setRejectionReason('');
     setIsRejectModalOpen(true);
   };
 
-  const handleConfirmApproval = async () => {
-    if (!selectedRequest || !newPassword) {
+  const generatePassword = () => {
+    const length = 12;
+    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+    let password = '';
+    for (let i = 0; i < length; i++) {
+      password += charset.charAt(Math.floor(Math.random() * charset.length));
+    }
+    setNewPassword(password);
+  };
+
   const confirmApproval = async () => {
     if (!selectedRequest) return;
     
     setIsSubmitting(true);
     try {
-      await apiClient.approveSuperAdminPasswordReset(selectedRequest.id);
+      const response = await apiClient.approveSuperAdminPasswordReset(selectedRequest.id);
+      
+      // Show the generated password in a modal
+      if (response.new_password) {
+        setApprovedPasswordInfo({
+          email: selectedRequest.admin_email,
+          password: response.new_password,
+        });
+        setIsPasswordResultModalOpen(true);
+      }
       
       toast({
         title: 'Request approved',
@@ -144,26 +143,6 @@ const SuperAdminPasswordResets = () => {
         description: error.message || 'Please try again',
         variant: 'destructive',
       });
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      await superadminApi.resetAdminPassword(selectedRequest.id, newPassword);
-      
-      toast({
-        title: 'Password Reset Successful',
-        description: `New password has been set for ${selectedRequest.admin_email}`,
-      });
-
-      setIsModalOpen(false);
-      setSelectedRequest(null);
-      setNewPassword('');
-      
-      // Reload the list
-      loadRequests();
-    } catch (error) {
-      console.error('Failed to reset admin password:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -177,8 +156,6 @@ const SuperAdminPasswordResets = () => {
       await apiClient.rejectSuperAdminPasswordReset(selectedRequest.id, rejectionReason || undefined);
       
       toast({
-        title: 'Error',
-        description: 'Failed to reset password',
         title: 'Request rejected',
         description: 'The admin has been notified via email',
         variant: 'destructive',
@@ -199,7 +176,7 @@ const SuperAdminPasswordResets = () => {
     }
   };
 
-  const getStatusBadge = (status: PasswordResetRequest['status']) => {
+  const getStatusBadge = (status: AdminPasswordResetRequest['status']) => {
     switch (status) {
       case 'pending':
         return (
@@ -248,25 +225,9 @@ const SuperAdminPasswordResets = () => {
             <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button variant="outline" size="sm" onClick={() => loadRequests()} disabled={isLoading}>
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </Button>
         </div>
 
         {/* Statistics */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="p-3 rounded-lg border bg-primary/10 border-primary">
-            <p className="text-xl font-bold">{total}</p>
-            <p className="text-xs text-muted-foreground">Pending Requests</p>
-          </div>
-          <div className="p-3 rounded-lg border bg-yellow-500/10 border-yellow-500/30">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-yellow-600" />
-              <p className="text-xs text-muted-foreground">
-                {total === 0 ? 'All caught up!' : `${total} admin${total > 1 ? 's' : ''} waiting`}
-              </p>
-            </div>
-          </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <button
             onClick={() => { setFilter('all'); setCurrentPage(1); }}
@@ -324,7 +285,6 @@ const SuperAdminPasswordResets = () => {
 
       {/* Requests List */}
       <div className="space-y-3">
-        {requests.length === 0 ? (
         {!isLoading && requests.length === 0 ? (
           <Card className="p-10 text-center border-dashed border-2 bg-gradient-to-br from-muted/30 via-background to-muted/30">
             <div className="flex flex-col items-center justify-center">
@@ -340,8 +300,6 @@ const SuperAdminPasswordResets = () => {
               </div>
               <h3 className="text-lg font-semibold mb-2">No Pending Requests</h3>
               <p className="text-muted-foreground max-w-md text-sm">
-                Password reset requests from university administrators will appear here for your review.
-              </p>
                 {filter === 'all' 
                   ? 'All password reset requests from admins will appear here for your review.'
                   : filter === 'pending'
@@ -363,8 +321,6 @@ const SuperAdminPasswordResets = () => {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Shield className="w-5 h-5 text-primary" />
                     <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
                       <Shield className="w-6 h-6 text-primary" />
                     </div>
@@ -529,28 +485,6 @@ const SuperAdminPasswordResets = () => {
                 </div>
               </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="newPassword">New Password</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="newPassword"
-                  type="text"
-                  placeholder="Enter new password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="flex-1"
-                />
-                <Button type="button" variant="outline" onClick={generatePassword}>
-                  Generate
-                </Button>
-              </div>
-            </div>
-
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
-              <div className="flex items-start gap-2">
-                <Mail className="w-4 h-4 text-yellow-500 mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-yellow-600 dark:text-yellow-400">
-                  The new password will be sent to the administrator's email address.
               <div className="space-y-2">
                 <Label htmlFor="reason">Rejection Reason (optional)</Label>
                 <Textarea
@@ -590,6 +524,69 @@ const SuperAdminPasswordResets = () => {
                 <XCircle className="w-4 h-4" />
               )}
               Reject Request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Password Result Modal */}
+      <Dialog open={isPasswordResultModalOpen} onOpenChange={setIsPasswordResultModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-500" />
+              Password Reset Approved
+            </DialogTitle>
+            <DialogDescription>
+              The new password has been generated and sent to the admin's email.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {approvedPasswordInfo && (
+            <div className="space-y-4 py-4">
+              <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4 space-y-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Admin Email</Label>
+                  <p className="font-medium">{approvedPasswordInfo.email}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">New Password</Label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <code className="bg-white dark:bg-gray-800 px-3 py-2 rounded border text-lg font-mono flex-1">
+                      {approvedPasswordInfo.password}
+                    </code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(approvedPasswordInfo.password);
+                        toast({
+                          title: 'Copied!',
+                          description: 'Password copied to clipboard',
+                        });
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 text-sm">
+                <p className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                  <span>This password expires in 24 hours. The admin must change it on first login.</span>
+                </p>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button onClick={() => {
+              setIsPasswordResultModalOpen(false);
+              setApprovedPasswordInfo(null);
+            }}>
+              Done
             </Button>
           </DialogFooter>
         </DialogContent>

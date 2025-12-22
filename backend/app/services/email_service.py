@@ -192,7 +192,11 @@ class EmailService:
         login_url: Optional[str] = None
     ) -> bool:
         """Send welcome email to newly created user"""
+        import html as html_lib
         login_url = login_url or "https://alumni-portal-hazel-tau.vercel.app/login"
+        
+        # HTML escape the password for safe display
+        password_escaped = html_lib.escape(password)
         
         subject = f"Welcome to {university_name or 'Alumni Portal'}!"
         
@@ -241,7 +245,7 @@ Alumni Portal Team
             
             <div class="credentials">
                 <p><strong>📧 Email:</strong> {to_email}</p>
-                <p><strong>🔑 Password:</strong> <code style="background: #e5e7eb; padding: 2px 8px; border-radius: 4px;">{password}</code></p>
+                <p><strong>🔑 Password:</strong> <code style="background: #e5e7eb; padding: 2px 8px; border-radius: 4px;">{password_escaped}</code></p>
             </div>
             
             <center>
@@ -269,7 +273,11 @@ Alumni Portal Team
         login_url: Optional[str] = None
     ) -> bool:
         """Send password reset notification email"""
+        import html
         login_url = login_url or "https://alumni-portal-hazel-tau.vercel.app/login"
+        
+        # HTML escape the password for safe display
+        new_password_escaped = html.escape(new_password)
         
         subject = "Your Password Has Been Reset"
         
@@ -319,7 +327,7 @@ Alumni Portal Team
             
             <div class="credentials">
                 <p><strong>📧 Email:</strong> {to_email}</p>
-                <p><strong>🔑 New Password:</strong> <code style="background: #e5e7eb; padding: 2px 8px; border-radius: 4px;">{new_password}</code></p>
+                <p><strong>🔑 New Password:</strong> <code style="background: #e5e7eb; padding: 2px 8px; border-radius: 4px;">{new_password_escaped}</code></p>
             </div>
             
             <center>
@@ -352,7 +360,11 @@ Alumni Portal Team
         login_url: Optional[str] = None
     ) -> bool:
         """Send admin credentials email with temporary password"""
+        import html
         login_url = login_url or "https://alumni-portal-hazel-tau.vercel.app/login"
+        
+        # HTML escape the password for safe display in HTML email
+        password_escaped = html.escape(password)
         
         subject = f"Your Admin Account for {university_name} Alumni Portal"
         
@@ -407,7 +419,7 @@ Alumni Portal Team
             <div class="credentials">
                 <h3 style="margin-top: 0; color: #667eea;">📧 Your Login Credentials</h3>
                 <p><strong>Email:</strong> {to_email}</p>
-                <p><strong>Temporary Password:</strong> <code style="background: #e5e7eb; padding: 4px 12px; border-radius: 4px; font-size: 16px;">{password}</code></p>
+                <p><strong>Temporary Password:</strong> <code style="background: #e5e7eb; padding: 4px 12px; border-radius: 4px; font-size: 16px;">{password_escaped}</code></p>
             </div>
             
             <div class="warning">
@@ -445,7 +457,11 @@ Alumni Portal Team
         login_url: Optional[str] = None
     ) -> bool:
         """Send email when password reset request is approved"""
+        import html
         login_url = login_url or "https://alumni-portal-hazel-tau.vercel.app/login"
+        
+        # HTML escape the password for safe display
+        new_password_escaped = html.escape(new_password)
         
         subject = "Your Password Reset Request Has Been Approved"
         
@@ -493,7 +509,7 @@ Alumni Portal Team
             <div class="credentials">
                 <h3 style="margin-top: 0; color: #10b981;">🔑 Your New Credentials</h3>
                 <p><strong>Email:</strong> {to_email}</p>
-                <p><strong>New Temporary Password:</strong> <code style="background: #e5e7eb; padding: 4px 12px; border-radius: 4px; font-size: 16px;">{new_password}</code></p>
+                <p><strong>New Temporary Password:</strong> <code style="background: #e5e7eb; padding: 4px 12px; border-radius: 4px; font-size: 16px;">{new_password_escaped}</code></p>
                 <p style="color: #666; font-size: 13px;">⏰ Expires in {expires_in_hours} hours</p>
             </div>
             

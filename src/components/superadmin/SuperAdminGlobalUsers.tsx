@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Search, Users, Shield, GraduationCap, Plus, Trash2, Crown, Power, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Users, Shield, GraduationCap, Plus, Trash2, Crown, Power, Loader2, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { superadminApi, GlobalUserResponse } from '@/api/superadmin';
 
@@ -45,12 +45,18 @@ const SuperAdminGlobalUsers = () => {
     isMentor: false,
   });
 
-  useEffect(() => {
-    loadUsers();
-    loadUniversities();
-  }, [currentPage, filter, searchQuery]);
+  // Debounced search state
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  const loadUniversities = async () => {
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const loadUniversities = useCallback(async () => {
     try {
       const response = await superadminApi.getUniversities();
       // Handle both array response and object response with universities property
@@ -59,27 +65,45 @@ const SuperAdminGlobalUsers = () => {
     } catch (error) {
       console.error('Failed to load universities:', error);
     }
-  };
+  }, []);
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Map filter to API role parameter
-      let roleParam: string | undefined;
-      let isMentorParam: boolean | undefined;
-      
-      if (filter === 'superadmins') roleParam = 'SUPERADMIN';
-      else if (filter === 'admins') roleParam = 'ADMIN';
-      else if (filter === 'alumni') roleParam = 'ALUMNI';
-      else if (filter === 'mentors') isMentorParam = true;
-
-      const response = await superadminApi.getAllUsers({
+      // Build params object - only include defined values
+      const params: {
+        page: number;
+        page_size: number;
+        search?: string;
+        role?: string;
+        is_mentor?: boolean;
+      } = {
         page: currentPage,
         page_size: pageSize,
-        search: searchQuery || undefined,
-        role: roleParam,
-        is_mentor: isMentorParam,
-      });
+      };
+
+      // Add search if provided
+      if (debouncedSearch && debouncedSearch.trim()) {
+        params.search = debouncedSearch.trim();
+      }
+
+      // Add role filter based on selected tab
+      if (filter === 'superadmins') {
+        params.role = 'SUPERADMIN';
+      } else if (filter === 'admins') {
+        params.role = 'ADMIN';
+      } else if (filter === 'alumni') {
+        params.role = 'ALUMNI';
+      } else if (filter === 'mentors') {
+        params.is_mentor = true;
+      }
+      // 'all' filter doesn't add any role/mentor params
+
+      console.log('Loading users with params:', params, 'filter:', filter);
+
+      const response = await superadminApi.getAllUsers(params);
+
+      console.log('Received users:', response.users?.length, 'total:', response.total);
 
       setUsers(response.users || []);
       setTotalUsers(response.total || 0);
@@ -94,7 +118,17 @@ const SuperAdminGlobalUsers = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentPage, filter, debouncedSearch, pageSize, toast]);
+
+  // Load users when filters change
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
+  // Load universities on mount
+  useEffect(() => {
+    loadUniversities();
+  }, [loadUniversities]);
 
   const handleCreate = async () => {
     if (!formData.name || !formData.email || !formData.password) {
@@ -257,10 +291,15 @@ const SuperAdminGlobalUsers = () => {
               {roleCounts.mentor} Mentors
             </Badge>
           </div>
-          <Button onClick={() => setIsModalOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add User
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={loadUsers} disabled={isLoading}>
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button onClick={() => setIsModalOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add User
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-3">
@@ -268,7 +307,7 @@ const SuperAdminGlobalUsers = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="Search by name, email, or university..."
+              placeholder="Search by name or email..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -278,20 +317,48 @@ const SuperAdminGlobalUsers = () => {
             />
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant={filter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => { setFilter('all'); setCurrentPage(1); }}>
-              All
+            <Button 
+              variant={filter === 'all' ? 'default' : 'outline'} 
+              size="sm" 
+              onClick={() => { setFilter('all'); setCurrentPage(1); }}
+            >
+              All ({roleCounts.superadmin + roleCounts.admin + roleCounts.alumni})
             </Button>
-            <Button variant={filter === 'superadmins' ? 'default' : 'outline'} size="sm" onClick={() => { setFilter('superadmins'); setCurrentPage(1); }}>
-              Super
+            <Button 
+              variant={filter === 'superadmins' ? 'default' : 'outline'} 
+              size="sm" 
+              onClick={() => { setFilter('superadmins'); setCurrentPage(1); }}
+              className={filter === 'superadmins' ? 'bg-purple-600 hover:bg-purple-700' : ''}
+            >
+              <Crown className="w-3 h-3 mr-1" />
+              Super ({roleCounts.superadmin})
             </Button>
-            <Button variant={filter === 'admins' ? 'default' : 'outline'} size="sm" onClick={() => { setFilter('admins'); setCurrentPage(1); }}>
-              Admins
+            <Button 
+              variant={filter === 'admins' ? 'default' : 'outline'} 
+              size="sm" 
+              onClick={() => { setFilter('admins'); setCurrentPage(1); }}
+              className={filter === 'admins' ? 'bg-blue-600 hover:bg-blue-700' : ''}
+            >
+              <Shield className="w-3 h-3 mr-1" />
+              Admins ({roleCounts.admin})
             </Button>
-            <Button variant={filter === 'alumni' ? 'default' : 'outline'} size="sm" onClick={() => { setFilter('alumni'); setCurrentPage(1); }}>
-              Alumni
+            <Button 
+              variant={filter === 'alumni' ? 'default' : 'outline'} 
+              size="sm" 
+              onClick={() => { setFilter('alumni'); setCurrentPage(1); }}
+              className={filter === 'alumni' ? 'bg-green-600 hover:bg-green-700' : ''}
+            >
+              <GraduationCap className="w-3 h-3 mr-1" />
+              Alumni ({roleCounts.alumni})
             </Button>
-            <Button variant={filter === 'mentors' ? 'default' : 'outline'} size="sm" onClick={() => { setFilter('mentors'); setCurrentPage(1); }}>
-              Mentors
+            <Button 
+              variant={filter === 'mentors' ? 'default' : 'outline'} 
+              size="sm" 
+              onClick={() => { setFilter('mentors'); setCurrentPage(1); }}
+              className={filter === 'mentors' ? 'bg-orange-600 hover:bg-orange-700' : ''}
+            >
+              <Users className="w-3 h-3 mr-1" />
+              Mentors ({roleCounts.mentor})
             </Button>
           </div>
         </div>

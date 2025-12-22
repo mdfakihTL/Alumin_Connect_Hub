@@ -1,68 +1,82 @@
 import { apiClient } from './client';
-import type {
-  MentorResponse,
-  MessageResponse,
-} from './types';
 
-export interface MentorFilters {
-  expertise?: string;
-  availability?: string;
-  search?: string;
-  page?: number;
-  page_size?: number;
+export interface MentorProfile {
+  id: string;
+  user_id: string;
+  name: string;
+  avatar?: string;
+  title?: string;
+  company?: string;
+  university?: string;
+  graduation_year?: string;
+  location?: string;
+  expertise: string[];
+  bio?: string;
+  availability: 'High' | 'Medium' | 'Low';
+  match_score: number;
+  mentees_count: number;
+  years_experience: number;
+}
+
+export interface MentorListResponse {
+  mentors: MentorProfile[];
+  total: number;
+}
+
+export interface MentorMatchResponse {
+  id: string;
+  mentor_id: string;
+  mentor_user_id: string;  // User ID for messaging
+  mentor_name: string;
+  mentor_avatar?: string;
+  mentor_title?: string;
+  mentor_company?: string;
+  status: string;
+  matched_at: string;
+}
+
+export interface MyMatchesResponse {
+  matches: MentorMatchResponse[];
+  total: number;
 }
 
 export const mentorsApi = {
-  // Get available mentors
-  getMentors: async (params?: MentorFilters): Promise<{ mentors: MentorResponse[]; total: number }> => {
-    return apiClient.get('/mentors', params);
+  /**
+   * Get available mentors for the current user
+   */
+  getAvailableMentors: async (params?: {
+    page?: number;
+    page_size?: number;
+    expertise?: string;
+  }): Promise<MentorListResponse> => {
+    return apiClient.get<MentorListResponse>('/mentors/available', params);
   },
 
-  // Get mentor by ID
-  getMentor: async (mentorId: string): Promise<MentorResponse> => {
-    return apiClient.get<MentorResponse>(`/mentors/${mentorId}`);
+  /**
+   * Create a mentor match (swipe right)
+   */
+  createMatch: async (mentorId: string): Promise<{ message: string; success: boolean; match_id: string }> => {
+    return apiClient.post('/mentors/match', { mentor_id: mentorId });
   },
 
-  // Get my mentor profile (if I'm a mentor)
-  getMyMentorProfile: async (): Promise<MentorResponse> => {
-    return apiClient.get<MentorResponse>('/mentors/me');
+  /**
+   * Get user's matched mentors
+   */
+  getMyMatches: async (): Promise<MyMatchesResponse> => {
+    return apiClient.get<MyMatchesResponse>('/mentors/my-matches');
   },
 
-  // Update my mentor profile
-  updateMyMentorProfile: async (data: Partial<{
-    title: string;
-    company: string;
-    location: string;
-    bio: string;
-    expertise: string[];
-    availability: string;
-  }>): Promise<MentorResponse> => {
-    return apiClient.put<MentorResponse>('/mentors/me', data);
+  /**
+   * Remove a mentor match
+   */
+  removeMatch: async (matchId: string): Promise<{ message: string; success: boolean }> => {
+    return apiClient.delete(`/mentors/match/${matchId}`);
   },
 
-  // Request mentorship
-  requestMentorship: async (mentorId: string, message?: string): Promise<MessageResponse> => {
-    return apiClient.post<MessageResponse>(`/mentors/${mentorId}/request`, { message });
-  },
-
-  // Get my mentorship requests (as mentee)
-  getMyMentorshipRequests: async (): Promise<{ requests: any[] }> => {
-    return apiClient.get('/mentors/my-requests');
-  },
-
-  // Get mentorship requests to me (as mentor)
-  getIncomingRequests: async (): Promise<{ requests: any[] }> => {
-    return apiClient.get('/mentors/incoming-requests');
-  },
-
-  // Accept mentorship request
-  acceptMentorshipRequest: async (requestId: string): Promise<MessageResponse> => {
-    return apiClient.put<MessageResponse>(`/mentors/requests/${requestId}/accept`);
-  },
-
-  // Reject mentorship request
-  rejectMentorshipRequest: async (requestId: string): Promise<MessageResponse> => {
-    return apiClient.put<MessageResponse>(`/mentors/requests/${requestId}/reject`);
+  /**
+   * Get mentor details
+   */
+  getMentorDetails: async (mentorId: string): Promise<MentorProfile> => {
+    return apiClient.get<MentorProfile>(`/mentors/${mentorId}`);
   },
 };
-

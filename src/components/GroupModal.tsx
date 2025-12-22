@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Group } from '@/contexts/GroupsContext';
 
 interface GroupModalProps {
@@ -19,19 +18,16 @@ const GroupModal = ({ open, onClose, onSubmit, editGroup }: GroupModalProps) => 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
-  const [isPrivate, setIsPrivate] = useState(false);
 
   useEffect(() => {
     if (editGroup) {
       setName(editGroup.name);
       setDescription(editGroup.description);
       setCategory(editGroup.category);
-      setIsPrivate(editGroup.isPrivate);
     } else {
       setName('');
       setDescription('');
       setCategory('');
-      setIsPrivate(false);
     }
   }, [editGroup, open]);
 
@@ -44,7 +40,7 @@ const GroupModal = ({ open, onClose, onSubmit, editGroup }: GroupModalProps) => 
       name: name.trim(),
       description: description.trim(),
       category,
-      isPrivate,
+      isPrivate: false, // Always public
       avatar: editGroup?.avatar,
     });
     
@@ -55,7 +51,6 @@ const GroupModal = ({ open, onClose, onSubmit, editGroup }: GroupModalProps) => 
     setName('');
     setDescription('');
     setCategory('');
-    setIsPrivate(false);
     onClose();
   };
 
@@ -109,20 +104,6 @@ const GroupModal = ({ open, onClose, onSubmit, editGroup }: GroupModalProps) => 
                 <SelectItem value="Professional">Professional</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-            <div className="space-y-0.5">
-              <Label htmlFor="private-group" className="text-base font-medium">Private Group</Label>
-              <p className="text-sm text-muted-foreground">
-                Only members can see group content
-              </p>
-            </div>
-            <Switch
-              id="private-group"
-              checked={isPrivate}
-              onCheckedChange={setIsPrivate}
-            />
           </div>
 
           <div className="flex gap-3 pt-3">

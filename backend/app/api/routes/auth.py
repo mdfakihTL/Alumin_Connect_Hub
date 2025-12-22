@@ -12,6 +12,7 @@ from app.core.security import (
 )
 from app.models.user import User, UserRole, UserProfile
 from app.models.university import University
+from app.models.admin_management import AdminPasswordResetRequest as AdminPasswordResetRequestModel, PasswordResetStatus
 from app.schemas.user import (
     UserCreate, UserLogin, UserResponse, UserWithProfileResponse,
     UserProfileResponse, Token, PasswordResetRequest, PasswordResetResponse,
@@ -359,9 +360,27 @@ async def request_password_reset(
             success=True
         )
     
-    # Mark password reset as requested
+    # Mark password reset as requested on User model (legacy)
     user.password_reset_requested = True
     user.password_reset_requested_at = datetime.utcnow()
+    
+    # For Admins, also create a record in AdminPasswordResetRequest table
+    # This is what SuperAdmin dashboard queries
+    if user.role == UserRole.ADMIN:
+        # Check if there's already a pending request
+        existing_request = db.query(AdminPasswordResetRequestModel).filter(
+            AdminPasswordResetRequestModel.admin_id == user.id,
+            AdminPasswordResetRequestModel.status == PasswordResetStatus.PENDING
+        ).first()
+        
+        if not existing_request:
+            # Create new password reset request record
+            reset_request = AdminPasswordResetRequestModel(
+                admin_id=user.id,
+                status=PasswordResetStatus.PENDING
+            )
+            db.add(reset_request)
+    
     db.commit()
     
     # Different messages based on role

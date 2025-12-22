@@ -76,7 +76,9 @@ class ApiClient {
         }
       });
     }
-    return url.toString();
+    const finalUrl = url.toString();
+    console.log('[API Client] Request URL:', finalUrl, 'Params:', params);
+    return finalUrl;
   }
 
   async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
@@ -125,10 +127,11 @@ class ApiClient {
     });
   }
 
-  async put<T>(endpoint: string, data?: unknown): Promise<T> {
+  async put<T>(endpoint: string, data?: unknown, params?: Record<string, string | number | boolean | undefined>): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'PUT',
       body: data ? JSON.stringify(data) : undefined,
+      params,
     });
   }
 

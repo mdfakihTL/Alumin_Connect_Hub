@@ -31,8 +31,8 @@ class Fundraiser(Base):
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
     
-    # Status: draft, active, expired
-    status = Column(SQLEnum(FundraiserStatus), default=FundraiserStatus.DRAFT)
+    # Status: draft, active, expired - using String to avoid enum name/value conflicts
+    status = Column(String(20), default="draft")
     
     # Legacy fields (kept for backward compatibility, no longer used)
     goal_amount = Column(Integer, default=0)
@@ -48,7 +48,7 @@ class Fundraiser(Base):
 
     def get_effective_status(self) -> str:
         """Get the effective status based on dates and manual status."""
-        if self.status == FundraiserStatus.DRAFT:
+        if self.status == "draft":
             return "draft"
         
         today = date.today()
@@ -56,13 +56,13 @@ class Fundraiser(Base):
             return "scheduled"
         elif self.end_date and today > self.end_date:
             return "expired"
-        elif self.status == FundraiserStatus.ACTIVE:
+        elif self.status == "active":
             return "active"
-        return self.status.value
+        return self.status or "draft"
 
     def is_currently_active(self) -> bool:
         """Check if fundraiser is currently active and within date range."""
-        if self.status != FundraiserStatus.ACTIVE:
+        if self.status != "active":
             return False
         today = date.today()
         if self.start_date and today < self.start_date:

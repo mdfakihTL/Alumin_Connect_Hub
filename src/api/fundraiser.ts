@@ -148,6 +148,36 @@ export const fundraiserApi = {
     return apiClient.get<FundraiserAnalytics>(`/fundraisers/admin/${id}/analytics`);
   },
 
+  /**
+   * Upload an image for a fundraiser
+   * Returns the S3 URL of the uploaded image
+   */
+  uploadImage: async (file: File): Promise<{ url: string; filename: string; message: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    // Get token - check both possible keys
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+    if (!token) {
+      throw new Error('Not authenticated. Please log in again.');
+    }
+    
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'}/fundraisers/admin/upload-image`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Upload failed' }));
+      throw new Error(error.detail || 'Failed to upload image');
+    }
+    
+    return response.json();
+  },
+
   // ============ ALUMNI ENDPOINTS ============
 
   /**

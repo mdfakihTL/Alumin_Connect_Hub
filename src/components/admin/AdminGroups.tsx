@@ -4,17 +4,18 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { UsersRound, Edit, Trash2, Plus, Users, Search, RefreshCw, Lock, Eye, MessageSquare } from 'lucide-react';
+import { UsersRound, Edit, Trash2, Plus, Users, Search, RefreshCw, MessageSquare, UserPlus, UserMinus, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import GroupModal from '@/components/GroupModal';
 import { groupsApi } from '@/api/groups';
+import { adminApi } from '@/api/admin';
 import type { GroupResponse } from '@/api/types';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 
 interface Group {
@@ -45,6 +46,21 @@ const transformGroup = (apiGroup: GroupResponse): Group => ({
   unreadCount: apiGroup.unread_count,
 });
 
+interface GroupMember {
+  id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+  joined_at?: string;
+}
+
+interface AlumniUser {
+  id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+}
+
 const AdminGroups = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -55,6 +71,15 @@ const AdminGroups = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  
+  // Member management states
+  const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
+  const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
+  const [availableAlumni, setAvailableAlumni] = useState<AlumniUser[]>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [isRemovingMember, setIsRemovingMember] = useState<string | null>(null);
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
 
   const loadGroups = useCallback(async () => {
     if (!user?.universityId) return;
@@ -111,6 +136,119 @@ const AdminGroups = () => {
     setSelectedGroup(group);
     setIsViewModalOpen(true);
   };
+
+  // Open members management modal
+  const handleManageMembers = async (group: Group) => {
+    setSelectedGroup(group);
+    setIsMembersModalOpen(true);
+    setIsLoadingMembers(true);
+    setMemberSearchQuery('');
+    
+    try {
+      // Fetch group members
+      const membersResponse = await groupsApi.getGroupMembers(group.id);
+      setGroupMembers(membersResponse.members || []);
+      
+      // Fetch available alumni (not in the group)
+      const alumniResponse = await adminApi.getUsers({ page: 1, page_size: 100 });
+      const memberIds = new Set((membersResponse.members || []).map((m: GroupMember) => m.id));
+      setAvailableAlumni(
+        alumniResponse.users
+          .filter(u => !memberIds.has(u.id))
+          .map(u => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            avatar: u.avatar,
+          }))
+      );
+    } catch (error) {
+      console.error('Failed to load members:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load group members',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingMembers(false);
+    }
+  };
+
+  // Add member to group
+  const handleAddMember = async (alumniId: string) => {
+    if (!selectedGroup) return;
+    
+    setIsAddingMember(true);
+    try {
+      await groupsApi.addMember(selectedGroup.id, alumniId);
+      
+      // Move alumni from available to members
+      const addedAlumni = availableAlumni.find(a => a.id === alumniId);
+      if (addedAlumni) {
+        setGroupMembers(prev => [...prev, { ...addedAlumni, joined_at: new Date().toISOString() }]);
+        setAvailableAlumni(prev => prev.filter(a => a.id !== alumniId));
+      }
+      
+      // Update group member count
+      setGroups(prev => prev.map(g => 
+        g.id === selectedGroup.id ? { ...g, members: g.members + 1 } : g
+      ));
+      
+      toast({
+        title: 'Member added',
+        description: `${addedAlumni?.name} has been added to the group`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.detail || 'Failed to add member',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsAddingMember(false);
+    }
+  };
+
+  // Remove member from group
+  const handleRemoveMember = async (memberId: string) => {
+    if (!selectedGroup) return;
+    
+    setIsRemovingMember(memberId);
+    try {
+      await groupsApi.removeMember(selectedGroup.id, memberId);
+      
+      // Move member back to available alumni
+      const removedMember = groupMembers.find(m => m.id === memberId);
+      if (removedMember) {
+        setAvailableAlumni(prev => [...prev, { id: removedMember.id, name: removedMember.name, email: removedMember.email, avatar: removedMember.avatar }]);
+        setGroupMembers(prev => prev.filter(m => m.id !== memberId));
+      }
+      
+      // Update group member count
+      setGroups(prev => prev.map(g => 
+        g.id === selectedGroup.id ? { ...g, members: Math.max(0, g.members - 1) } : g
+      ));
+      
+      toast({
+        title: 'Member removed',
+        description: `${removedMember?.name} has been removed from the group`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.detail || 'Failed to remove member',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRemovingMember(null);
+    }
+  };
+
+  // Filter available alumni by search
+  const filteredAvailableAlumni = availableAlumni.filter(alumni =>
+    alumni.name.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
+    alumni.email.toLowerCase().includes(memberSearchQuery.toLowerCase())
+  );
 
   const handleCreateOrUpdate = async (groupData: Omit<Group, 'id' | 'members' | 'isJoined'>) => {
     try {
@@ -274,7 +412,7 @@ const AdminGroups = () => {
         ) : (
           filteredGroups.map(group => (
             <Card key={group.id} className="p-6 hover:shadow-lg transition-shadow">
-              <div className="flex items-start gap-4 mb-4">
+                <div className="flex items-start gap-4 mb-4">
                 <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-primary/10">
                   <img 
                     src={group.avatar} 
@@ -283,10 +421,7 @@ const AdminGroups = () => {
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold text-lg truncate">{group.name}</h3>
-                    {group.isPrivate && <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0" />}
-                  </div>
+                  <h3 className="font-semibold text-lg truncate mb-1">{group.name}</h3>
                   <p className="text-sm text-muted-foreground line-clamp-2">{group.description}</p>
                 </div>
               </div>
@@ -309,13 +444,13 @@ const AdminGroups = () => {
                 </div>
               )}
 
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => handleView(group)} className="flex-1">
-                  <Eye className="w-4 h-4 mr-2" />
-                  View
+              <div className="flex gap-2 flex-wrap">
+                <Button size="sm" variant="outline" onClick={() => handleManageMembers(group)} className="flex-1">
+                  <Users className="w-4 h-4 mr-1" />
+                  Members
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => handleEdit(group)} className="flex-1">
-                  <Edit className="w-4 h-4 mr-2" />
+                  <Edit className="w-4 h-4 mr-1" />
                   Edit
                 </Button>
                 <Button 
@@ -347,7 +482,6 @@ const AdminGroups = () => {
               <div>
                 <div className="flex items-center gap-2">
                   {selectedGroup?.name}
-                  {selectedGroup?.isPrivate && <Lock className="w-4 h-4 text-muted-foreground" />}
                 </div>
                 <p className="text-sm text-muted-foreground font-normal">{selectedGroup?.category}</p>
               </div>
@@ -367,8 +501,8 @@ const AdminGroups = () => {
                   <p className="text-sm text-muted-foreground">Members</p>
                 </div>
                 <div className="p-4 rounded-lg border">
-                  <p className="text-2xl font-bold">{selectedGroup.isPrivate ? 'Private' : 'Public'}</p>
-                  <p className="text-sm text-muted-foreground">Visibility</p>
+                  <p className="text-2xl font-bold">{selectedGroup.category}</p>
+                  <p className="text-sm text-muted-foreground">Category</p>
                 </div>
               </div>
 
@@ -386,18 +520,136 @@ const AdminGroups = () => {
               )}
 
               <div className="flex gap-2 pt-4">
-                <Button onClick={() => { setIsViewModalOpen(false); handleEdit(selectedGroup); }} className="flex-1">
+                <Button onClick={() => { setIsViewModalOpen(false); handleManageMembers(selectedGroup); }} className="flex-1">
+                  <Users className="w-4 h-4 mr-2" />
+                  Manage Members
+                </Button>
+                <Button onClick={() => { setIsViewModalOpen(false); handleEdit(selectedGroup); }} variant="outline" className="flex-1">
                   <Edit className="w-4 h-4 mr-2" />
                   Edit Group
                 </Button>
-                <Button 
-                  variant="destructive" 
-                  onClick={() => { setIsViewModalOpen(false); handleDelete(selectedGroup.id, selectedGroup.name); }}
-                  className="flex-1"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete Group
-                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Members Management Modal */}
+      <Dialog open={isMembersModalOpen} onOpenChange={setIsMembersModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <Users className="w-5 h-5 text-primary" />
+              Manage Members - {selectedGroup?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Add or remove alumni from this group
+            </DialogDescription>
+          </DialogHeader>
+          
+          {isLoadingMembers ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              {/* Current Members */}
+              <div className="border rounded-lg p-4 flex flex-col max-h-[400px]">
+                <h4 className="font-medium mb-3 flex items-center gap-2">
+                  <UsersRound className="w-4 h-4" />
+                  Current Members ({groupMembers.length})
+                </h4>
+                <div className="flex-1 overflow-y-auto space-y-2">
+                  {groupMembers.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">No members yet</p>
+                  ) : (
+                    groupMembers.map(member => (
+                      <div key={member.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50 hover:bg-muted">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {member.avatar ? (
+                            <img src={member.avatar} alt={member.name} className="w-8 h-8 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
+                              {member.name.split(' ').map(n => n[0]).join('')}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm truncate">{member.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive h-8 w-8 p-0"
+                          onClick={() => handleRemoveMember(member.id)}
+                          disabled={isRemovingMember === member.id}
+                        >
+                          {isRemovingMember === member.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <UserMinus className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Add Members */}
+              <div className="border rounded-lg p-4 flex flex-col max-h-[400px]">
+                <h4 className="font-medium mb-3 flex items-center gap-2">
+                  <UserPlus className="w-4 h-4" />
+                  Add Alumni
+                </h4>
+                <div className="relative mb-3">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search alumni..."
+                    value={memberSearchQuery}
+                    onChange={(e) => setMemberSearchQuery(e.target.value)}
+                    className="pl-8 h-9"
+                  />
+                </div>
+                <div className="flex-1 overflow-y-auto space-y-2">
+                  {filteredAvailableAlumni.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      {memberSearchQuery ? 'No alumni found' : 'All alumni are already members'}
+                    </p>
+                  ) : (
+                    filteredAvailableAlumni.slice(0, 50).map(alumni => (
+                      <div key={alumni.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {alumni.avatar ? (
+                            <img src={alumni.avatar} alt={alumni.name} className="w-8 h-8 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
+                              {alumni.name.split(' ').map(n => n[0]).join('')}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm truncate">{alumni.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">{alumni.email}</p>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-primary hover:text-primary h-8 w-8 p-0"
+                          onClick={() => handleAddMember(alumni.id)}
+                          disabled={isAddingMember}
+                        >
+                          {isAddingMember ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <UserPlus className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           )}

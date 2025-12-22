@@ -78,7 +78,7 @@ class LeadActivity(Base):
     reference_type = Column(String, nullable=True)  # ad, post, roadmap, mentor, etc.
     
     # Additional metadata
-    metadata = Column(JSON, default=dict)
+    event_metadata = Column(JSON, default=dict)
     
     # Scoring
     base_score = Column(Integer, default=0)  # Points for this activity

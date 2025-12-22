@@ -232,27 +232,30 @@ class FundraiserAnalyticsSummary(BaseModel):
 
 
 class AdCreate(BaseModel):
-    image: str
     title: str
     description: Optional[str] = None
+    image: Optional[str] = None  # S3 URL for image
     link: Optional[str] = None
+    placement: str = "feed"  # feed, left-sidebar, right-sidebar
     type: Optional[str] = "general"
 
 
 class AdUpdate(BaseModel):
-    image: Optional[str] = None
     title: Optional[str] = None
     description: Optional[str] = None
+    image: Optional[str] = None
     link: Optional[str] = None
+    placement: Optional[str] = None
     is_active: Optional[bool] = None
 
 
 class AdResponse(BaseModel):
     id: str
-    image: str
     title: str
     description: Optional[str] = None
+    image: Optional[str] = None
     link: Optional[str] = None
+    placement: str = "feed"
     is_active: bool = True
     type: str = "general"
 

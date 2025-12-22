@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
@@ -10,6 +10,7 @@ from app.core.security import get_current_active_user, get_password_hash
 from app.models.user import User, UserRole, UserProfile
 from app.models.university import University
 from app.services.email_service import EmailService
+from app.services.s3_service import s3_service
 from app.models.event import Event
 from app.models.group import Group
 from app.models.document import DocumentRequest, DocumentStatus
@@ -431,15 +432,19 @@ async def list_password_resets(
     db: Session = Depends(get_db)
 ):
     """
-    List pending password reset requests.
+    List pending password reset requests from ALUMNI users in the admin's university.
+    Admin password reset requests go to SuperAdmin, not here.
     """
     query = db.query(User).filter(
         User.university_id == current_user.university_id,
+        User.role == UserRole.ALUMNI,  # Only alumni requests - admin requests go to SuperAdmin
         User.password_reset_requested == True
-    )
+    ).order_by(User.password_reset_requested_at.desc())
     
     total = query.count()
     users = query.offset((page - 1) * page_size).limit(page_size).all()
+    
+    logger.info(f"Admin {current_user.email} fetching password resets: found {total} for university {current_user.university_id}")
     
     requests = [
         PasswordResetRequest(
@@ -731,7 +736,7 @@ async def get_admin_ticket_detail(
 @router.put("/tickets/{ticket_id}/status")
 async def update_ticket_status(
     ticket_id: str,
-    new_status: str,
+    new_status: str = Query(..., description="New status for the ticket"),
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
@@ -985,6 +990,53 @@ async def list_ads(
     ]
 
 
+@router.post("/ads/upload-image")
+async def upload_ad_image(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_admin)
+):
+    """
+    Upload image for an ad to S3.
+    Returns the S3 URL.
+    """
+    # Validate file type - only images allowed
+    allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File type {file.content_type} not allowed. Allowed: jpeg, png, gif, webp"
+        )
+    
+    # File size limit - 10MB for images
+    max_size = 10 * 1024 * 1024
+    
+    # Read file content
+    content = await file.read()
+    if len(content) > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File too large. Max size: 10MB"
+        )
+    
+    # Reset file position
+    await file.seek(0)
+    
+    # Upload to S3
+    s3_url = await s3_service.upload_file(file, folder="ads")
+    
+    if not s3_url:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to upload file to S3"
+        )
+    
+    return {
+        "url": s3_url,
+        "filename": file.filename
+    }
+
+
 @router.post("/ads", response_model=AdResponse, status_code=status.HTTP_201_CREATED)
 async def create_ad(
     ad_data: AdCreate,
@@ -992,14 +1044,17 @@ async def create_ad(
     db: Session = Depends(get_db)
 ):
     """
-    Create a new ad.
+    Create a new ad (image only).
     """
     ad = Ad(
         university_id=current_user.university_id,
-        image=ad_data.image,
         title=ad_data.title,
         description=ad_data.description,
+        image=ad_data.image,
+        media_url=ad_data.image,  # Keep in sync
         link=ad_data.link,
+        link_url=ad_data.link,  # Keep in sync
+        placement=ad_data.placement or "feed",
         type=ad_data.type or "general"
     )
     
@@ -1009,12 +1064,13 @@ async def create_ad(
     
     return AdResponse(
         id=ad.id,
-        image=ad.image,
         title=ad.title,
         description=ad.description,
+        image=ad.image,
         link=ad.link,
+        placement=ad.placement or "feed",
         is_active=ad.is_active,
-        type=ad.type
+        type=ad.type or "general"
     )
 
 
@@ -1026,7 +1082,7 @@ async def update_ad(
     db: Session = Depends(get_db)
 ):
     """
-    Update an ad.
+    Update an ad (image only).
     """
     ad = db.query(Ad).filter(
         Ad.id == ad_id,
@@ -1039,14 +1095,19 @@ async def update_ad(
             detail="Ad not found"
         )
     
-    if ad_data.image is not None:
-        ad.image = ad_data.image
+    # Update fields
     if ad_data.title is not None:
         ad.title = ad_data.title
     if ad_data.description is not None:
         ad.description = ad_data.description
+    if ad_data.image is not None:
+        ad.image = ad_data.image
+        ad.media_url = ad_data.image  # Keep in sync
     if ad_data.link is not None:
         ad.link = ad_data.link
+        ad.link_url = ad_data.link  # Keep in sync
+    if ad_data.placement is not None:
+        ad.placement = ad_data.placement
     if ad_data.is_active is not None:
         ad.is_active = ad_data.is_active
     
@@ -1055,12 +1116,13 @@ async def update_ad(
     
     return AdResponse(
         id=ad.id,
-        image=ad.image,
         title=ad.title,
         description=ad.description,
+        image=ad.image,
         link=ad.link,
+        placement=ad.placement or "feed",
         is_active=ad.is_active,
-        type=ad.type
+        type=ad.type or "general"
     )
 
 

@@ -63,19 +63,18 @@ export interface AdResponse {
   id: string;
   title: string;
   description?: string;
-  media_url: string;
-  media_type: 'image' | 'video';
-  link_url?: string;
+  image?: string;
+  link?: string;
   placement: 'left-sidebar' | 'right-sidebar' | 'feed';
-  target_universities: string[];
+  target_universities?: string[];
   is_active: boolean;
   impressions: number;
   clicks: number;
   created_at?: string;
-  // Legacy fields
-  image?: string;
-  link?: string;
   type?: string;
+  // Legacy fields for compatibility
+  media_url?: string;
+  link_url?: string;
 }
 
 // Public ad response (for alumni users)
@@ -83,8 +82,9 @@ export interface PublicAdResponse {
   id: string;
   title: string;
   description?: string;
-  media_url: string;
-  media_type: string;
+  image?: string;
+  link?: string;
+  media_url?: string;
   link_url?: string;
   placement: string;
 }
@@ -775,11 +775,10 @@ class ApiClient {
   async createAd(data: {
     title: string;
     description?: string;
-    media_url: string;
-    media_type: 'image' | 'video';
-    link_url?: string;
+    image: string;
+    link?: string;
     placement: 'left-sidebar' | 'right-sidebar' | 'feed';
-    target_universities: string[];
+    target_universities?: string[];
   }): Promise<AdResponse> {
     return this.request('/superadmin/ads', {
       method: 'POST',
@@ -790,9 +789,8 @@ class ApiClient {
   async updateAd(adId: string, data: {
     title?: string;
     description?: string;
-    media_url?: string;
-    media_type?: 'image' | 'video';
-    link_url?: string;
+    image?: string;
+    link?: string;
     placement?: 'left-sidebar' | 'right-sidebar' | 'feed';
     target_universities?: string[];
     is_active?: boolean;
@@ -889,6 +887,7 @@ class ApiClient {
     is_active: boolean;
     force_password_reset: boolean;
     created_at: string;
+    generated_password?: string;  // Generated password returned from backend
   }> {
     return this.request('/superadmin/admins', {
       method: 'POST',
@@ -952,6 +951,7 @@ class ApiClient {
     message: string;
     success: boolean;
     request_id: string;
+    new_password?: string;  // Generated password returned from backend
   }> {
     return this.request(`/superadmin/password-resets/${requestId}/approve`, {
       method: 'POST',

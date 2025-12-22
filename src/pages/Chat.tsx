@@ -184,7 +184,11 @@ const Chat = () => {
   useEffect(() => {
     const selectedUser = location.state?.selectedUser;
     if (selectedUser) {
-      const chatItem = connectionChats.find(c => c.name === selectedUser.name);
+      // First try to find by userId (more reliable), then fall back to name
+      let chatItem = connectionChats.find(c => c.userId === selectedUser.userId);
+      if (!chatItem) {
+        chatItem = connectionChats.find(c => c.name === selectedUser.name);
+      }
       if (chatItem) {
         setSelectedChat(chatItem);
         setFilter('personal');
@@ -295,6 +299,69 @@ const Chat = () => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
+    }
+  };
+
+  // Format timestamp like WhatsApp style
+  const formatTimestamp = (timestamp: string) => {
+    if (!timestamp) return '';
+    
+    // If already formatted like "10:30 AM", return as is
+    if (timestamp.includes('AM') || timestamp.includes('PM') && !timestamp.includes('T')) {
+      return timestamp;
+    }
+    
+    // Try to parse as ISO date
+    try {
+      // Clean up timestamp - remove trailing Z if there's already timezone
+      let cleanTimestamp = timestamp;
+      if (timestamp.includes('+') && timestamp.endsWith('Z')) {
+        cleanTimestamp = timestamp.slice(0, -1);
+      }
+      
+      const date = new Date(cleanTimestamp);
+      
+      // Check if valid date
+      if (isNaN(date.getTime())) {
+        return timestamp;
+      }
+      
+      const now = new Date();
+      
+      // Get start of today in local time
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      // Get start of message date in local time
+      const msgDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      
+      // Format time in 12-hour format
+      const timeStr = date.toLocaleTimeString([], { 
+        hour: 'numeric', 
+        minute: '2-digit', 
+        hour12: true 
+      });
+      
+      // Today - show only time
+      if (msgDay.getTime() === today.getTime()) {
+        return timeStr;
+      }
+      
+      // Yesterday
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (msgDay.getTime() === yesterday.getTime()) {
+        return 'Yesterday';
+      }
+      
+      // Older - show date in short format
+      return date.toLocaleDateString([], { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: '2-digit' 
+      });
+    } catch (e) {
+      console.error('Error parsing timestamp:', timestamp, e);
+      return timestamp;
     }
   };
 
@@ -496,7 +563,7 @@ const Chat = () => {
                         />
                       </Card>
                       <span className="text-xs text-muted-foreground mt-1 px-1">
-                        {msg.timestamp}
+                        {formatTimestamp(msg.timestamp)}
                       </span>
                     </div>
                     {msg.isOwn && (

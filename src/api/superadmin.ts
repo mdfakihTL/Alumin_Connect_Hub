@@ -15,6 +15,7 @@ export interface SuperAdminDashboardStats {
   total_posts: number;
   total_events: number;
   total_groups: number;
+  total_ads: number;
   active_ads: number;
   pending_admin_resets: number;
   universities: Array<{
@@ -33,7 +34,7 @@ export interface UniversityCreate {
   id: string;
   name: string;
   logo?: string;
-  colors?: any;
+  colors?: string;  // JSON string of color configuration
 }
 
 // Admin user

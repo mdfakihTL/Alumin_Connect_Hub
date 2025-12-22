@@ -21,6 +21,7 @@ class SuperAdminDashboardStats(BaseModel):
     total_posts: int
     total_events: int
     total_groups: int
+    total_ads: int
     active_ads: int
     pending_admin_resets: int
     universities: List[Dict[str, Any]]
@@ -88,6 +89,7 @@ class AdminUserResponse(BaseModel):
     force_password_reset: bool = False
     temp_password_expires_at: Optional[datetime] = None
     created_at: datetime
+    generated_password: Optional[str] = None  # Only returned on admin creation
 
     class Config:
         from_attributes = True
@@ -185,35 +187,33 @@ class AuditLogListResponse(BaseModel):
 
 
 class GlobalAdCreate(BaseModel):
-    """Create a new advertisement."""
+    """Create a new advertisement (image only)."""
     title: str
     description: Optional[str] = None
-    media_url: str  # URL to image or video
-    media_type: str = "image"  # 'image' or 'video'
-    link_url: Optional[str] = None  # Target URL when clicking "Learn More"
+    image: Optional[str] = None  # Image URL (primary field)
+    link: Optional[str] = None  # Target URL when clicking "Learn More"
     placement: str = "feed"  # 'left-sidebar', 'right-sidebar', 'feed'
     target_universities: List[str] = ["all"]  # ['all'] or list of university IDs
+    type: Optional[str] = "general"
     
     # Legacy fields for backward compatibility
-    image: Optional[str] = None
-    link: Optional[str] = None
-    type: Optional[str] = "general"
+    media_url: Optional[str] = None
+    link_url: Optional[str] = None
 
 
 class GlobalAdUpdate(BaseModel):
     """Update an existing advertisement."""
     title: Optional[str] = None
     description: Optional[str] = None
-    media_url: Optional[str] = None
-    media_type: Optional[str] = None
-    link_url: Optional[str] = None
+    image: Optional[str] = None
+    link: Optional[str] = None
     placement: Optional[str] = None
     target_universities: Optional[List[str]] = None
     is_active: Optional[bool] = None
     
     # Legacy fields
-    image: Optional[str] = None
-    link: Optional[str] = None
+    media_url: Optional[str] = None
+    link_url: Optional[str] = None
 
 
 class GlobalAdResponse(BaseModel):
@@ -221,20 +221,19 @@ class GlobalAdResponse(BaseModel):
     id: str
     title: str
     description: Optional[str] = None
-    media_url: str
-    media_type: str = "image"
-    link_url: Optional[str] = None
+    image: Optional[str] = None
+    link: Optional[str] = None
     placement: str = "feed"
     target_universities: List[str] = ["all"]
     is_active: bool = True
     impressions: int = 0
     clicks: int = 0
     created_at: Optional[datetime] = None
+    type: str = "general"
     
     # Legacy fields for backward compatibility
-    image: Optional[str] = None  # Deprecated
-    link: Optional[str] = None  # Deprecated
-    type: str = "general"
+    media_url: Optional[str] = None
+    link_url: Optional[str] = None
 
     class Config:
         from_attributes = True

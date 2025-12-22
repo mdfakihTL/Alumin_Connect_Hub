@@ -17,13 +17,14 @@ router = APIRouter()
 
 
 class PublicAdResponse(BaseModel):
-    """Ad response for public/alumni users."""
+    """Ad response for public/alumni users (images only)."""
     id: str
     title: str
     description: Optional[str] = None
-    media_url: str
-    media_type: str = "image"
-    link_url: Optional[str] = None
+    image: Optional[str] = None
+    link: Optional[str] = None
+    media_url: Optional[str] = None  # For compatibility
+    link_url: Optional[str] = None  # For compatibility
     placement: str = "feed"
 
     class Config:
@@ -63,14 +64,17 @@ def is_ad_targeted_to_user(ad: Ad, user: User) -> bool:
 
 
 def ad_to_public_response(ad: Ad) -> PublicAdResponse:
-    """Convert Ad model to public response."""
+    """Convert Ad model to public response (images only)."""
+    image = ad.image or ad.media_url or ""
+    link = ad.link or ad.link_url
     return PublicAdResponse(
         id=ad.id,
         title=ad.title,
         description=ad.description,
-        media_url=ad.media_url or ad.image or "",
-        media_type=ad.media_type or "image",
-        link_url=ad.link_url or ad.link,
+        image=image,
+        link=link,
+        media_url=image,  # For compatibility
+        link_url=link,  # For compatibility
         placement=ad.placement or "feed"
     )
 

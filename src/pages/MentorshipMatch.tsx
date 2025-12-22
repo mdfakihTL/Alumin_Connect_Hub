@@ -1,16 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSidebar } from '@/contexts/SidebarContext';
 import DesktopNav from '@/components/DesktopNav';
 import MobileNav from '@/components/MobileNav';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Heart, X, Sparkles, MessageCircle, Briefcase, GraduationCap, MapPin, Menu, Trophy, Star } from 'lucide-react';
+import { Heart, X, Sparkles, MessageCircle, Briefcase, GraduationCap, MapPin, Menu, Trophy, Star, Loader2, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { mentorsApi, MentorProfile as APIMentorProfile, MentorMatchResponse } from '@/api/mentors';
 
 interface MentorProfile {
-  id: number;
+  id: string;
+  userId: string;  // User ID for messaging
   name: string;
   avatar: string;
   title: string;
@@ -26,168 +28,117 @@ interface MentorProfile {
   yearsExperience: number;
 }
 
-const mentorProfiles: MentorProfile[] = [
-  {
-    id: 1,
-    name: 'Dr. Sarah Chen',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=SarahMentor',
-    title: 'VP of Engineering',
-    company: 'Google',
-    university: 'MIT',
-    graduationYear: '2015',
-    location: 'San Francisco, CA',
-    expertise: ['Software Architecture', 'Team Leadership', 'AI/ML', 'Career Growth'],
-    bio: 'Passionate about helping early-career engineers navigate tech. 10+ years at FAANG companies. I focus on technical leadership, system design, and career progression strategies.',
-    availability: 'Medium',
-    matchScore: 95,
-    mentees: 12,
-    yearsExperience: 10,
-  },
-  {
-    id: 2,
-    name: 'Marcus Johnson',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=MarcusMentor',
-    title: 'Product Director',
-    company: 'Meta',
-    university: 'Stanford',
-    graduationYear: '2012',
-    location: 'Menlo Park, CA',
-    expertise: ['Product Strategy', 'User Research', 'Go-to-Market', 'B2B SaaS'],
-    bio: 'Led products from 0 to 100M users. Love mentoring aspiring product managers. Specialized in product-market fit, roadmapping, and stakeholder management.',
-    availability: 'High',
-    matchScore: 92,
-    mentees: 18,
-    yearsExperience: 13,
-  },
-  {
-    id: 3,
-    name: 'Dr. Emily Rodriguez',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=EmilyMentor',
-    title: 'Research Scientist',
-    company: 'OpenAI',
-    university: 'Harvard',
-    graduationYear: '2016',
-    location: 'Remote',
-    expertise: ['Machine Learning', 'Research', 'Academic Publishing', 'PhD Guidance'],
-    bio: 'PhD from Harvard. Published 20+ papers in top AI conferences. Happy to guide students in AI research, paper writing, and academic career paths.',
-    availability: 'Low',
-    matchScore: 88,
-    mentees: 8,
-    yearsExperience: 9,
-  },
-  {
-    id: 4,
-    name: 'David Kumar',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=DavidMentor',
-    title: 'Startup Founder & CEO',
-    company: 'TechVentures Inc',
-    university: 'Berkeley',
-    graduationYear: '2013',
-    location: 'Austin, TX',
-    expertise: ['Entrepreneurship', 'Fundraising', 'Business Strategy', 'Scaling Teams'],
-    bio: 'Built 3 startups, 1 successful exit. Raised $50M+ in funding. Here to help founders navigate the startup journey from idea to scale.',
-    availability: 'Medium',
-    matchScore: 90,
-    mentees: 15,
-    yearsExperience: 12,
-  },
-  {
-    id: 5,
-    name: 'Jennifer Park',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=JenniferMentor',
-    title: 'Chief Marketing Officer',
-    company: 'Stripe',
-    university: 'Columbia',
-    graduationYear: '2014',
-    location: 'New York, NY',
-    expertise: ['Digital Marketing', 'Brand Strategy', 'Growth Hacking', 'Content Marketing'],
-    bio: '12 years in marketing. Grew brands from seed to IPO. Mentored 50+ marketers. Expert in growth strategies, content creation, and building brands.',
-    availability: 'High',
-    matchScore: 87,
-    mentees: 22,
-    yearsExperience: 12,
-  },
-  {
-    id: 6,
-    name: 'Robert Chen',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=RobertMentor',
-    title: 'Principal Designer',
-    company: 'Apple',
-    university: 'RISD',
-    graduationYear: '2011',
-    location: 'Cupertino, CA',
-    expertise: ['UI/UX Design', 'Design Systems', 'User Research', 'Product Design'],
-    bio: 'Led design for multiple Apple products. Passionate about mentoring designers on craft, portfolio building, and career advancement.',
-    availability: 'Medium',
-    matchScore: 91,
-    mentees: 14,
-    yearsExperience: 14,
-  },
-  {
-    id: 7,
-    name: 'Aisha Mohammed',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=AishaMentor',
-    title: 'Senior Data Scientist',
-    company: 'Netflix',
-    university: 'Carnegie Mellon',
-    graduationYear: '2017',
-    location: 'Los Angeles, CA',
-    expertise: ['Data Science', 'Analytics', 'Machine Learning', 'A/B Testing'],
-    bio: 'PhD in Statistics. Building recommendation systems at scale. Love helping aspiring data scientists break into the field.',
-    availability: 'High',
-    matchScore: 89,
-    mentees: 10,
-    yearsExperience: 8,
-  },
-  {
-    id: 8,
-    name: 'Tom Wilson',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=TomMentor',
-    title: 'Director of Sales',
-    company: 'Salesforce',
-    university: 'Penn',
-    graduationYear: '2010',
-    location: 'Chicago, IL',
-    expertise: ['Enterprise Sales', 'Business Development', 'Negotiation', 'Client Relations'],
-    bio: 'Closed $100M+ in deals. Built sales teams from 0 to 50. Mentoring on sales strategy, career growth, and deal execution.',
-    availability: 'Medium',
-    matchScore: 86,
-    mentees: 16,
-    yearsExperience: 15,
-  },
-];
+// Transform API response to frontend format
+const transformMentor = (apiMentor: APIMentorProfile): MentorProfile => ({
+  id: apiMentor.id,
+  userId: apiMentor.user_id,  // Store user ID for messaging
+  name: apiMentor.name,
+  avatar: apiMentor.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${apiMentor.name}`,
+  title: apiMentor.title || 'Professional',
+  company: apiMentor.company || 'Company',
+  university: apiMentor.university || 'University',
+  graduationYear: apiMentor.graduation_year || '',
+  location: apiMentor.location || 'Location',
+  expertise: apiMentor.expertise || [],
+  bio: apiMentor.bio || 'Experienced professional ready to mentor.',
+  availability: apiMentor.availability || 'Medium',
+  matchScore: apiMentor.match_score || 75,
+  mentees: apiMentor.mentees_count || 0,
+  yearsExperience: apiMentor.years_experience || 0,
+});
 
 const MentorshipMatch = () => {
   const { isOpen: isSidebarOpen, toggleSidebar } = useSidebar();
   const { toast } = useToast();
   const navigate = useNavigate();
+  
+  // State
+  const [mentorProfiles, setMentorProfiles] = useState<MentorProfile[]>([]);
+  const [matches, setMatches] = useState<MentorMatchResponse[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isMatching, setIsMatching] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
-  const [matches, setMatches] = useState<MentorProfile[]>([]);
   const [passed, setPassed] = useState<MentorProfile[]>([]);
   const [showMatchAnimation, setShowMatchAnimation] = useState(false);
   const [activeTab, setActiveTab] = useState<'discover' | 'matches'>('discover');
 
+  // Load mentors from API
+  const loadMentors = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [mentorsRes, matchesRes] = await Promise.all([
+        mentorsApi.getAvailableMentors({ page_size: 50 }),
+        mentorsApi.getMyMatches(),
+      ]);
+      
+      setMentorProfiles(mentorsRes.mentors.map(transformMentor));
+      setMatches(matchesRes.matches);
+      setCurrentIndex(0);
+      setPassed([]);
+    } catch (error) {
+      console.error('Failed to load mentors:', error);
+      toast({
+        title: 'Failed to load mentors',
+        description: 'Please try again later',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  // Load data on mount
+  useEffect(() => {
+    loadMentors();
+  }, [loadMentors]);
+
   const currentMentor = mentorProfiles[currentIndex];
   const hasMore = currentIndex < mentorProfiles.length;
 
-  const handleSwipe = (direction: 'left' | 'right') => {
-    if (!hasMore) return;
+  const handleSwipe = async (direction: 'left' | 'right') => {
+    if (!hasMore || !currentMentor || isMatching) return;
 
     setSwipeDirection(direction);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       if (direction === 'right') {
-        // Match!
-        setMatches(prev => [...prev, currentMentor]);
-        setShowMatchAnimation(true);
-        
-        toast({
-          title: "It's a Match! 🎉",
-          description: `You matched with ${currentMentor.name}! You can now message them.`,
-        });
+        // Match - save to database
+        setIsMatching(true);
+        try {
+          const result = await mentorsApi.createMatch(currentMentor.id);
+          
+          // Add to local matches
+          const newMatch: MentorMatchResponse = {
+            id: result.match_id,
+            mentor_id: currentMentor.id,
+            mentor_user_id: currentMentor.userId,  // Include user ID for messaging
+            mentor_name: currentMentor.name,
+            mentor_avatar: currentMentor.avatar,
+            mentor_title: currentMentor.title,
+            mentor_company: currentMentor.company,
+            status: 'matched',
+            matched_at: new Date().toISOString(),
+          };
+          setMatches(prev => [newMatch, ...prev]);
+          
+          setShowMatchAnimation(true);
+          
+          toast({
+            title: "It's a Match! 🎉",
+            description: `You matched with ${currentMentor.name}! You can now message them.`,
+          });
 
-        setTimeout(() => setShowMatchAnimation(false), 2000);
+          setTimeout(() => setShowMatchAnimation(false), 2000);
+        } catch (error: any) {
+          toast({
+            title: 'Match failed',
+            description: error.detail || 'Please try again',
+            variant: 'destructive',
+          });
+        } finally {
+          setIsMatching(false);
+        }
       } else {
         // Passed
         setPassed(prev => [...prev, currentMentor]);
@@ -244,7 +195,7 @@ const MentorshipMatch = () => {
                 className="flex-1 sm:flex-none h-9 text-sm"
               >
                 <Sparkles className="w-4 h-4 mr-1.5" />
-                Discover ({mentorProfiles.length - currentIndex})
+                Discover ({Math.max(0, mentorProfiles.length - currentIndex)})
               </Button>
               <Button
                 variant={activeTab === 'matches' ? 'default' : 'outline'}
@@ -254,13 +205,29 @@ const MentorshipMatch = () => {
                 <GraduationCap className="w-4 h-4 mr-1.5" />
                 Matches ({matches.length})
               </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={loadMentors}
+                disabled={isLoading}
+                className="h-9 w-9"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              </Button>
             </div>
 
             {/* Content */}
             {activeTab === 'discover' ? (
               <div className="flex-1 flex flex-col min-h-0 overflow-y-auto subtle-scrollbar">
                 <div className="max-w-4xl w-full mx-auto flex flex-col py-2">
-                {hasMore ? (
+                {isLoading ? (
+                  <div className="flex items-center justify-center flex-1 min-h-[400px]">
+                    <div className="text-center">
+                      <Loader2 className="w-12 h-12 mx-auto mb-4 animate-spin text-purple-500" />
+                      <p className="text-muted-foreground">Finding mentors for you...</p>
+                    </div>
+                  </div>
+                ) : hasMore && currentMentor ? (
                   <>
                     {/* Match Animation Overlay */}
                     {showMatchAnimation && (
@@ -425,15 +392,17 @@ const MentorshipMatch = () => {
                       <div className="flex flex-col sm:flex-row gap-2 justify-center">
                         <Button 
                           variant="outline" 
-                          onClick={() => {
-                            setCurrentIndex(0);
-                            setPassed([]);
-                          }}
+                          onClick={loadMentors}
+                          disabled={isLoading}
                           className="gap-2 text-sm"
                           size="sm"
                         >
-                          <Sparkles className="w-4 h-4" />
-                          Start Over
+                          {isLoading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="w-4 h-4" />
+                          )}
+                          Refresh Mentors
                         </Button>
                         {matches.length > 0 && (
                           <Button 
@@ -477,43 +446,41 @@ const MentorshipMatch = () => {
                       </Card>
                     </div>
                   ) : (
-                    matches.map((mentor) => (
-                      <Card key={mentor.id} className="overflow-hidden hover:shadow-lg transition-all">
+                    matches.map((match) => (
+                      <Card key={match.id} className="overflow-hidden hover:shadow-lg transition-all">
                         <div className="relative">
                           <div className="p-4 text-center bg-gradient-to-b from-purple-500/10 to-transparent">
                             <img
-                              src={mentor.avatar}
-                              alt={mentor.name}
+                              src={match.mentor_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${match.mentor_name}`}
+                              alt={match.mentor_name}
                               className="w-16 h-16 rounded-full mx-auto ring-4 ring-purple-500/20 mb-2"
                             />
-                            <h4 className="font-bold text-sm mb-1 truncate">{mentor.name}</h4>
-                            <p className="text-xs text-muted-foreground mb-1 truncate">{mentor.title}</p>
-                            <Badge className="text-xs">{mentor.company}</Badge>
+                            <h4 className="font-bold text-sm mb-1 truncate">{match.mentor_name}</h4>
+                            <p className="text-xs text-muted-foreground mb-1 truncate">{match.mentor_title || 'Mentor'}</p>
+                            {match.mentor_company && (
+                              <Badge className="text-xs">{match.mentor_company}</Badge>
+                            )}
                           </div>
 
                           <div className="p-3 space-y-2.5">
-                            <div className="flex flex-wrap gap-1">
-                              {mentor.expertise.slice(0, 3).map((skill, idx) => (
-                                <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0.5">
-                                  {skill}
-                                </Badge>
-                              ))}
-                              {mentor.expertise.length > 3 && (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
-                                  +{mentor.expertise.length - 3}
-                                </Badge>
-                              )}
+                            <div className="text-xs text-muted-foreground text-center">
+                              Matched {new Date(match.matched_at).toLocaleDateString()}
                             </div>
 
                             <Button 
                               className="w-full gap-2 h-8 text-xs"
                               size="sm"
                               onClick={() => {
-                                toast({
-                                  title: 'Chat opened!',
-                                  description: `You can now chat with ${mentor.name}`,
+                                navigate('/chat', {
+                                  state: {
+                                    selectedUser: {
+                                      userId: match.mentor_user_id,
+                                      id: match.mentor_user_id,
+                                      name: match.mentor_name,
+                                      avatar: match.mentor_avatar,
+                                    }
+                                  }
                                 });
-                                navigate('/chat');
                               }}
                             >
                               <MessageCircle className="w-3.5 h-3.5" />

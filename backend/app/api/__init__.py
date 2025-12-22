@@ -5,7 +5,7 @@ from app.api.routes import (
     connections, messages, documents, support,
     notifications, admin, superadmin, universities, lead_intelligence,
     knowledge_base, ads, career_roadmap, course_intelligence, heatmap,
-    fundraiser
+    fundraiser, mentors
 )
 
 # Create main API router
@@ -44,3 +44,6 @@ api_router.include_router(heatmap.router, prefix="/heatmap", tags=["Heat Map"])
 
 # Fundraiser routes (donation campaigns with click tracking)
 api_router.include_router(fundraiser.router, prefix="/fundraisers", tags=["Fundraisers"])
+
+# Mentor routes (find and match with mentors)
+api_router.include_router(mentors.router, prefix="/mentors", tags=["Mentors"])

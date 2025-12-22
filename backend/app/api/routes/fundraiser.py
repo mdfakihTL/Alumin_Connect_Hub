@@ -6,7 +6,7 @@ Provides endpoints for:
 - Alumni: View active fundraisers, track donation link clicks
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import func, distinct
 from typing import List, Optional
@@ -18,12 +18,13 @@ import uuid
 from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.user import User, UserRole
-from app.models.fundraiser import Fundraiser, FundraiserClick, FundraiserStatus
+from app.models.fundraiser import Fundraiser, FundraiserClick
 from app.schemas.admin import (
     FundraiserCreate, FundraiserUpdate, FundraiserResponse,
     FundraiserListResponse, FundraiserClickCreate, FundraiserClickResponse,
     FundraiserAnalyticsResponse, FundraiserAnalyticsSummary
 )
+from app.services.s3_service import s3_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -77,7 +78,7 @@ def fundraiser_to_response(db: Session, fundraiser: Fundraiser) -> FundraiserRes
         donation_link=fundraiser.donation_link,
         start_date=fundraiser.start_date.isoformat() if fundraiser.start_date else "",
         end_date=fundraiser.end_date.isoformat() if fundraiser.end_date else "",
-        status=fundraiser.status.value if fundraiser.status else "draft",
+        status=fundraiser.status or "draft",
         effective_status=fundraiser.get_effective_status(),
         total_clicks=total_clicks,
         unique_clicks=unique_clicks,
@@ -85,7 +86,7 @@ def fundraiser_to_response(db: Session, fundraiser: Fundraiser) -> FundraiserRes
         # Legacy compatibility
         goal_amount=fundraiser.goal_amount or 0,
         current_amount=fundraiser.current_amount or 0,
-        is_active=fundraiser.status == FundraiserStatus.ACTIVE
+        is_active=fundraiser.status == "active"
     )
 
 
@@ -108,7 +109,7 @@ async def list_admin_fundraisers(
         )
         
         if status_filter and status_filter in ["draft", "active", "expired"]:
-            query = query.filter(Fundraiser.status == FundraiserStatus(status_filter))
+            query = query.filter(Fundraiser.status == status_filter)
         
         total = query.count()
         fundraisers = query.order_by(Fundraiser.created_at.desc()).offset(
@@ -154,12 +155,9 @@ async def create_fundraiser(
             )
         
         # Determine status
-        fundraiser_status = FundraiserStatus.DRAFT
-        if data.status:
-            try:
-                fundraiser_status = FundraiserStatus(data.status)
-            except ValueError:
-                fundraiser_status = FundraiserStatus.DRAFT
+        fundraiser_status = "draft"
+        if data.status and data.status in ["draft", "active", "expired"]:
+            fundraiser_status = data.status
         
         fundraiser = Fundraiser(
             university_id=current_user.university_id,
@@ -170,7 +168,7 @@ async def create_fundraiser(
             start_date=data.start_date,
             end_date=data.end_date,
             status=fundraiser_status,
-            is_active=fundraiser_status == FundraiserStatus.ACTIVE
+            is_active=fundraiser_status == "active"
         )
         
         db.add(fundraiser)
@@ -243,12 +241,9 @@ async def update_fundraiser(
             fundraiser.start_date = data.start_date
         if data.end_date is not None:
             fundraiser.end_date = data.end_date
-        if data.status is not None:
-            try:
-                fundraiser.status = FundraiserStatus(data.status)
-                fundraiser.is_active = fundraiser.status == FundraiserStatus.ACTIVE
-            except ValueError:
-                pass
+        if data.status is not None and data.status in ["draft", "active", "expired"]:
+            fundraiser.status = data.status
+            fundraiser.is_active = fundraiser.status == "active"
         
         db.commit()
         db.refresh(fundraiser)
@@ -325,7 +320,7 @@ async def get_fundraiser_analytics(
         today = date.today()
         active_fundraisers = db.query(Fundraiser).filter(
             Fundraiser.university_id == current_user.university_id,
-            Fundraiser.status == FundraiserStatus.ACTIVE,
+            Fundraiser.status == "active",
             Fundraiser.start_date <= today,
             Fundraiser.end_date >= today
         ).count()
@@ -447,6 +442,74 @@ async def get_single_fundraiser_analytics(
         )
 
 
+# ============ IMAGE UPLOAD ============
+
+@router.post("/admin/upload-image")
+async def upload_fundraiser_image(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_admin)
+):
+    """
+    Upload an image for a fundraiser campaign.
+    Returns the S3 URL of the uploaded image.
+    Accepts: jpg, jpeg, png, gif, webp (max 10MB)
+    """
+    # Validate file type
+    allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file type. Allowed types: {', '.join(allowed_types)}"
+        )
+    
+    # Validate file size (max 10MB)
+    max_size = 10 * 1024 * 1024  # 10MB
+    content = await file.read()
+    if len(content) > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File size exceeds 10MB limit"
+        )
+    
+    # Reset file position for upload
+    await file.seek(0)
+    
+    # Check if S3 is configured
+    if not s3_service.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="S3 storage is not configured. Please contact administrator."
+        )
+    
+    try:
+        # Upload to S3
+        url = await s3_service.upload_image(file, folder="fundraisers")
+        
+        if not url:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to upload image. Please try again."
+            )
+        
+        logger.info(f"Fundraiser image uploaded by {current_user.email}: {url}")
+        
+        return {
+            "url": url,
+            "filename": file.filename,
+            "content_type": file.content_type,
+            "message": "Image uploaded successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading fundraiser image: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload image: {str(e)}"
+        )
+
+
 # ============ ALUMNI ENDPOINTS ============
 
 @router.get("/active", response_model=List[FundraiserResponse])
@@ -465,7 +528,7 @@ async def list_active_fundraisers(
         
         fundraisers = db.query(Fundraiser).filter(
             Fundraiser.university_id == current_user.university_id,
-            Fundraiser.status == FundraiserStatus.ACTIVE,
+            Fundraiser.status == "active",
             Fundraiser.start_date <= today,
             Fundraiser.end_date >= today
         ).order_by(Fundraiser.created_at.desc()).all()

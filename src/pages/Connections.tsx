@@ -84,6 +84,8 @@ const Connections = () => {
     navigate('/chat', { 
       state: { 
         selectedUser: {
+          id: connection.id,
+          userId: connection.userId, // Pass the actual user ID for messaging
           name: connection.name,
           avatar: connection.avatar,
           university: connection.university,

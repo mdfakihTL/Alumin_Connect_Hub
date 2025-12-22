@@ -16,12 +16,11 @@ class Ad(Base):
     title = Column(String, nullable=False)
     description = Column(Text, default=None)
     
-    # Media - supports both image and video
-    media_url = Column(String, nullable=False)  # URL to image or video
-    media_type = Column(String, default="image")  # 'image' or 'video'
+    # Image URL
+    image = Column(String, nullable=True)
     
     # Link when user clicks "Learn More"
-    link_url = Column(String, default=None)
+    link = Column(String, nullable=True)
     
     # Placement options: 'left-sidebar', 'right-sidebar', 'feed'
     placement = Column(String, default="feed")
@@ -32,11 +31,16 @@ class Ad(Base):
     # Status
     is_active = Column(Boolean, default=True)
     
+    # Type field (general, banner, etc.)
+    type = Column(String, default="general")
+    
+    # University association
+    university_id = Column(String, ForeignKey("universities.id"), nullable=True)
+    
     # Legacy fields for backward compatibility
-    image = Column(String, nullable=True)  # Deprecated, use media_url
-    link = Column(String, nullable=True)  # Deprecated, use link_url
-    type = Column(String, default="general")  # Legacy type field
-    university_id = Column(String, ForeignKey("universities.id"), nullable=True)  # Single university (deprecated)
+    media_url = Column(String, nullable=True)  # Maps to image
+    link_url = Column(String, nullable=True)  # Maps to link
+    media_type = Column(String, default="image")  # Always "image" now
     
     # Analytics
     impressions = Column(Integer, default=0)

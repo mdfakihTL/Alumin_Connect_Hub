@@ -31,6 +31,32 @@ const FundraiserAd = ({ placement = 'sidebar', maxItems = 3, className = '' }: F
   const [isLoading, setIsLoading] = useState(true);
   const [clickingId, setClickingId] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
+
+  // Handle image error - hide broken images
+  const handleImageError = (fundraiserId: string) => {
+    setBrokenImages(prev => new Set(prev).add(fundraiserId));
+  };
+
+  // Check if image is valid (not broken and has a valid URL)
+  const hasValidImage = (fundraiser: Fundraiser) => {
+    if (!fundraiser.image) return false;
+    if (brokenImages.has(fundraiser.id)) return false;
+    // Basic check for image URLs
+    const imageUrl = fundraiser.image.toLowerCase();
+    return imageUrl.startsWith('http') && (
+      imageUrl.includes('.jpg') || 
+      imageUrl.includes('.jpeg') || 
+      imageUrl.includes('.png') || 
+      imageUrl.includes('.gif') || 
+      imageUrl.includes('.webp') ||
+      imageUrl.includes('unsplash') ||
+      imageUrl.includes('images') ||
+      imageUrl.includes('cloudinary') ||
+      imageUrl.includes('imgur') ||
+      imageUrl.includes('s3.amazonaws')
+    );
+  };
 
   // Load active fundraisers
   const loadFundraisers = useCallback(async () => {
@@ -143,13 +169,14 @@ const FundraiserAd = ({ placement = 'sidebar', maxItems = 3, className = '' }: F
           </div>
           
           {/* Image */}
-          {fundraiser.image && (
+          {fundraiser.image && !brokenImages.has(fundraiser.id) && (
             <div className="px-4 pt-3">
-              <div className="relative h-28 rounded-lg overflow-hidden">
+              <div className="relative h-28 rounded-lg overflow-hidden bg-muted">
                 <img 
                   src={fundraiser.image} 
                   alt={fundraiser.title}
                   className="w-full h-full object-cover"
+                  onError={() => handleImageError(fundraiser.id)}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                 {daysRemaining > 0 && daysRemaining <= 7 && (
@@ -219,12 +246,13 @@ const FundraiserAd = ({ placement = 'sidebar', maxItems = 3, className = '' }: F
           return (
             <Card key={fundraiser.id} className="overflow-hidden hover:shadow-lg transition-shadow">
               {/* Image */}
-              {fundraiser.image && (
-                <div className="relative h-40">
+              {fundraiser.image && !brokenImages.has(fundraiser.id) && (
+                <div className="relative h-40 bg-muted">
                   <img 
                     src={fundraiser.image} 
                     alt={fundraiser.title}
                     className="w-full h-full object-cover"
+                    onError={() => handleImageError(fundraiser.id)}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
                   <Badge className="absolute top-3 left-3 bg-emerald-500/90 text-white">

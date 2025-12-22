@@ -8,8 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
-import { Search, Shield, Mail, Phone, Award, Grid3x3, Table2, Filter, X, GraduationCap, RefreshCw, Loader2 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Search, Shield, Mail, Phone, Award, Grid3x3, Table2, Filter, X, GraduationCap, RefreshCw, Loader2, User, UserMinus, MapPin, Briefcase, Building } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 
 interface Mentor {
@@ -27,7 +27,6 @@ interface Mentor {
 }
 
 const AdminMentorList = () => {
-  const { user } = useAuth();
   const { toast } = useToast();
   const [mentors, setMentors] = useState<Mentor[]>([]);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -44,6 +43,48 @@ const AdminMentorList = () => {
   });
   const [tempFilters, setTempFilters] = useState(filters);
   const itemsPerPage = 12;
+
+  // Profile modal states
+  const [selectedMentor, setSelectedMentor] = useState<Mentor | null>(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isRemovingMentor, setIsRemovingMentor] = useState(false);
+
+  // Handle view profile button click
+  const handleViewProfile = (mentor: Mentor) => {
+    setSelectedMentor(mentor);
+    setIsProfileModalOpen(true);
+  };
+
+  // Handle remove mentor status
+  const handleRemoveMentor = async (mentor: Mentor) => {
+    setIsRemovingMentor(true);
+    try {
+      // Call API to remove mentor status
+      await apiClient.request(`/users/${mentor.id}/mentor-status`, {
+        method: 'PUT',
+        body: JSON.stringify({ is_mentor: false }),
+      });
+      
+      toast({
+        title: 'Mentor Status Removed',
+        description: `${mentor.name} is no longer a mentor`,
+      });
+      
+      // Remove from list and refresh
+      setMentors(prev => prev.filter(m => m.id !== mentor.id));
+      setTotalMentors(prev => prev - 1);
+      setIsProfileModalOpen(false);
+      setSelectedMentor(null);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.detail || 'Failed to remove mentor status',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRemovingMentor(false);
+    }
+  };
 
   // Fetch mentors from API
   const fetchMentors = async () => {
@@ -371,15 +412,10 @@ const AdminMentorList = () => {
                     )}
                   </div>
 
-                  <div className="flex gap-2">
-                    <Button size="sm" className="flex-1">
-                      <Mail className="w-4 h-4 mr-2" />
-                      Contact
-                    </Button>
-                    <Button size="sm" variant="outline" className="flex-1">
-                      View Profile
-                    </Button>
-                  </div>
+                  <Button size="sm" className="w-full" onClick={() => handleViewProfile(mentor)}>
+                    <User className="w-4 h-4 mr-2" />
+                    View Profile
+                  </Button>
                 </Card>
               ))
             )}
@@ -433,12 +469,13 @@ const AdminMentorList = () => {
                   <TableHead>Title</TableHead>
                   <TableHead>Graduation Year</TableHead>
                   <TableHead>Location</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredMentors.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-12">
+                    <TableCell colSpan={7} className="py-12">
                       <div className="flex flex-col items-center justify-center">
                         <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center mb-4">
                           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
@@ -468,6 +505,12 @@ const AdminMentorList = () => {
                         ) : '-'}
                       </TableCell>
                       <TableCell>{mentor.location || '-'}</TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="outline" onClick={() => handleViewProfile(mentor)}>
+                          <User className="w-4 h-4 mr-1" />
+                          View
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -509,6 +552,134 @@ const AdminMentorList = () => {
           )}
         </Card>
       )}
+
+      {/* Profile Modal */}
+      <Dialog open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="w-5 h-5 text-primary" />
+              Mentor Profile
+            </DialogTitle>
+          </DialogHeader>
+          {selectedMentor && (
+            <div className="space-y-4 mt-4">
+              {/* Profile Header */}
+              <div className="flex items-start gap-4">
+                {selectedMentor.avatar ? (
+                  <img src={selectedMentor.avatar} alt={selectedMentor.name} className="w-20 h-20 rounded-full object-cover" />
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-2xl">
+                    {selectedMentor.name.split(' ').map(n => n[0]).join('')}
+                  </div>
+                )}
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold">{selectedMentor.name}</h3>
+                  <p className="text-muted-foreground">
+                    {selectedMentor.title ? `${selectedMentor.title}${selectedMentor.company ? ` at ${selectedMentor.company}` : ''}` : 'Mentor'}
+                  </p>
+                  <div className="flex gap-2 mt-2">
+                    <Badge variant="default" className="gap-1">
+                      <Shield className="w-3 h-3" />
+                      Mentor
+                    </Badge>
+                    {selectedMentor.graduationYear && (
+                      <Badge variant="outline" className="gap-1">
+                        <Award className="w-3 h-3" />
+                        Class of {selectedMentor.graduationYear}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Profile Details */}
+              <div className="grid grid-cols-1 gap-3 p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">Email</p>
+                    <p className="text-sm font-medium truncate">{selectedMentor.email}</p>
+                  </div>
+                </div>
+                {selectedMentor.phone && (
+                  <div className="flex items-center gap-3">
+                    <Phone className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Phone</p>
+                      <p className="text-sm font-medium">{selectedMentor.phone}</p>
+                    </div>
+                  </div>
+                )}
+                {selectedMentor.title && (
+                  <div className="flex items-center gap-3">
+                    <Briefcase className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Job Title</p>
+                      <p className="text-sm font-medium">{selectedMentor.title}</p>
+                    </div>
+                  </div>
+                )}
+                {selectedMentor.company && (
+                  <div className="flex items-center gap-3">
+                    <Building className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Company</p>
+                      <p className="text-sm font-medium">{selectedMentor.company}</p>
+                    </div>
+                  </div>
+                )}
+                {selectedMentor.major && (
+                  <div className="flex items-center gap-3">
+                    <GraduationCap className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Major</p>
+                      <p className="text-sm font-medium">{selectedMentor.major}</p>
+                    </div>
+                  </div>
+                )}
+                {selectedMentor.location && (
+                  <div className="flex items-center gap-3">
+                    <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Location</p>
+                      <p className="text-sm font-medium">{selectedMentor.location}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Bio */}
+              {selectedMentor.bio && (
+                <div className="space-y-2">
+                  <h4 className="font-medium">About</h4>
+                  <p className="text-sm text-muted-foreground">{selectedMentor.bio}</p>
+                </div>
+              )}
+
+              {/* Remove Mentor Action */}
+              <div className="pt-4 border-t">
+                <Button 
+                  variant="destructive" 
+                  className="w-full"
+                  onClick={() => handleRemoveMentor(selectedMentor)}
+                  disabled={isRemovingMentor}
+                >
+                  {isRemovingMentor ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <UserMinus className="w-4 h-4 mr-2" />
+                  )}
+                  Remove from Mentor Position
+                </Button>
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  This will revoke their mentor status. They can re-apply to become a mentor again.
+                </p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

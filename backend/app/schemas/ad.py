@@ -7,9 +7,9 @@ class AdCreate(BaseModel):
     """Create advertisement schema."""
     title: str
     description: Optional[str] = None
-    image: Optional[str] = None
+    image: Optional[str] = None  # S3 URL for image
     link: Optional[str] = None
-    placement: str = "feed"  # feed, sidebar, banner
+    placement: str = "feed"  # feed, left-sidebar, right-sidebar
     target_universities: Optional[List[str]] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
@@ -54,3 +54,8 @@ class AdListResponse(BaseModel):
     total: int
     active_count: int
 
+
+class AdImageUploadResponse(BaseModel):
+    """Response for ad image upload."""
+    url: str
+    filename: str

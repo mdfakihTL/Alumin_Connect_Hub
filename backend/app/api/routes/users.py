@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import Optional, List
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
@@ -397,6 +398,53 @@ async def search_users(
         )
         for user in users
     ]
+
+
+class MentorStatusUpdate(BaseModel):
+    is_mentor: bool
+
+
+@router.put("/{user_id}/mentor-status")
+async def update_mentor_status(
+    user_id: str,
+    data: MentorStatusUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update a user's mentor status. Only admins can do this.
+    """
+    # Check if current user is admin or superadmin
+    if current_user.role not in [UserRole.ADMIN, UserRole.SUPERADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can update mentor status"
+        )
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Admins can only manage users in their university
+    if current_user.role == UserRole.ADMIN and current_user.university_id:
+        if user.university_id != current_user.university_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot modify users from other universities"
+            )
+    
+    user.is_mentor = data.is_mentor
+    db.commit()
+    
+    return {
+        "message": f"Mentor status {'granted' if data.is_mentor else 'revoked'} for {user.name}",
+        "user_id": user_id,
+        "is_mentor": data.is_mentor
+    }
 
 
 # NOTE: This route MUST be last because it has a path parameter that would match other routes

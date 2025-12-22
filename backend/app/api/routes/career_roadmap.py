@@ -299,10 +299,29 @@ async def get_popular_roadmap_templates(
     
     Note: This endpoint is public (no auth required) for browsing.
     """
-    from app.services.career_roadmap_service import get_popular_roadmaps_with_alumni
-    
-    templates = get_popular_roadmaps_with_alumni(db, university_id=None)
-    return [PopularRoadmapResponse(**t) for t in templates]
+    try:
+        from app.services.career_roadmap_service import get_popular_roadmaps_with_alumni, POPULAR_ROADMAPS
+        
+        templates = get_popular_roadmaps_with_alumni(db, university_id=None)
+        return [PopularRoadmapResponse(**t) for t in templates]
+    except Exception as e:
+        # Fallback to basic templates without alumni data
+        import logging
+        logging.error(f"Error fetching popular roadmaps with alumni: {e}")
+        
+        from app.services.career_roadmap_service import POPULAR_ROADMAPS
+        return [PopularRoadmapResponse(
+            id=t["id"],
+            title=t["title"],
+            career_goal=t["career_goal"],
+            estimated_duration=t["estimated_duration"],
+            alumni_count=t.get("alumni_count", 0),
+            success_rate=t["success_rate"],
+            key_steps=t["key_steps"],
+            top_companies=t.get("top_companies", []),
+            alumni_preview=[],
+            has_mentors=False
+        ) for t in POPULAR_ROADMAPS]
 
 
 @router.get("/popular-with-alumni")

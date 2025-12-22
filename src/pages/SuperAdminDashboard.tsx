@@ -41,12 +41,12 @@ const SuperAdminDashboard = () => {
     try {
       const dashboardStats = await superadminApi.getDashboardStats();
       setStats({
-        totalUniversities: dashboardStats.total_universities,
-        enabledUniversities: dashboardStats.active_universities,
-        totalAdmins: dashboardStats.total_admins,
-        totalAlumni: dashboardStats.total_alumni,
-        totalAds: dashboardStats.total_ads,
-        activeAds: dashboardStats.active_ads,
+        totalUniversities: dashboardStats.total_universities || 0,
+        enabledUniversities: dashboardStats.enabled_universities || 0,
+        totalAdmins: dashboardStats.total_admins || 0,
+        totalAlumni: dashboardStats.total_alumni || 0,
+        totalAds: dashboardStats.total_ads || dashboardStats.active_ads || 0,
+        activeAds: dashboardStats.active_ads || 0,
         totalPosts: dashboardStats.total_posts || 0,
         totalEvents: dashboardStats.total_events || 0,
         totalGroups: dashboardStats.total_groups || 0,

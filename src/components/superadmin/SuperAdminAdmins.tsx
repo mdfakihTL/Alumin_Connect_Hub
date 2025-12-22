@@ -45,6 +45,11 @@ const SuperAdminAdmins = () => {
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [generatedPassword, setGeneratedPassword] = useState<{
+    email: string;
+    password: string;
+  } | null>(null);
   const [confirmAction, setConfirmAction] = useState<{
     type: 'toggle' | 'delete';
     admin: Admin;
@@ -132,11 +137,20 @@ const SuperAdminAdmins = () => {
     setIsSubmitting(true);
     try {
       // Call API - password will be auto-generated on backend
-      await apiClient.createSuperAdminAdmin({
+      const response = await apiClient.createSuperAdminAdmin({
         email: formData.email,
         name: formData.name,
         university_id: formData.universityId,
       });
+
+      // Show generated password in modal
+      if (response.generated_password) {
+        setGeneratedPassword({
+          email: formData.email,
+          password: response.generated_password,
+        });
+        setIsPasswordModalOpen(true);
+      }
 
       toast({
         title: 'Admin created successfully!',
@@ -544,6 +558,69 @@ const SuperAdminAdmins = () => {
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : null}
               {confirmAction?.admin.is_active ? 'Deactivate' : 'Activate'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Generated Password Modal */}
+      <Dialog open={isPasswordModalOpen} onOpenChange={setIsPasswordModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="w-5 h-5 text-green-500" />
+              Admin Created Successfully
+            </DialogTitle>
+            <DialogDescription>
+              The following credentials have been generated and sent to the admin's email.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {generatedPassword && (
+            <div className="space-y-4 py-4">
+              <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4 space-y-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Email</Label>
+                  <p className="font-medium">{generatedPassword.email}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Generated Password</Label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <code className="bg-white dark:bg-gray-800 px-3 py-2 rounded border text-lg font-mono flex-1">
+                      {generatedPassword.password}
+                    </code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedPassword.password);
+                        toast({
+                          title: 'Copied!',
+                          description: 'Password copied to clipboard',
+                        });
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 text-sm">
+                <p className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                  <span>This password expires in 24 hours. The admin must change it on first login.</span>
+                </p>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button onClick={() => {
+              setIsPasswordModalOpen(false);
+              setGeneratedPassword(null);
+            }}>
+              Done
             </Button>
           </DialogFooter>
         </DialogContent>

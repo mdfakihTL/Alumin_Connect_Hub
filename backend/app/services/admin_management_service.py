@@ -29,17 +29,19 @@ PASSWORD_LENGTH = 12
 
 def generate_secure_password(length: int = PASSWORD_LENGTH) -> str:
     """Generate a secure random password"""
-    # Use a mix of letters, digits, and safe special characters
-    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-    # Ensure at least one of each type
+    # Use a mix of letters and digits only (no special chars that could cause email issues)
+    alphabet = string.ascii_letters + string.digits
+    # Ensure at least one of each type for complexity
     password = [
         secrets.choice(string.ascii_uppercase),
+        secrets.choice(string.ascii_uppercase),
+        secrets.choice(string.ascii_lowercase),
         secrets.choice(string.ascii_lowercase),
         secrets.choice(string.digits),
-        secrets.choice("!@#$%^&*")
+        secrets.choice(string.digits),
     ]
     # Fill the rest
-    password += [secrets.choice(alphabet) for _ in range(length - 4)]
+    password += [secrets.choice(alphabet) for _ in range(length - 6)]
     # Shuffle
     secrets.SystemRandom().shuffle(password)
     return ''.join(password)

@@ -348,11 +348,6 @@ const AIRoadmap = () => {
     }
   };
 
-  const handleViewProfile = (alumniId: string) => {
-    setShowAlumniModal(false);
-    navigate(`/profile/${alumniId}`);
-  };
-
   const toggleMilestoneComplete = (milestoneId: number) => {
     setCompletedMilestones(prev => {
       const newSet = new Set(prev);
@@ -769,16 +764,16 @@ const AIRoadmap = () => {
                 </div>
               )}
 
-              <div className="flex gap-2 pt-2">
+              <div className="pt-2">
                 <Button
-                  className="flex-1 gap-2"
+                  className="w-full gap-2"
                   onClick={() => handleConnectAlumni(selectedAlumni.id)}
                   disabled={isConnected(selectedAlumni.id) || hasPendingRequest(selectedAlumni.id)}
                 >
                   {isConnected(selectedAlumni.id) ? (
                     <>
                       <CheckCircle2 className="w-4 h-4" />
-                      Connected
+                      Already Connected
                     </>
                   ) : hasPendingRequest(selectedAlumni.id) ? (
                     <>
@@ -788,17 +783,9 @@ const AIRoadmap = () => {
                   ) : (
                     <>
                       <UserPlus className="w-4 h-4" />
-                      Connect
+                      Send Connection Request
                     </>
                   )}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1 gap-2"
-                  onClick={() => handleViewProfile(selectedAlumni.id)}
-                >
-                  <Users className="w-4 h-4" />
-                  View Profile
                 </Button>
               </div>
             </div>

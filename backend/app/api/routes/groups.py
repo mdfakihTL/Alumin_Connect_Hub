@@ -554,3 +554,174 @@ async def get_joined_groups(
         page_size=page_size
     )
 
+
+# ============ ADMIN MEMBER MANAGEMENT ============
+
+@router.get("/{group_id}/members")
+async def get_group_members(
+    group_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all members of a group (admin only).
+    """
+    group = db.query(Group).filter(Group.id == group_id).first()
+    
+    if not group:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Group not found"
+        )
+    
+    # Check if user is admin or superadmin
+    if current_user.role.value not in ["admin", "superadmin"]:
+        # Or check if user is group admin
+        membership = db.query(GroupMember).filter(
+            GroupMember.group_id == group_id,
+            GroupMember.user_id == current_user.id,
+            GroupMember.is_admin == True
+        ).first()
+        
+        if not membership:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to view members"
+            )
+    
+    memberships = db.query(GroupMember).filter(
+        GroupMember.group_id == group_id
+    ).all()
+    
+    members = []
+    for m in memberships:
+        user = db.query(User).filter(User.id == m.user_id).first()
+        if user:
+            members.append({
+                "id": user.id,
+                "name": user.name,
+                "email": user.email,
+                "avatar": user.avatar,
+                "joined_at": m.joined_at.isoformat() if m.joined_at else None,
+                "is_admin": m.is_admin
+            })
+    
+    return {"members": members}
+
+
+from pydantic import BaseModel
+
+class AddMemberRequest(BaseModel):
+    user_id: str
+
+
+@router.post("/{group_id}/members")
+async def add_group_member(
+    group_id: str,
+    data: AddMemberRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Add a member to a group (admin only).
+    """
+    group = db.query(Group).filter(Group.id == group_id).first()
+    
+    if not group:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Group not found"
+        )
+    
+    # Check if user is admin or superadmin
+    if current_user.role.value not in ["admin", "superadmin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to add members"
+        )
+    
+    # Check if user to add exists
+    user_to_add = db.query(User).filter(User.id == data.user_id).first()
+    if not user_to_add:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Check if already a member
+    existing = db.query(GroupMember).filter(
+        GroupMember.group_id == group_id,
+        GroupMember.user_id == data.user_id
+    ).first()
+    
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is already a member of this group"
+        )
+    
+    # Add member
+    member = GroupMember(
+        group_id=group_id,
+        user_id=data.user_id
+    )
+    db.add(member)
+    group.members_count += 1
+    db.commit()
+    
+    return {
+        "message": f"{user_to_add.name} added to {group.name}",
+        "success": True
+    }
+
+
+@router.delete("/{group_id}/members/{user_id}")
+async def remove_group_member(
+    group_id: str,
+    user_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Remove a member from a group (admin only).
+    """
+    group = db.query(Group).filter(Group.id == group_id).first()
+    
+    if not group:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Group not found"
+        )
+    
+    # Check if user is admin or superadmin
+    if current_user.role.value not in ["admin", "superadmin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to remove members"
+        )
+    
+    # Find membership
+    membership = db.query(GroupMember).filter(
+        GroupMember.group_id == group_id,
+        GroupMember.user_id == user_id
+    ).first()
+    
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User is not a member of this group"
+        )
+    
+    # Get user name for response
+    user = db.query(User).filter(User.id == user_id).first()
+    user_name = user.name if user else "User"
+    
+    # Remove member
+    db.delete(membership)
+    group.members_count = max(0, group.members_count - 1)
+    db.commit()
+    
+    return {
+        "message": f"{user_name} removed from {group.name}",
+        "success": True
+    }

@@ -14,7 +14,7 @@ from app.models.fundraiser import Fundraiser, FundraiserClick, FundraiserStatus
 from app.models.ad import Ad
 from app.models.lead_intelligence import (
     AdClick, AdImpression, CareerRoadmapRequest, CareerRoadmapView,
-    UserEngagementEvent, LeadScore, DailyAnalytics, AIInsight,
+    LeadActivity, LeadScore, MentorConnect, FeedEngagement, AIInsight,
     EventType, LeadCategory
 )
 from app.models.media import Media
@@ -40,7 +40,7 @@ __all__ = [
     "Fundraiser", "FundraiserClick", "FundraiserStatus",
     "Ad",
     "AdClick", "AdImpression", "CareerRoadmapRequest", "CareerRoadmapView",
-    "UserEngagementEvent", "LeadScore", "DailyAnalytics", "AIInsight",
+    "LeadActivity", "LeadScore", "MentorConnect", "FeedEngagement", "AIInsight",
     "EventType", "LeadCategory",
     "Media",
     "SavedRoadmap", "RoadmapProgress"

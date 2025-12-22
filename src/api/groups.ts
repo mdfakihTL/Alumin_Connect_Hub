@@ -79,5 +79,20 @@ export const groupsApi = {
   getMyGroups: async (): Promise<GroupListResponse> => {
     return apiClient.get<GroupListResponse>('/groups/my-groups');
   },
+
+  // Get group members (admin)
+  getGroupMembers: async (groupId: string): Promise<{ members: Array<{ id: string; name: string; email: string; avatar?: string; joined_at?: string }> }> => {
+    return apiClient.get(`/groups/${groupId}/members`);
+  },
+
+  // Add member to group (admin)
+  addMember: async (groupId: string, userId: string): Promise<MessageResponse> => {
+    return apiClient.post<MessageResponse>(`/groups/${groupId}/members`, { user_id: userId });
+  },
+
+  // Remove member from group (admin)
+  removeMember: async (groupId: string, userId: string): Promise<MessageResponse> => {
+    return apiClient.delete<MessageResponse>(`/groups/${groupId}/members/${userId}`);
+  },
 };
 

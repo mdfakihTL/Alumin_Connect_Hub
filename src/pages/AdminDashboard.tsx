@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUniversity } from '@/contexts/UniversityContext';
 import { useNavigate } from 'react-router-dom';
@@ -39,37 +39,36 @@ const AdminDashboard = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchStats = async () => {
-    if (!user?.universityId) return;
-
+  const fetchStats = useCallback(async () => {
     setIsLoading(true);
     try {
       const dashboardStats = await adminApi.getDashboardStats();
+      console.log('Admin Dashboard Stats:', dashboardStats);
       setStats({
-        totalAlumni: dashboardStats.total_alumni,
-        activeMentors: dashboardStats.active_mentors,
-        pendingDocuments: dashboardStats.pending_documents,
-        pendingEvents: dashboardStats.upcoming_events,
-        pendingPasswordResets: dashboardStats.password_resets,
-        activeGroups: dashboardStats.active_groups,
-        activeFundraisers: dashboardStats.active_fundraisers,
-        openTickets: dashboardStats.open_tickets,
+        totalAlumni: dashboardStats.total_alumni || 0,
+        activeMentors: dashboardStats.active_mentors || 0,
+        pendingDocuments: dashboardStats.pending_documents || 0,
+        pendingEvents: dashboardStats.upcoming_events || 0,
+        pendingPasswordResets: dashboardStats.password_resets || 0,
+        activeGroups: dashboardStats.active_groups || 0,
+        activeFundraisers: dashboardStats.active_fundraisers || 0,
+        openTickets: dashboardStats.open_tickets || 0,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch dashboard stats:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load dashboard statistics',
+        description: error?.detail || 'Failed to load dashboard statistics',
         variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     fetchStats();
-  }, [user?.universityId]);
+  }, [fetchStats]);
 
   return (
     <div className="min-h-screen bg-background">

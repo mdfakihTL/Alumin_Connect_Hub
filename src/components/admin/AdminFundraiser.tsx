@@ -8,7 +8,7 @@
  * - Track total and unique clicks
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { 
   DollarSign, Plus, Edit, Trash2, Calendar, ExternalLink, MousePointerClick,
   Users, TrendingUp, BarChart3, AlertCircle, CheckCircle, Clock, Eye,
-  Loader2, RefreshCw
+  Loader2, RefreshCw, Upload, ImageIcon, X
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { fundraiserApi, Fundraiser, FundraiserAnalyticsSummary, isValidUrl, getDaysRemaining } from '@/api/fundraiser';
@@ -78,6 +78,9 @@ const AdminFundraiser = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof FormData, string>>>({});
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load data
   const loadData = useCallback(async () => {
@@ -153,6 +156,75 @@ const AdminFundraiser = () => {
     setFormData(initialFormData);
     setFormErrors({});
     setEditingFundraiser(null);
+    setImagePreview(null);
+  };
+
+  // Handle image file selection and upload
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please upload a JPG, PNG, GIF, or WebP image',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({
+        title: 'File too large',
+        description: 'Image must be less than 10MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Show preview immediately
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreview(previewUrl);
+
+    // Upload to S3
+    setIsUploadingImage(true);
+    try {
+      const result = await fundraiserApi.uploadImage(file);
+      setFormData(prev => ({ ...prev, image: result.url }));
+      toast({
+        title: 'Image uploaded',
+        description: 'Your image has been uploaded successfully',
+      });
+    } catch (error: any) {
+      console.error('Image upload failed:', error);
+      toast({
+        title: 'Upload failed',
+        description: error.message || 'Failed to upload image. Please try again.',
+        variant: 'destructive',
+      });
+      // Clear preview on error
+      setImagePreview(null);
+      URL.revokeObjectURL(previewUrl);
+    } finally {
+      setIsUploadingImage(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Remove uploaded image
+  const handleRemoveImage = () => {
+    setFormData(prev => ({ ...prev, image: '' }));
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   // Handle form submission
@@ -219,6 +291,8 @@ const AdminFundraiser = () => {
       status: fundraiser.status,
     });
     setFormErrors({});
+    // Set image preview if editing with existing image
+    setImagePreview(fundraiser.image || null);
     setIsModalOpen(true);
   };
 
@@ -301,20 +375,29 @@ const AdminFundraiser = () => {
     </Card>
   );
 
+  // Track broken images
+  const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
+  
+  const handleImageError = (fundraiserId: string) => {
+    setBrokenImages(prev => new Set(prev).add(fundraiserId));
+  };
+
   // Render fundraiser card
   const renderFundraiserCard = (fundraiser: Fundraiser) => {
     const daysRemaining = getDaysRemaining(fundraiser.end_date);
     const effectiveStatus = fundraiser.effective_status;
+    const showImage = fundraiser.image && !brokenImages.has(fundraiser.id);
     
     return (
       <Card key={fundraiser.id} className="overflow-hidden hover:shadow-lg transition-shadow">
         {/* Image */}
-        {fundraiser.image && (
-          <div className="relative h-36 overflow-hidden">
+        {showImage && (
+          <div className="relative h-36 overflow-hidden bg-muted">
             <img 
-              src={fundraiser.image} 
+              src={fundraiser.image!} 
               alt={fundraiser.title}
               className="w-full h-full object-cover"
+              onError={() => handleImageError(fundraiser.id)}
             />
             <div className="absolute top-2 right-2">
               <Badge variant="outline" className={`${statusColors[effectiveStatus] || statusColors.draft} flex items-center gap-1`}>
@@ -329,7 +412,7 @@ const AdminFundraiser = () => {
           {/* Header */}
           <div className="flex items-start justify-between gap-2 mb-3">
             <h3 className="font-semibold text-lg line-clamp-1">{fundraiser.title}</h3>
-            {!fundraiser.image && (
+            {!showImage && (
               <Badge variant="outline" className={`${statusColors[effectiveStatus] || statusColors.draft} flex items-center gap-1 shrink-0`}>
                 {statusIcons[effectiveStatus]}
                 {effectiveStatus.charAt(0).toUpperCase() + effectiveStatus.slice(1)}
@@ -477,15 +560,91 @@ const AdminFundraiser = () => {
                     {formErrors.description && <p className="text-xs text-destructive">{formErrors.description}</p>}
                   </div>
                   
-                  {/* Image URL */}
-                  <div className="space-y-2">
-                    <Label htmlFor="image">Image URL (optional)</Label>
+                  {/* Image Upload */}
+                  <div className="space-y-3">
+                    <Label>Campaign Image (optional)</Label>
+                    
+                    {/* Image Preview */}
+                    {(formData.image || imagePreview) && (
+                      <div className="relative w-full h-40 rounded-lg overflow-hidden bg-muted">
+                        <img 
+                          src={imagePreview || formData.image} 
+                          alt="Campaign preview" 
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.src = '';
+                            e.currentTarget.classList.add('hidden');
+                          }}
+                        />
+                        {isUploadingImage && (
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                            <Loader2 className="w-8 h-8 text-white animate-spin" />
+                          </div>
+                        )}
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-2 right-2 h-8 w-8"
+                          onClick={handleRemoveImage}
+                          disabled={isUploadingImage}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
+                    
+                    {/* Upload Button */}
+                    {!formData.image && !imagePreview && (
+                      <div 
+                        className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                        />
+                        <div className="flex flex-col items-center gap-2">
+                          {isUploadingImage ? (
+                            <>
+                              <Loader2 className="w-10 h-10 text-muted-foreground animate-spin" />
+                              <p className="text-sm text-muted-foreground">Uploading...</p>
+                            </>
+                          ) : (
+                            <>
+                              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                                <Upload className="w-6 h-6 text-primary" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium">Click to upload image</p>
+                                <p className="text-xs text-muted-foreground">JPG, PNG, GIF, WebP (max 10MB)</p>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Or enter URL manually */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-px bg-border" />
+                      <span className="text-xs text-muted-foreground">or enter URL</span>
+                      <div className="flex-1 h-px bg-border" />
+                    </div>
+                    
                     <Input
                       id="image"
-                      placeholder="https://example.com/image.jpg"
+                      placeholder="https://images.unsplash.com/photo-xxx.jpg"
                       value={formData.image}
-                      onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                      onChange={(e) => {
+                        setFormData({ ...formData, image: e.target.value });
+                        setImagePreview(null);
+                      }}
                       className={formErrors.image ? 'border-destructive' : ''}
+                      disabled={isUploadingImage}
                     />
                     {formErrors.image && <p className="text-xs text-destructive">{formErrors.image}</p>}
                   </div>

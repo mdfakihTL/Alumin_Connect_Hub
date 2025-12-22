@@ -15,7 +15,8 @@ from app.api.routes import (
     universities,
     lead_intelligence,
     course_intelligence,
-    fundraiser
+    fundraiser,
+    mentors
 )
 
 __all__ = [
@@ -34,5 +35,6 @@ __all__ = [
     "universities",
     "lead_intelligence",
     "course_intelligence",
-    "fundraiser"
+    "fundraiser",
+    "mentors"
 ]

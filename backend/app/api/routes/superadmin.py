@@ -79,6 +79,9 @@ async def get_superadmin_dashboard(
         User.role == UserRole.ALUMNI
     ).count()
     
+    # Total ads
+    total_ads = db.query(Ad).count()
+    
     # Active ads
     active_ads = db.query(Ad).filter(
         Ad.is_active == True
@@ -135,6 +138,7 @@ async def get_superadmin_dashboard(
         total_posts=total_posts,
         total_events=total_events,
         total_groups=total_groups,
+        total_ads=total_ads,
         active_ads=active_ads,
         pending_admin_resets=pending_resets,
         universities=university_stats
@@ -423,7 +427,8 @@ async def create_admin(
             is_active=admin.is_active if admin.is_active is not None else True,
             force_password_reset=admin.force_password_reset or False,
             temp_password_expires_at=admin.temp_password_expires_at,
-            created_at=admin.created_at
+            created_at=admin.created_at,
+            generated_password=plain_password  # Return the generated password
         )
         
     except ValueError as e:
@@ -486,7 +491,8 @@ async def list_all_users(
     
     if role:
         try:
-            role_enum = UserRole(role.upper())
+            # UserRole enum values are lowercase (superadmin, admin, alumni)
+            role_enum = UserRole(role.lower())
             query = query.filter(User.role == role_enum)
         except ValueError:
             pass
@@ -812,7 +818,8 @@ async def approve_admin_password_reset(
         return {
             "message": "Password reset approved. New credentials sent to admin.",
             "success": True,
-            "request_id": reset_request.id
+            "request_id": reset_request.id,
+            "new_password": new_password  # Return the generated password
         }
         
     except ValueError as e:
@@ -1030,23 +1037,24 @@ def parse_target_universities(ad) -> List[str]:
 
 def ad_to_response(ad: Ad) -> GlobalAdResponse:
     """Convert Ad model to GlobalAdResponse."""
+    image_url = ad.image or ad.media_url or ""
+    link_url = ad.link or ad.link_url
     return GlobalAdResponse(
         id=ad.id,
         title=ad.title,
         description=ad.description,
-        media_url=ad.media_url or ad.image or "",
-        media_type=ad.media_type or "image",
-        link_url=ad.link_url or ad.link,
+        image=image_url,
+        link=link_url,
         placement=ad.placement or "feed",
         target_universities=parse_target_universities(ad),
         is_active=ad.is_active,
         impressions=ad.impressions or 0,
         clicks=ad.clicks or 0,
         created_at=ad.created_at,
-        # Legacy fields
-        image=ad.image,
-        link=ad.link,
-        type=ad.type or "general"
+        type=ad.type or "general",
+        # Legacy fields for compatibility
+        media_url=image_url,
+        link_url=link_url
     )
 
 
@@ -1103,10 +1111,10 @@ async def create_ad(
     db: Session = Depends(get_db)
 ):
     """
-    Create a new advertisement.
+    Create a new advertisement (image only).
     
-    - `media_url`: URL to the image or video
-    - `media_type`: 'image' or 'video'
+    - `image`: URL to the image
+    - `link`: Target URL when clicking "Learn More"
     - `placement`: 'left-sidebar', 'right-sidebar', or 'feed'
     - `target_universities`: List of university IDs or ['all'] for all universities
     """
@@ -1118,13 +1126,9 @@ async def create_ad(
             detail=f"Invalid placement. Must be one of: {', '.join(valid_placements)}"
         )
     
-    # Validate media_type
-    valid_media_types = ["image", "video"]
-    if ad_data.media_type not in valid_media_types:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid media_type. Must be one of: {', '.join(valid_media_types)}"
-        )
+    # Get image from either field
+    image_url = ad_data.image or ad_data.media_url
+    link_url = ad_data.link or ad_data.link_url
     
     # Validate target universities
     if ad_data.target_universities and "all" not in ad_data.target_universities:
@@ -1139,16 +1143,16 @@ async def create_ad(
     ad = Ad(
         title=ad_data.title,
         description=ad_data.description,
-        media_url=ad_data.media_url,
-        media_type=ad_data.media_type,
-        link_url=ad_data.link_url,
+        image=image_url,
+        link=link_url,
         placement=ad_data.placement,
         target_universities=json.dumps(ad_data.target_universities),
         is_active=True,
-        # Legacy fields
-        image=ad_data.image or ad_data.media_url,
-        link=ad_data.link or ad_data.link_url,
-        type=ad_data.type or "general"
+        type=ad_data.type or "general",
+        # Legacy fields for compatibility
+        media_url=image_url,
+        link_url=link_url,
+        media_type="image"
     )
     
     db.add(ad)
@@ -1166,7 +1170,7 @@ async def update_ad(
     db: Session = Depends(get_db)
 ):
     """
-    Update an existing advertisement.
+    Update an existing advertisement (image only).
     """
     ad = db.query(Ad).filter(Ad.id == ad_id).first()
     
@@ -1185,15 +1189,6 @@ async def update_ad(
                 detail=f"Invalid placement. Must be one of: {', '.join(valid_placements)}"
             )
     
-    # Validate media_type if provided
-    if ad_data.media_type is not None:
-        valid_media_types = ["image", "video"]
-        if ad_data.media_type not in valid_media_types:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid media_type. Must be one of: {', '.join(valid_media_types)}"
-            )
-    
     # Validate target universities if provided
     if ad_data.target_universities is not None and "all" not in ad_data.target_universities:
         for uni_id in ad_data.target_universities:
@@ -1209,30 +1204,29 @@ async def update_ad(
         ad.title = ad_data.title
     if ad_data.description is not None:
         ad.description = ad_data.description
-    if ad_data.media_url is not None:
+    
+    # Handle image field (primary) or legacy media_url
+    if ad_data.image is not None:
+        ad.image = ad_data.image
+        ad.media_url = ad_data.image  # Keep in sync
+    elif ad_data.media_url is not None:
+        ad.image = ad_data.media_url
         ad.media_url = ad_data.media_url
-        ad.image = ad_data.media_url  # Keep legacy field in sync
-    if ad_data.media_type is not None:
-        ad.media_type = ad_data.media_type
-    if ad_data.link_url is not None:
+    
+    # Handle link field (primary) or legacy link_url
+    if ad_data.link is not None:
+        ad.link = ad_data.link
+        ad.link_url = ad_data.link  # Keep in sync
+    elif ad_data.link_url is not None:
+        ad.link = ad_data.link_url
         ad.link_url = ad_data.link_url
-        ad.link = ad_data.link_url  # Keep legacy field in sync
+    
     if ad_data.placement is not None:
         ad.placement = ad_data.placement
     if ad_data.target_universities is not None:
         ad.target_universities = json.dumps(ad_data.target_universities)
     if ad_data.is_active is not None:
         ad.is_active = ad_data.is_active
-    
-    # Legacy field updates
-    if ad_data.image is not None:
-        ad.image = ad_data.image
-        if ad.media_url is None:
-            ad.media_url = ad_data.image
-    if ad_data.link is not None:
-        ad.link = ad_data.link
-        if ad.link_url is None:
-            ad.link_url = ad_data.link
     
     db.commit()
     db.refresh(ad)
